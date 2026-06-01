@@ -4,6 +4,7 @@ import static de.tum.cit.aet.artemis.core.config.ArtemisConstants.SPRING_PROFILE
 
 import java.time.ZonedDateTime;
 import java.util.HashSet;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -21,7 +22,9 @@ import de.tum.cit.aet.artemis.core.util.CourseFactory;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.participation.util.ParticipationUtilService;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseTestRepository;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
@@ -80,14 +83,14 @@ public class MathExerciseUtilService {
     }
 
     /**
-     * Creates and saves an ExampleSubmission (with its own MathSubmission carrying {@code content}) for the given exercise.
+     * Creates and saves an ExampleSubmission (with its own MathSubmission carrying a single derivation step) for the given exercise.
      *
      * @param exercise the exercise the example submission belongs to
-     * @param content  the opaque work payload stored on the underlying MathSubmission
+     * @param ruleId   the applied-rule id of the single derivation step stored on the underlying MathSubmission
      * @return the saved ExampleSubmission
      */
-    public ExampleSubmission addExampleSubmissionToMathExercise(MathExercise exercise, String content) {
-        MathSubmission submission = saveExampleMathSubmission(content);
+    public ExampleSubmission addExampleSubmissionToMathExercise(MathExercise exercise, String ruleId) {
+        MathSubmission submission = saveExampleMathSubmission(ruleId);
         ExampleSubmission exampleSubmission = new ExampleSubmission();
         exampleSubmission.setExercise(exercise);
         exampleSubmission.setSubmission(submission);
@@ -95,15 +98,21 @@ public class MathExerciseUtilService {
     }
 
     /**
-     * Creates and persists a MathSubmission flagged as an example submission carrying the given {@code content}.
+     * Creates and persists a MathSubmission flagged as an example submission carrying a single derivation step with the given rule id.
      *
-     * @param content the opaque work payload stored on the MathSubmission
+     * @param ruleId the applied-rule id of the single derivation step stored on the MathSubmission
      * @return the saved MathSubmission
      */
-    private MathSubmission saveExampleMathSubmission(String content) {
+    private MathSubmission saveExampleMathSubmission(String ruleId) {
         MathSubmission submission = MathExerciseFactory.generateMathSubmission(true);
         submission.setExampleSubmission(true);
-        submission.setContent(content);
+        DerivationStep step = new DerivationStep();
+        step.setStepIndex(0);
+        step.setAppliedRuleId(ruleId);
+        step.setTargetNodePath(List.of());
+        step.setResultExpression(MathNodes.var("x"));
+        step.setSubmission(submission);
+        submission.getSteps().add(step);
         return mathSubmissionRepository.save(submission);
     }
 

@@ -63,6 +63,8 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotNull();
         assertThat(result.description()).isEqualTo(newExercise.description());
+        assertThat(result.sourceExpression()).isNotNull();
+        assertThat(result.targetExpression()).isNotNull();
     }
 
     @Test
@@ -152,8 +154,8 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_preservesManualDerivation() throws Exception {
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null,
-                null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, ZonedDateTime.now().minusDays(1), null,
-                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), true);
+                null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null,
+                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), null, null, true, false, false, null, null, false, null);
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);
@@ -168,9 +170,8 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         ExampleSubmission originalExampleSubmission = mathExerciseUtilService.addExampleSubmissionToMathExercise(exercise, "example work");
         long originalSubmissionId = originalExampleSubmission.getSubmission().getId();
 
-        MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported With Example", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null, null,
-                10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
-                ZonedDateTime.now().plusDays(2), null, course.getId(), false);
+        MathExerciseDTO importTarget = MathExerciseFactory.generateMathExerciseDTO(ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(1),
+                ZonedDateTime.now().plusDays(2), course);
 
         // Import must succeed: sharing the template's submission would violate the unique @OneToOne constraint on ExampleSubmission.submission.
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
@@ -182,7 +183,10 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(copiedSubmission).isNotNull();
         // The copy must be a distinct submission, not the shared template one, so deleting either exercise cannot cascade-remove the other's data.
         assertThat(copiedSubmission.getId()).isNotEqualTo(originalSubmissionId);
-        assertThat(((MathSubmission) copiedSubmission).getContent()).isEqualTo("example work");
+        // The derivation steps must be deep-copied onto the new submission (not shared with the template's).
+        MathSubmission reloadedCopy = mathSubmissionRepository.findByIdWithStepsAndResults(copiedSubmission.getId()).orElseThrow();
+        assertThat(reloadedCopy.getSteps()).hasSize(1);
+        assertThat(reloadedCopy.getSteps().getFirst().getAppliedRuleId()).isEqualTo("example work");
     }
 
     @Test
@@ -191,9 +195,8 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         ExampleSubmission originalExampleSubmission = mathExerciseUtilService.addExampleSubmissionWithAssessmentToMathExercise(exercise, "assessed work", 7.0, "good derivation");
         long originalResultId = originalExampleSubmission.getSubmission().getResults().getFirst().getId();
 
-        MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported With Assessment", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null,
-                null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, ZonedDateTime.now().minusDays(1), null,
-                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), false);
+        MathExerciseDTO importTarget = MathExerciseFactory.generateMathExerciseDTO(ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(1),
+                ZonedDateTime.now().plusDays(2), course);
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);

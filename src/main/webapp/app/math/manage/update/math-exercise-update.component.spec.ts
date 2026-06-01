@@ -10,20 +10,20 @@ import { of } from 'rxjs';
 import { MathExerciseUpdateComponent } from 'app/math/manage/update/math-exercise-update.component';
 import { MathExerciseService } from 'app/math/manage/service/math-exercise.service';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
+import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
 
 describe('MathExerciseUpdateComponent', () => {
     setupTestBed({ zoneless: true });
 
     let component: MathExerciseUpdateComponent;
-    let mathExerciseService: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; import: ReturnType<typeof vi.fn> };
+    let mathExerciseService: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
     let router: { navigate: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
         mathExerciseService = {
             create: vi.fn().mockReturnValue(of({ body: new MathExercise(undefined) })),
             update: vi.fn().mockReturnValue(of({ body: new MathExercise(undefined) })),
-            import: vi.fn().mockReturnValue(of({ body: new MathExercise(undefined) })),
         };
         router = { navigate: vi.fn() };
         const exercise = new MathExercise(undefined);
@@ -36,6 +36,7 @@ describe('MathExerciseUpdateComponent', () => {
                 { provide: MathExerciseService, useValue: mathExerciseService },
                 { provide: Router, useValue: router },
                 MockProvider(ExerciseService, { validateDate: vi.fn() }),
+                MockProvider(ProfileService, { isDevelopment: () => false }),
                 MockProvider(TranslateService, {
                     instant: (k: string) => k,
                     get: (k: string) => of(k) as any,
@@ -43,7 +44,7 @@ describe('MathExerciseUpdateComponent', () => {
                     onTranslationChange: of() as any,
                     onDefaultLangChange: of() as any,
                 }),
-                { provide: ActivatedRoute, useValue: { data: of({ mathExercise: exercise }), snapshot: { params: { courseId: 7 }, url: [] } } },
+                { provide: ActivatedRoute, useValue: { data: of({ mathExercise: exercise }), snapshot: { params: { courseId: 7 } } } },
             ],
         }).overrideComponent(MathExerciseUpdateComponent, { set: { imports: [], template: '' } });
 
@@ -52,9 +53,22 @@ describe('MathExerciseUpdateComponent', () => {
         component.ngOnInit();
     });
 
-    it('initialises with the resolved exercise', () => {
+    it('initialises with exampleDerivations defaulted to an empty array', () => {
         expect(component.mathExercise).toBeTruthy();
-        expect(component.isSaving()).toBe(false);
+        expect(component.mathExercise.exampleDerivations).toEqual([]);
+        expect(component.isSaving).toBe(false);
+    });
+
+    it('addExampleDerivation pushes a new empty step list', () => {
+        component.addExampleDerivation();
+        expect(component.mathExercise.exampleDerivations).toHaveLength(1);
+    });
+
+    it('removeExampleDerivation drops the entry at the given index', () => {
+        component.addExampleDerivation();
+        component.addExampleDerivation();
+        component.removeExampleDerivation(0);
+        expect(component.mathExercise.exampleDerivations).toHaveLength(1);
     });
 
     it('save() routes through create when the exercise has no id', () => {
@@ -66,13 +80,5 @@ describe('MathExerciseUpdateComponent', () => {
         component.mathExercise.id = 5;
         component.save();
         expect(mathExerciseService.update).toHaveBeenCalled();
-    });
-
-    it('save() routes through import in import mode even when the exercise has an id', () => {
-        component.mathExercise.id = 5;
-        component.isImport.set(true);
-        component.save();
-        expect(mathExerciseService.import).toHaveBeenCalled();
-        expect(mathExerciseService.update).not.toHaveBeenCalled();
     });
 });

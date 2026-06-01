@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.account.repository.UserRepository;
 import de.tum.cit.aet.artemis.core.exception.AccessForbiddenException;
+import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.security.Role;
 import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastStudent;
 import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastTutor;
@@ -26,7 +27,9 @@ import de.tum.cit.aet.artemis.core.service.AuthorizationCheckService;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
@@ -85,13 +88,31 @@ public class MathSubmissionResource {
 
         MathSubmission submission;
         if (dto.id() != null) {
-            // Updating an existing submission: load it so only content/submitted change and the rest of the row stays intact.
-            submission = mathSubmissionRepository.findByIdWithResultsAndParticipation(dto.id()).orElseThrow();
+            // Updating an existing submission: load it (with participation) so the ownership check below has data and only steps/submitted change.
+            submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(dto.id()).orElseThrow();
             submission.setSubmitted(Boolean.TRUE.equals(dto.submitted()));
-            submission.setContent(dto.content());
+            // Replace the derivation steps with the incoming ones (orphanRemoval deletes the old step rows).
+            submission.getSteps().clear();
+            for (DerivationStep step : dto.toEntity().getSteps()) {
+                step.setSubmission(submission);
+                submission.getSteps().add(step);
+            }
         }
         else {
             submission = dto.toEntity();
+            for (DerivationStep step : submission.getSteps()) {
+                step.setSubmission(submission);
+            }
+        }
+        // Reject wildcard expressions and normalize each step's result tree before persisting.
+        for (DerivationStep step : submission.getSteps()) {
+            try {
+                MathNodes.assertWildcardFree(step.getResultExpression());
+            }
+            catch (IllegalArgumentException e) {
+                throw new BadRequestAlertException(e.getMessage(), "mathSubmission", "wildcardNotAllowed");
+            }
+            step.setResultExpression(MathNodes.normalize(step.getResultExpression()));
         }
         // Re-check course membership and, for updates, verify the submission belongs to the current user (prevents injecting into another student's submission).
         mathSubmissionService.checkSubmissionAllowanceElseThrow(mathExercise, submission, user);
@@ -139,7 +160,7 @@ public class MathSubmissionResource {
         Optional<MathSubmission> latestSubmission = participation.findLatestSubmission().filter(s -> s instanceof MathSubmission).map(s -> (MathSubmission) s);
 
         MathSubmission submission;
-        submission = latestSubmission.map(mathSubmission -> mathSubmissionRepository.findByIdWithResults(mathSubmission.getId()).orElseThrow()).orElseGet(MathSubmission::new);
+        submission = latestSubmission.map(mathSubmission -> mathSubmissionRepository.findByIdWithStepsAndResults(mathSubmission.getId()).orElseThrow()).orElseGet(MathSubmission::new);
         submission.setParticipation(participation);
         // Strip solution/grading data before returning the exercise through the editor DTO (nulls example solution when unpublished).
         mathExercise.filterSensitiveInformation();
@@ -156,7 +177,7 @@ public class MathSubmissionResource {
     @EnforceAtLeastStudent
     public ResponseEntity<MathSubmissionDTO> getMathSubmission(@PathVariable Long submissionId) {
         log.debug("REST request to get MathSubmission : {}", submissionId);
-        MathSubmission submission = mathSubmissionRepository.findByIdWithResultsAndParticipation(submissionId).orElseThrow();
+        MathSubmission submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(submissionId).orElseThrow();
         if (!(submission.getParticipation() instanceof StudentParticipation participation) || !(participation.getExercise() instanceof MathExercise mathExercise)) {
             throw new AccessForbiddenException("mathSubmission", submissionId);
         }

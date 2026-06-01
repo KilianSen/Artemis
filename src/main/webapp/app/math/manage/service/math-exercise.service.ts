@@ -35,7 +35,7 @@ export class MathExerciseService implements ExerciseServicable<MathExercise> {
     }
 
     reevaluateAndUpdate(mathExercise: MathExercise, req?: any): Observable<EntityResponseType> {
-        // The scaffold has no automatic grading to re-evaluate, so this delegates to a plain update.
+        // No automatic grading to re-evaluate yet, so this delegates to a plain update.
         return this.update(mathExercise, req);
     }
 

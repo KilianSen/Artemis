@@ -1,22 +1,30 @@
 import { Component, OnInit, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
-import { resetForImport } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { MathExerciseService } from '../service/math-exercise.service';
 import { FormsModule } from '@angular/forms';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ExerciseCategory } from 'app/exercise/shared/entities/exercise/exercise-category.model';
-import { CategorySelectorPrimengComponent } from 'app/exercise/category-selector-primeng/category-selector-primeng.component';
+import { CategorySelectorComponent } from 'app/exercise/category-selector/category-selector.component';
 import { DifficultyPickerComponent } from 'app/exercise/difficulty-picker/difficulty-picker.component';
 import { IncludedInOverallScorePickerComponent } from 'app/exercise/included-in-overall-score-picker/included-in-overall-score-picker.component';
 import { MarkdownEditorMonacoComponent } from 'app/editor/markdown-editor/monaco/markdown-editor-monaco.component';
 import { FormDateTimePickerComponent } from 'app/shared-ui/date-time-picker/date-time-picker.component';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
-import { DocumentationButtonComponent, DocumentationType } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
+import { MathNode } from '../../shared/entities/math-node.model';
+import { DerivationStep } from '../../shared/entities/derivation-step.model';
+import { GOAL_MODE_LABELS, GoalMode } from '../../shared/entities/goal-mode.model';
+import { MathBuilderComponent } from './math-builder/math-builder.component';
+import { MathDerivationWorkspaceComponent } from './math-derivation-workspace/math-derivation-workspace.component';
+import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
 import { ButtonModule } from 'primeng/button';
+import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
+import { MessageModule } from 'primeng/message';
+import { SelectModule } from 'primeng/select';
+import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -26,16 +34,21 @@ import { TooltipModule } from 'primeng/tooltip';
     imports: [
         FormsModule,
         TranslateDirective,
-        CategorySelectorPrimengComponent,
+        CategorySelectorComponent,
         DifficultyPickerComponent,
         IncludedInOverallScorePickerComponent,
         MarkdownEditorMonacoComponent,
         FormDateTimePickerComponent,
         ArtemisTranslatePipe,
-        DocumentationButtonComponent,
+        MathBuilderComponent,
+        MathDerivationWorkspaceComponent,
         ButtonModule,
+        CardModule,
         CheckboxModule,
         InputTextModule,
+        MessageModule,
+        SelectModule,
+        TagModule,
         TextareaModule,
         TooltipModule,
     ],
@@ -45,24 +58,18 @@ export class MathExerciseUpdateComponent implements OnInit {
     private mathExerciseService = inject(MathExerciseService);
     private exerciseService = inject(ExerciseService);
     private router = inject(Router);
+    private profileService = inject(ProfileService);
 
-    protected readonly documentationType: DocumentationType = 'Exercise';
-
-    // mathExercise is deeply template-bound through [(ngModel)] and populated asynchronously from the route;
-    // using a getter/setter-over-signal facade satisfies prefer-signal-template-state while
-    // keeping the existing synchronous reads/writes ([(ngModel)] bindings, this.mathExercise = ... assignments) unchanged.
-    private readonly _mathExercise = signal<MathExercise>(undefined!);
-    get mathExercise(): MathExercise {
-        return this._mathExercise();
-    }
-    set mathExercise(value: MathExercise) {
-        this._mathExercise.set(value);
-    }
-
-    readonly isSaving = signal(false);
-    readonly isImport = signal(false);
+    mathExercise: MathExercise;
+    isSaving: boolean;
     exerciseCategories = signal<ExerciseCategory[]>([]);
     existingCategories = signal<ExerciseCategory[]>([]);
+    onlyShowApplicableRules = signal(false);
+
+    readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({
+        value,
+        label: GOAL_MODE_LABELS[value],
+    }));
 
     releaseDateField = viewChild<FormDateTimePickerComponent>('releaseDate');
     startDateField = viewChild<FormDateTimePickerComponent>('startDate');
@@ -70,16 +77,13 @@ export class MathExerciseUpdateComponent implements OnInit {
     assessmentDateField = viewChild<FormDateTimePickerComponent>('assessmentDueDate');
 
     ngOnInit() {
-        this.isSaving.set(false);
-        this.isImport.set(this.activatedRoute.snapshot.url.some((segment) => segment.path === 'import'));
+        this.isSaving = false;
         this.activatedRoute.data.subscribe(({ mathExercise }) => {
             this.mathExercise = mathExercise;
-            if (this.isImport()) {
-                // Keep the source id (the import endpoint needs it as a query parameter) but clear the
-                // schedule-related fields so the copy starts as a fresh, unscheduled exercise.
-                resetForImport(this.mathExercise);
-            }
             this.exerciseCategories.set(this.mathExercise.categories || []);
+            if (!this.mathExercise.exampleDerivations) {
+                this.mathExercise.exampleDerivations = [];
+            }
         });
     }
 
@@ -91,14 +95,91 @@ export class MathExerciseUpdateComponent implements OnInit {
         this.exerciseService.validateDate(this.mathExercise);
     }
 
+    onSourceExpressionChange(node: MathNode | undefined) {
+        this.mathExercise.sourceExpression = node;
+        this.mathExercise.exampleDerivations = [];
+    }
+
+    onTargetExpressionChange(node: MathNode | undefined) {
+        this.mathExercise.targetExpression = node;
+        // Workspaces re-evaluate isComplete automatically via the targetExpression signal input.
+    }
+
+    onGoalExpressionChange(node: MathNode | undefined) {
+        this.mathExercise.goalExpression = node;
+        this.mathExercise.exampleDerivations = [];
+    }
+
+    onGoalModeChange(mode: GoalMode) {
+        this.mathExercise.goalMode = mode;
+        // Reset example derivations — they're tied to the previous start expression.
+        this.mathExercise.exampleDerivations = [];
+    }
+
+    addExampleDerivation(): void {
+        this.mathExercise.exampleDerivations = [...(this.mathExercise.exampleDerivations ?? []), []];
+    }
+
+    removeExampleDerivation(index: number): void {
+        const updated = [...(this.mathExercise.exampleDerivations ?? [])];
+        updated.splice(index, 1);
+        this.mathExercise.exampleDerivations = updated;
+    }
+
+    onExampleStepsChange(index: number, steps: DerivationStep[]): void {
+        const updated = [...(this.mathExercise.exampleDerivations ?? [])];
+        updated[index] = steps;
+        this.mathExercise.exampleDerivations = updated;
+    }
+
+    // Dev-only JSON import/export tools — gated by the isDev getter (profileService.isDevelopment()).
+    get isDev(): boolean {
+        return this.profileService.isDevelopment();
+    }
+
+    isDragOver = signal(false);
+
+    exportJson(): void {
+        const json = JSON.stringify(this.mathExercise, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `math-exercise-${this.mathExercise.id ?? 'new'}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    importJson(event: Event): void {
+        const file = (event.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        this.readJsonFile(file);
+        (event.target as HTMLInputElement).value = '';
+    }
+
+    onFileDrop(event: DragEvent): void {
+        event.preventDefault();
+        this.isDragOver.set(false);
+        const file = event.dataTransfer?.files?.[0];
+        if (file) this.readJsonFile(file);
+    }
+
+    private readJsonFile(file: File): void {
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(reader.result as string) as MathExercise;
+                Object.assign(this.mathExercise, parsed);
+            } catch {
+                // malformed JSON — silently ignore in dev helper
+            }
+        };
+        reader.readAsText(file);
+    }
+
     save() {
-        this.isSaving.set(true);
-        if (this.isImport()) {
-            this.mathExerciseService.import(this.mathExercise).subscribe({
-                next: () => this.onSaveSuccess(),
-                error: () => this.onSaveError(),
-            });
-        } else if (this.mathExercise.id !== undefined) {
+        this.isSaving = true;
+        if (this.mathExercise.id !== undefined) {
             this.mathExerciseService.update(this.mathExercise).subscribe({
                 next: () => this.onSaveSuccess(),
                 error: () => this.onSaveError(),
@@ -116,11 +197,11 @@ export class MathExerciseUpdateComponent implements OnInit {
     }
 
     private onSaveSuccess() {
-        this.isSaving.set(false);
+        this.isSaving = false;
         this.previousState();
     }
 
     private onSaveError() {
-        this.isSaving.set(false);
+        this.isSaving = false;
     }
 }

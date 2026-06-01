@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Adds the symbolic expression model and the structured derivation submission to math exercises.
+         Replaces the scaffold's opaque submission payload (math_submission_details) with ordered derivation steps. -->
+
+    <changeSet id="20260602000000-1" author="kilian">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="math_submission_details"/>
+        </preConditions>
+        <dropTable tableName="math_submission_details"/>
+    </changeSet>
+
+    <changeSet id="20260602000000-2" author="kilian">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="math_exercise_details" columnName="source_expression"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="math_exercise_details">
+            <column name="source_expression" type="longtext"/>
+            <column name="target_expression" type="longtext"/>
+            <column name="goal_expression" type="longtext"/>
+            <column name="example_derivations" type="longtext"/>
+            <column name="allow_verification" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="only_show_applicable_rules" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ac_normalization" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="goal_mode" type="varchar(16)" defaultValue="TRANSFORMATION">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260602000000-3" author="kilian">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="math_derivation_step"/>
+            </not>
+        </preConditions>
+        <createTable tableName="math_derivation_step">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="submission_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_index" type="integer">
+                <constraints nullable="false"/>
+            </column>
+            <column name="applied_rule_id" type="varchar(255)"/>
+            <column name="target_node_path" type="longtext"/>
+            <column name="result_expression" type="longtext"/>
+            <column name="direction" type="varchar(8)" defaultValue="FORWARD">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint
+            baseTableName="math_derivation_step"
+            baseColumnNames="submission_id"
+            constraintName="fk_math_derivation_step_submission_id"
+            referencedTableName="submission"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

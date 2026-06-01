@@ -1,9 +1,14 @@
 package de.tum.cit.aet.artemis.math.domain;
 
-import jakarta.persistence.Column;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
-import jakarta.persistence.SecondaryTable;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -12,26 +17,23 @@ import de.tum.cit.aet.artemis.exercise.domain.Submission;
 
 /**
  * A MathSubmission.
- *
- * <p>
- * The scaffold persists the student's work as an opaque {@code content} payload. The structured
- * derivation model (steps, expression trees) is layered on in a later change.
  */
 @Entity
 @DiscriminatorValue(value = "R")
-@SecondaryTable(name = "math_submission_details")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class MathSubmission extends Submission {
 
-    @Column(table = "math_submission_details", name = "content")
-    private String content;
+    @JsonIgnore
+    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("stepIndex ASC")
+    private List<DerivationStep> steps = new ArrayList<>();
 
-    public String getContent() {
-        return content;
+    public List<DerivationStep> getSteps() {
+        return steps;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setSteps(List<DerivationStep> steps) {
+        this.steps = steps != null ? steps : new ArrayList<>();
     }
 
     @Override
@@ -42,7 +44,7 @@ public class MathSubmission extends Submission {
     @JsonIgnore
     @Override
     public boolean isEmpty() {
-        return content == null || content.isBlank();
+        return steps == null || steps.isEmpty();
     }
 
     @Override

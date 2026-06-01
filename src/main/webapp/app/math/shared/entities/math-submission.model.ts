@@ -1,4 +1,5 @@
 import { Submission, SubmissionExerciseType } from 'app/exercise/shared/entities/submission/submission.model';
+import { DerivationStep } from './derivation-step.model';
 import { MathExercise } from './math-exercise.model';
 
 export interface MathParticipation {
@@ -9,7 +10,7 @@ export interface MathParticipation {
 }
 
 export class MathSubmission extends Submission {
-    public content?: string;
+    public steps?: DerivationStep[];
     declare participation?: MathParticipation;
 
     constructor() {

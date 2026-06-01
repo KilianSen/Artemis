@@ -1,6 +1,6 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpResponse } from '@angular/common/http';
 import { NonProgrammingExerciseDetailCommonActionsComponent } from 'app/exercise/exercise-detail-common-actions/non-programming-exercise-detail-common-actions.component';
 import { ExerciseDetailStatisticsComponent } from 'app/exercise/statistics/exercise-detail-statistic/exercise-detail-statistics.component';
@@ -26,6 +26,7 @@ import {
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 import { DetailOverviewListComponent } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
+import { MathNodeLatexPipe } from 'app/math/shared/math-node-latex.pipe';
 import { ArtemisDatePipe } from 'app/foundation/pipes/artemis-date.pipe';
 import { DecimalPipe } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
@@ -42,6 +43,8 @@ import { TagModule } from 'primeng/tag';
         NonProgrammingExerciseDetailCommonActionsComponent,
         ExerciseDetailStatisticsComponent,
         DetailOverviewListComponent,
+        MathNodeLatexPipe,
+        RouterLink,
         ArtemisDatePipe,
         DecimalPipe,
         ButtonModule,
@@ -60,57 +63,51 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
 
     readonly ExerciseType = ExerciseType;
 
-    readonly mathExercise = signal<MathExercise>(undefined!);
-    readonly course = signal<Course | undefined>(undefined);
+    mathExercise: MathExercise;
+    course?: Course;
     formattedProblemStatement: SafeHtml | null;
     formattedExampleSolution: SafeHtml | null;
-    readonly submissions = signal<MathSubmission[]>([]);
+    submissions: MathSubmission[] = [];
 
-    readonly doughnutStats = signal<ExerciseManagementStatisticsDto>(undefined!);
-    readonly detailOverviewSections = signal<DetailOverviewSection[]>([]);
+    doughnutStats: ExerciseManagementStatisticsDto;
+    detailOverviewSections: DetailOverviewSection[];
 
+    private subscription: Subscription;
     private eventSubscriber: Subscription;
 
     ngOnInit() {
         this.route.data.subscribe(({ mathExercise }) => {
-            this.mathExercise.set(mathExercise);
+            this.mathExercise = mathExercise;
             this.onExerciseLoaded();
         });
         this.registerChangeInMathExercises();
     }
 
     onExerciseLoaded() {
-        const exercise = this.mathExercise();
-        this.course.set(exercise.course);
+        this.course = this.mathExercise.course;
 
-        this.formattedProblemStatement = this.artemisMarkdownService.safeHtmlForMarkdown(exercise.problemStatement);
-        this.formattedExampleSolution = this.artemisMarkdownService.safeHtmlForMarkdown(exercise.exampleSolution);
-        this.detailOverviewSections.set(this.getExerciseDetailSections());
+        this.formattedProblemStatement = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise.problemStatement);
+        this.formattedExampleSolution = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise.exampleSolution);
+        this.detailOverviewSections = this.getExerciseDetailSections();
 
-        const exerciseId = exercise.id;
-        if (exerciseId !== undefined) {
-            this.statisticsService.getExerciseStatistics(exerciseId).subscribe((statistics: ExerciseManagementStatisticsDto) => {
-                this.doughnutStats.set(statistics);
-            });
+        this.statisticsService.getExerciseStatistics(this.mathExercise.id!).subscribe((statistics: ExerciseManagementStatisticsDto) => {
+            this.doughnutStats = statistics;
+        });
 
-            this.mathSubmissionService.getSubmittedSubmissions(exerciseId).subscribe((submissions) => {
-                this.submissions.set(submissions);
-            });
-        }
+        this.mathSubmissionService.getSubmittedSubmissions(this.mathExercise.id!).subscribe((submissions) => {
+            this.submissions = submissions;
+        });
     }
 
     load(exerciseId: number) {
         this.mathExerciseService.find(exerciseId).subscribe((mathExerciseResponse: HttpResponse<MathExercise>) => {
-            const exercise = mathExerciseResponse.body;
-            if (exercise) {
-                this.mathExercise.set(exercise);
-                this.onExerciseLoaded();
-            }
+            this.mathExercise = mathExerciseResponse.body!;
+            this.onExerciseLoaded();
         });
     }
 
     getExerciseDetailSections(): DetailOverviewSection[] {
-        const exercise = this.mathExercise();
+        const exercise = this.mathExercise;
         const generalSection = getExerciseGeneralDetailsSection(exercise);
         const modeSection = getExerciseModeDetailSection(exercise);
         const problemSection = getExerciseProblemDetailSection(this.formattedProblemStatement, exercise);
@@ -140,15 +137,13 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
     }
 
     ngOnDestroy() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
         this.eventManager.destroy(this.eventSubscriber);
     }
 
     registerChangeInMathExercises() {
-        this.eventSubscriber = this.eventManager.subscribe('mathExerciseListModification', () => {
-            const exerciseId = this.mathExercise()?.id;
-            if (exerciseId !== undefined) {
-                this.load(exerciseId);
-            }
-        });
+        this.eventSubscriber = this.eventManager.subscribe('mathExerciseListModification', () => this.load(this.mathExercise.id!));
     }
 }

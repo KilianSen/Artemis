@@ -2,6 +2,7 @@ package de.tum.cit.aet.artemis.math.service;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +27,7 @@ import de.tum.cit.aet.artemis.exercise.domain.Submission;
 import de.tum.cit.aet.artemis.exercise.repository.SubmissionRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseImportService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
@@ -89,7 +91,15 @@ public class MathExerciseImportService extends ExerciseImportService {
         super.copyExerciseBasis(newExercise, importedExercise, gradingInstructionCopyTracker);
         newExercise.setDescription(importedExercise.getDescription());
         newExercise.setExampleSolution(importedExercise.getExampleSolution());
+        newExercise.setSourceExpression(importedExercise.getSourceExpression());
+        newExercise.setTargetExpression(importedExercise.getTargetExpression());
+        newExercise.setGoalExpression(importedExercise.getGoalExpression());
+        newExercise.setGoalMode(importedExercise.getGoalMode());
         newExercise.setManualDerivation(importedExercise.isManualDerivation());
+        newExercise.setAllowVerification(importedExercise.isAllowVerification());
+        newExercise.setOnlyShowApplicableRules(importedExercise.isOnlyShowApplicableRules());
+        newExercise.setAcNormalization(importedExercise.isAcNormalization());
+        newExercise.setExampleDerivations(importedExercise.getExampleDerivations());
         return newExercise;
     }
 
@@ -140,7 +150,19 @@ public class MathExerciseImportService extends ExerciseImportService {
             newSubmission.setSubmissionDate(originalSubmission.getSubmissionDate());
             newSubmission.setType(originalSubmission.getType());
             newSubmission.setParticipation(originalSubmission.getParticipation());
-            newSubmission.setContent(((MathSubmission) originalSubmission).getContent());
+            // Deep-copy the derivation steps (loaded lazily via a targeted query) so the example submission owns its own step rows
+            // rather than sharing the template submission's, which are removed with it (cascade/orphanRemoval on MathSubmission#steps).
+            List<DerivationStep> originalSteps = mathSubmissionRepository.findByIdWithStepsAndResults(originalSubmission.getId()).map(MathSubmission::getSteps).orElse(List.of());
+            for (DerivationStep originalStep : originalSteps) {
+                DerivationStep copiedStep = new DerivationStep();
+                copiedStep.setStepIndex(originalStep.getStepIndex());
+                copiedStep.setAppliedRuleId(originalStep.getAppliedRuleId());
+                copiedStep.setTargetNodePath(originalStep.getTargetNodePath());
+                copiedStep.setResultExpression(originalStep.getResultExpression());
+                copiedStep.setDirection(originalStep.getDirection());
+                copiedStep.setSubmission(newSubmission);
+                newSubmission.getSteps().add(copiedStep);
+            }
             newSubmission = submissionRepository.saveAndFlush(newSubmission);
             // Load the assessment graph (result + feedbacks + assessor) in a separate targeted query instead of eagerly fetching
             // it on the exercise-import query, which would grow that query's fetch graph beyond the allowed size.

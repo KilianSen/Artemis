@@ -1,13 +1,17 @@
 package de.tum.cit.aet.artemis.math.dto;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.exercise.domain.DifficultyLevel;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
+import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNode;
+import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 
 /**
  * Data Transfer Object for {@link MathExercise}.
@@ -29,19 +33,27 @@ import de.tum.cit.aet.artemis.math.domain.MathExercise;
  * @param presentationScoreEnabled               whether presentation scores are tracked
  * @param secondCorrectionEnabled                whether a second correction round is enabled
  * @param feedbackSuggestionModule               the AI feedback suggestion module identifier
+ * @param gradingInstructions                    free-text grading instructions for tutors
  * @param releaseDate                            when the exercise becomes visible to students
  * @param startDate                              when students can start working
  * @param dueDate                                submission deadline
  * @param assessmentDueDate                      deadline for tutors to complete assessments
  * @param exampleSolutionPublicationDate         when the example solution becomes visible
  * @param courseId                               the course ID (math exercises are course-only)
+ * @param sourceExpression                       the starting expression of the math (root MathNode)
+ * @param targetExpression                       the goal expression students must derive
  * @param manualDerivation                       true if students write the result expression themselves (false = system auto-applies)
+ * @param allowVerification                      whether students may trigger math verification
+ * @param onlyShowApplicableRules                whether the rule palette shows only rules applicable at the selected node
+ * @param exampleDerivations                     instructor-supplied example derivations (each is an ordered list of steps)
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathExerciseDTO(Long id, String title, String shortName, String problemStatement, String description, String exampleSolution, Set<String> categories,
         DifficultyLevel difficulty, Double maxPoints, Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments,
-        Boolean allowFeedbackRequests, Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, ZonedDateTime releaseDate,
-        ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId, Boolean manualDerivation) {
+        Boolean allowFeedbackRequests, Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions,
+        ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId,
+        MathNode sourceExpression, MathNode targetExpression, Boolean manualDerivation, Boolean allowVerification, Boolean onlyShowApplicableRules, GoalMode goalMode,
+        MathNode goalExpression, Boolean acNormalization, List<List<DerivationStepDTO>> exampleDerivations) {
 
     /**
      * @param exercise the entity to project
@@ -52,9 +64,10 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         return new MathExerciseDTO(exercise.getId(), exercise.getTitle(), exercise.getShortName(), exercise.getProblemStatement(), exercise.getDescription(),
                 exercise.getExampleSolution(), exercise.getCategories(), exercise.getDifficulty(), exercise.getMaxPoints(), exercise.getBonusPoints(),
                 exercise.getIncludedInOverallScore(), exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getAllowFeedbackRequests(),
-                exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getReleaseDate(),
-                exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId,
-                exercise.isManualDerivation());
+                exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(),
+                exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId,
+                exercise.getSourceExpression(), exercise.getTargetExpression(), exercise.isManualDerivation(), exercise.isAllowVerification(), exercise.isOnlyShowApplicableRules(),
+                exercise.getGoalMode(), exercise.getGoalExpression(), exercise.isAcNormalization(), exercise.getExampleDerivations());
     }
 
     /**
@@ -72,6 +85,7 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         exercise.setMaxPoints(maxPoints);
         exercise.setBonusPoints(bonusPoints);
         exercise.setIncludedInOverallScore(includedInOverallScore);
+        exercise.setGradingInstructions(gradingInstructions);
         exercise.setReleaseDate(releaseDate);
         exercise.setStartDate(startDate);
         exercise.setDueDate(dueDate);
@@ -84,6 +98,14 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         if (feedbackSuggestionModule != null) {
             exercise.setFeedbackSuggestionModule(feedbackSuggestionModule);
         }
+        exercise.setSourceExpression(sourceExpression);
+        exercise.setTargetExpression(targetExpression);
         exercise.setManualDerivation(Boolean.TRUE.equals(manualDerivation));
+        exercise.setAllowVerification(allowVerification == null ? exercise.isAllowVerification() : allowVerification);
+        exercise.setOnlyShowApplicableRules(Boolean.TRUE.equals(onlyShowApplicableRules));
+        exercise.setGoalMode(goalMode == null ? GoalMode.TRANSFORMATION : goalMode);
+        exercise.setGoalExpression(goalExpression);
+        exercise.setAcNormalization(Boolean.TRUE.equals(acNormalization));
+        exercise.setExampleDerivations(exampleDerivations);
     }
 }

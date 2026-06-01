@@ -1,6 +1,5 @@
 package de.tum.cit.aet.artemis.math.repository;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Conditional;
@@ -21,8 +20,11 @@ import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 @Repository
 public interface MathSubmissionRepository extends JpaRepository<MathSubmission, Long> {
 
-    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.results WHERE s.id = :id")
-    Optional<MathSubmission> findByIdWithResults(@Param("id") Long id);
+    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.steps LEFT JOIN FETCH s.results WHERE s.id = :id")
+    Optional<MathSubmission> findByIdWithStepsAndResults(@Param("id") Long id);
+
+    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.steps LEFT JOIN FETCH s.results LEFT JOIN FETCH s.participation p LEFT JOIN FETCH p.exercise WHERE s.id = :id")
+    Optional<MathSubmission> findByIdWithStepsResultsAndParticipation(@Param("id") Long id);
 
     @Query("""
             SELECT s FROM MathSubmission s
@@ -33,16 +35,14 @@ public interface MathSubmissionRepository extends JpaRepository<MathSubmission, 
             """)
     Optional<MathSubmission> findByIdWithResultsAndFeedbacksAndAssessor(@Param("id") Long id);
 
-    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.results LEFT JOIN FETCH s.participation p LEFT JOIN FETCH p.exercise WHERE s.id = :id")
-    Optional<MathSubmission> findByIdWithResultsAndParticipation(@Param("id") Long id);
-
     @Query("""
             SELECT s FROM MathSubmission s
             LEFT JOIN FETCH s.results
+            LEFT JOIN FETCH s.steps
             LEFT JOIN FETCH s.participation p
             LEFT JOIN FETCH p.student
             WHERE p.exercise.id = :exerciseId AND s.submitted = true
             ORDER BY s.submissionDate DESC
             """)
-    List<MathSubmission> findSubmittedByExerciseId(@Param("exerciseId") Long exerciseId);
+    java.util.List<MathSubmission> findSubmittedByExerciseId(@Param("exerciseId") Long exerciseId);
 }

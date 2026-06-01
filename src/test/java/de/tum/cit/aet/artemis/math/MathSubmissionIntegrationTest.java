@@ -3,6 +3,7 @@ package de.tum.cit.aet.artemis.math;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation
 import de.tum.cit.aet.artemis.exercise.participation.util.ParticipationUtilService;
 import de.tum.cit.aet.artemis.exercise.test_repository.StudentParticipationTestRepository;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
@@ -110,13 +112,28 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void updateMathSubmission_persistsContent() throws Exception {
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, "my work");
+    void submitMathSubmission_withStep_persistsStep() throws Exception {
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(stepDTO));
+
+        MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
+                HttpStatus.OK);
+
+        assertThat(result.steps()).hasSize(1);
+        assertThat(result.steps().getFirst().appliedRuleId()).isEqualTo("add_zero_left");
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void updateMathSubmission_persistsSteps() throws Exception {
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(stepDTO));
 
         MathSubmissionDTO result = request.putWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
 
-        assertThat(result.content()).isEqualTo("my work");
+        assertThat(result.steps()).hasSize(1);
+        assertThat(result.steps().getFirst().appliedRuleId()).isEqualTo("add_zero_left");
     }
 
     @Test

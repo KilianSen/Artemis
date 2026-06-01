@@ -39,7 +39,9 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseDeletionService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseSpecificationService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
+import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.service.MathExerciseImportService;
 
@@ -96,8 +98,10 @@ public class MathExerciseResource {
         if (mathExerciseDTO.id() != null) {
             throw new BadRequestAlertException("A new math exercise cannot already have an ID", ENTITY_NAME, "idexists");
         }
+        validateExpressionsWildcardFree(mathExerciseDTO);
         MathExercise exercise = new MathExercise();
         mathExerciseDTO.applyToEntity(exercise);
+        normalizeExpressions(exercise);
         applyCourse(mathExerciseDTO, exercise);
         exercise.validateTitle();
         exercise.validateGeneralSettings();
@@ -121,9 +125,11 @@ public class MathExerciseResource {
         if (mathExerciseDTO.id() == null) {
             return createMathExercise(mathExerciseDTO);
         }
+        validateExpressionsWildcardFree(mathExerciseDTO);
         MathExercise existing = mathExerciseRepository.findByIdWithCategoriesAndCourse(mathExerciseDTO.id()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
+        normalizeExpressions(existing);
         applyCourse(mathExerciseDTO, existing);
         existing.validateTitle();
         existing.validateGeneralSettings();
@@ -218,11 +224,36 @@ public class MathExerciseResource {
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, sourceExercise, null);
         MathExercise target = new MathExercise();
         importedExerciseDTO.applyToEntity(target);
+        normalizeExpressions(target);
         applyCourse(importedExerciseDTO, target);
         target.validateGeneralSettings();
         MathExercise result = mathExerciseRepository.findByIdWithCategories(mathExerciseImportService.importMathExercise(sourceExercise, target).getId()).orElseThrow();
         return ResponseEntity.created(new URI("/api/math/math-exercises/" + result.getId()))
                 .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getTitle())).body(MathExerciseDTO.of(result));
+    }
+
+    private void validateExpressionsWildcardFree(MathExerciseDTO dto) {
+        try {
+            MathNodes.assertWildcardFree(dto.sourceExpression());
+            MathNodes.assertWildcardFree(dto.targetExpression());
+            MathNodes.assertWildcardFree(dto.goalExpression());
+            if (dto.exampleDerivations() != null) {
+                dto.exampleDerivations().forEach(derivation -> derivation.forEach(step -> MathNodes.assertWildcardFree(step.resultExpression())));
+            }
+        }
+        catch (IllegalArgumentException e) {
+            throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "wildcardNotAllowed");
+        }
+    }
+
+    private void normalizeExpressions(MathExercise exercise) {
+        exercise.setSourceExpression(MathNodes.normalize(exercise.getSourceExpression()));
+        exercise.setTargetExpression(MathNodes.normalize(exercise.getTargetExpression()));
+        exercise.setGoalExpression(MathNodes.normalize(exercise.getGoalExpression()));
+        if (exercise.getExampleDerivations() != null) {
+            exercise.getExampleDerivations().forEach(derivation -> derivation.replaceAll(
+                    step -> new DerivationStepDTO(step.id(), step.stepIndex(), step.appliedRuleId(), step.targetNodePath(), MathNodes.normalize(step.resultExpression()))));
+        }
     }
 
     private void applyCourse(MathExerciseDTO dto, MathExercise exercise) {
