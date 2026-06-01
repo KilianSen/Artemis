@@ -1,9 +1,22 @@
 import { Routes } from '@angular/router';
 import { UserRouteAccessService } from 'app/core/auth/user-route-access-service';
-import { IS_AT_LEAST_EDITOR, IS_AT_LEAST_TUTOR } from 'app/foundation/constants/authority.constants';
+import { IS_AT_LEAST_EDITOR, IS_AT_LEAST_INSTRUCTOR, IS_AT_LEAST_TUTOR } from 'app/foundation/constants/authority.constants';
 import { MathExerciseResolver } from 'app/math/manage/service/math-exercise-resolver.service';
+import { MathSubmissionAssessmentResolverService } from 'app/math/manage/assess/math-submission-assessment-resolver.service';
 
 export const mathExerciseRoute: Routes = [
+    {
+        path: 'math-exercises/:exerciseId/submissions/:submissionId/assessment',
+        loadComponent: () => import('./manage/assess/math-submission-assessment.component').then((m) => m.MathSubmissionAssessmentComponent),
+        resolve: {
+            mathSubmission: MathSubmissionAssessmentResolverService,
+        },
+        data: {
+            authorities: IS_AT_LEAST_TUTOR,
+            pageTitle: 'artemisApp.mathExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
     {
         path: 'math-exercises',
         loadComponent: () => import('./manage/exercise/math-exercise.component').then((m) => m.MathExerciseComponent),
@@ -73,6 +86,18 @@ export const mathExerciseRoute: Routes = [
         data: {
             authorities: IS_AT_LEAST_TUTOR,
             pageTitle: 'exercise-statistics.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        path: 'math-exercises/:exerciseId/submissions/:submissionId/assessments/:resultId',
+        loadComponent: () => import('./manage/assess/math-submission-assessment.component').then((m) => m.MathSubmissionAssessmentComponent),
+        resolve: {
+            mathSubmission: MathSubmissionAssessmentResolverService,
+        },
+        data: {
+            authorities: IS_AT_LEAST_INSTRUCTOR,
+            pageTitle: 'artemisApp.mathExercise.home.title',
         },
         canActivate: [UserRouteAccessService],
     },

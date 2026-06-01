@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
 
 /**
  * A MathExercise.
@@ -56,8 +57,15 @@ public class MathExercise extends Exercise {
     @Column(table = "math_exercise_details", name = "only_show_applicable_rules")
     private boolean onlyShowApplicableRules = false;
 
+    @Column(table = "math_exercise_details", name = "partial_credit_enabled")
+    private boolean partialCreditEnabled = false;
+
     @Column(table = "math_exercise_details", name = "ac_normalization")
     private boolean acNormalization = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(table = "math_exercise_details", name = "grader_type", length = 32, nullable = false)
+    private GraderType graderType = GraderType.REWRITE_CHAIN;
 
     @Enumerated(EnumType.STRING)
     @Column(table = "math_exercise_details", name = "goal_mode", length = 16, nullable = false)
@@ -120,6 +128,8 @@ public class MathExercise extends Exercise {
     public void filterSensitiveInformation() {
         if (!isExampleSolutionPublished()) {
             setExampleSolution(null);
+            // The example derivations are the instructor's worked solution; never expose them to students before the example solution is published.
+            setExampleDerivations(null);
         }
         super.filterSensitiveInformation();
     }
@@ -140,12 +150,28 @@ public class MathExercise extends Exercise {
         this.onlyShowApplicableRules = onlyShowApplicableRules;
     }
 
+    public boolean isPartialCreditEnabled() {
+        return partialCreditEnabled;
+    }
+
+    public void setPartialCreditEnabled(boolean partialCreditEnabled) {
+        this.partialCreditEnabled = partialCreditEnabled;
+    }
+
     public boolean isAcNormalization() {
         return acNormalization;
     }
 
     public void setAcNormalization(boolean acNormalization) {
         this.acNormalization = acNormalization;
+    }
+
+    public GraderType getGraderType() {
+        return graderType;
+    }
+
+    public void setGraderType(GraderType graderType) {
+        this.graderType = graderType == null ? GraderType.REWRITE_CHAIN : graderType;
     }
 
     public GoalMode getGoalMode() {

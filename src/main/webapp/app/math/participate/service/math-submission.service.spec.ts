@@ -7,6 +7,7 @@ import { SubmissionService } from 'app/exercise/submission/submission.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { firstValueFrom } from 'rxjs';
+import { MathNode } from 'app/math/shared/entities/math-node.model';
 
 describe('MathSubmissionService', () => {
     setupTestBed({ zoneless: true });
@@ -81,6 +82,17 @@ describe('MathSubmissionService', () => {
         expect(res?.id).toBe(11);
     });
 
+    it('fetches a submission for assessment', async () => {
+        const promise = firstValueFrom(service.getMathSubmissionForAssessment(11));
+        const req = httpMock.expectOne({ method: 'GET', url: 'api/math/math-submissions/11/for-assessment' });
+        const sub = new MathSubmission();
+        sub.id = 11;
+        req.flush(sub);
+        const res = await promise;
+
+        expect(res?.id).toBe(11);
+    });
+
     it('lists submitted submissions for an exercise', async () => {
         const promise = firstValueFrom(service.getSubmittedSubmissions(3));
         const req = httpMock.expectOne({ method: 'GET', url: 'api/math/exercises/3/math-submissions' });
@@ -88,5 +100,27 @@ describe('MathSubmissionService', () => {
         const res = await promise;
 
         expect(res?.length).toBe(2);
+    });
+
+    it('saves a manual result', async () => {
+        const promise = firstValueFrom(service.saveManualResult(11, 8.5));
+        const req = httpMock.expectOne({ method: 'PUT', url: 'api/math/math-submissions/11/manual-result' });
+        expect(req.request.body).toEqual({ score: 8.5 });
+        const sub = new MathSubmission();
+        sub.id = 11;
+        req.flush(sub);
+        const res = await promise;
+
+        expect(res?.id).toBe(11);
+    });
+
+    it('asks the backend for next-step hints', async () => {
+        const node: MathNode = { type: 'var', value: 'x' };
+        const promise = firstValueFrom(service.getHints(3, node));
+        const req = httpMock.expectOne({ method: 'POST', url: 'api/math/exercises/3/hints' });
+        req.flush([]);
+        const res = await promise;
+
+        expect(res).toEqual([]);
     });
 });

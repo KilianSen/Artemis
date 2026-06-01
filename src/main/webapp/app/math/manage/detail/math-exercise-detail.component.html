@@ -54,7 +54,7 @@
                                                 size="small"
                                                 severity="primary"
                                                 [outlined]="true"
-                                                [routerLink]="['/course-management', course!.id, 'math-exercises', mathExercise.id, 'submissions', sub.id, 'assessment']"
+                                                [routerLink]="['/course-management', course()!.id, 'math-exercises', mathExercise().id, 'submissions', sub.id, 'assessment']"
                                             >
                                                 <span jhiTranslate="artemisApp.mathExercise.detail.assess">Assess</span>
                                             </a>
@@ -67,7 +67,7 @@
                 </div>
             }
 
-            @if (mathExercise.sourceExpression && mathExercise.targetExpression) {
+            @if (mathExercise().sourceExpression && mathExercise().targetExpression) {
                 <div class="row mt-3">
                     <div class="col-12">
                         <p-card>
@@ -77,12 +77,12 @@
                             <div class="d-flex gap-4 align-items-center flex-wrap">
                                 <div>
                                     <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.sourceExpression">Source</small>
-                                    <span class="fs-5" [innerHTML]="mathExercise.sourceExpression | mathNodeLatex"></span>
+                                    <span class="fs-5" [innerHTML]="mathExercise().sourceExpression | mathNodeLatex"></span>
                                 </div>
                                 <div class="fs-3 text-muted">→</div>
                                 <div>
                                     <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.targetExpression">Target</small>
-                                    <span class="fs-5" [innerHTML]="mathExercise.targetExpression | mathNodeLatex"></span>
+                                    <span class="fs-5" [innerHTML]="mathExercise().targetExpression | mathNodeLatex"></span>
                                 </div>
                             </div>
                         </p-card>

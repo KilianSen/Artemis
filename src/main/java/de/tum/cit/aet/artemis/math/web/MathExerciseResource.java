@@ -36,14 +36,17 @@ import de.tum.cit.aet.artemis.core.util.PageUtil;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.repository.CourseRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseDeletionService;
+import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseSpecificationService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.dto.ReachabilityReportDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.service.MathExerciseImportService;
+import de.tum.cit.aet.artemis.math.service.MathGradingService;
 
 @Lazy
 @Conditional(MathEnabled.class)
@@ -70,17 +73,23 @@ public class MathExerciseResource {
 
     private final ExerciseDeletionService exerciseDeletionService;
 
+    private final MathGradingService mathGradingService;
+
+    private final ExerciseService exerciseService;
+
     private final AuthorizationCheckService authCheckService;
 
     public MathExerciseResource(MathExerciseRepository mathExerciseRepository, MathExerciseImportService mathExerciseImportService, CourseRepository courseRepository,
             UserRepository userRepository, ExerciseSpecificationService exerciseSpecificationService, ExerciseDeletionService exerciseDeletionService,
-            AuthorizationCheckService authCheckService) {
+            MathGradingService mathGradingService, ExerciseService exerciseService, AuthorizationCheckService authCheckService) {
         this.mathExerciseRepository = mathExerciseRepository;
         this.mathExerciseImportService = mathExerciseImportService;
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
         this.exerciseSpecificationService = exerciseSpecificationService;
         this.exerciseDeletionService = exerciseDeletionService;
+        this.mathGradingService = mathGradingService;
+        this.exerciseService = exerciseService;
         this.authCheckService = authCheckService;
     }
 
@@ -133,6 +142,35 @@ public class MathExerciseResource {
         applyCourse(mathExerciseDTO, existing);
         existing.validateTitle();
         existing.validateGeneralSettings();
+        MathExercise saved = mathExerciseRepository.findByIdWithCategories(mathExerciseRepository.save(existing).getId()).orElseThrow();
+        return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, saved.getId().toString())).body(MathExerciseDTO.of(saved));
+    }
+
+    /**
+     * PUT /math-exercises/{exerciseId}/re-evaluate : update an existing math exercise and re-evaluate
+     * feedback associated with structured grading instructions. Mirrors the pattern used by the other
+     * exercise resources (e.g. {@code TextExerciseCreationUpdateResource#reEvaluateAndUpdateTextExercise}).
+     *
+     * @param exerciseId                                  path id of the exercise to update; must match the DTO id
+     * @param mathExerciseDTO                             the updated exercise payload
+     * @param deleteFeedbackAfterGradingInstructionUpdate if true, drop feedback whose grading instructions were removed
+     * @return the updated exercise
+     */
+    @PutMapping("math-exercises/{exerciseId}/re-evaluate")
+    @EnforceAtLeastEditor
+    public ResponseEntity<MathExerciseDTO> reEvaluateAndUpdateMathExercise(@PathVariable long exerciseId, @RequestBody MathExerciseDTO mathExerciseDTO,
+            @RequestParam(value = "deleteFeedback", required = false) Boolean deleteFeedbackAfterGradingInstructionUpdate) {
+        log.debug("REST request to re-evaluate MathExercise : {}", mathExerciseDTO);
+        if (mathExerciseDTO.id() == null || !mathExerciseDTO.id().equals(exerciseId)) {
+            throw new BadRequestAlertException("Exercise ID in path and body must match", ENTITY_NAME, "idMismatch");
+        }
+        validateExpressionsWildcardFree(mathExerciseDTO);
+        MathExercise existing = mathExerciseRepository.findByIdWithCourseGradingCriteriaAndExampleSubmissions(exerciseId).orElseThrow();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
+        mathExerciseDTO.applyToEntity(existing);
+        normalizeExpressions(existing);
+        applyCourse(mathExerciseDTO, existing);
+        exerciseService.reEvaluateExercise(existing, Boolean.TRUE.equals(deleteFeedbackAfterGradingInstructionUpdate));
         MathExercise saved = mathExerciseRepository.findByIdWithCategories(mathExerciseRepository.save(existing).getId()).orElseThrow();
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, saved.getId().toString())).body(MathExerciseDTO.of(saved));
     }
@@ -230,6 +268,23 @@ public class MathExerciseResource {
         MathExercise result = mathExerciseRepository.findByIdWithCategories(mathExerciseImportService.importMathExercise(sourceExercise, target).getId()).orElseThrow();
         return ResponseEntity.created(new URI("/api/math/math-exercises/" + result.getId()))
                 .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getTitle())).body(MathExerciseDTO.of(result));
+    }
+
+    /**
+     * GET /math-exercises/{exerciseId}/verify-reachability : run the configured grader's automated reachability
+     * check on the exercise. For rewrite-chain exercises this runs the FORWARD_ONLY reduction strategy from the
+     * source (or goal in EQUATION mode) and reports how close it gets to the target / a tautology.
+     *
+     * @param exerciseId the exercise to analyse
+     * @return the reachability report, or 404 if the grader does not support this check
+     */
+    @GetMapping("math-exercises/{exerciseId}/verify-reachability")
+    @EnforceAtLeastEditor
+    public ResponseEntity<ReachabilityReportDTO> verifyReachability(@PathVariable Long exerciseId) {
+        log.debug("REST request to verify reachability for MathExercise : {}", exerciseId);
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourse(exerciseId).orElseThrow();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, exercise, null);
+        return mathGradingService.verifyReachability(exercise).map(ReachabilityReportDTO::of).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     private void validateExpressionsWildcardFree(MathExerciseDTO dto) {

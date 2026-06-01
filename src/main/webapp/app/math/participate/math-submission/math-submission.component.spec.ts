@@ -101,9 +101,9 @@ describe('MathSubmissionComponent', () => {
 
         fixture.detectChanges();
 
-        expect(component.mathExercise).toBe(exercise);
-        expect(component.participation).toBe(participation);
-        expect(component.submission).toBe(submission);
+        expect(component.mathExercise()).toBe(exercise);
+        expect(component.participation()).toBe(participation);
+        expect(component.submission()).toBe(submission);
     });
 
     it('should show error alert when loading fails', () => {
@@ -154,8 +154,8 @@ describe('MathSubmissionComponent', () => {
         component.submit();
 
         expect(updateSpy).toHaveBeenCalled();
-        expect(component.submission.submitted).toBe(true);
-        expect(component.result?.score).toBe(100);
+        expect(component.submission().submitted).toBe(true);
+        expect(component.result()?.score).toBe(100);
     });
 
     it('should revert submitted=false when submit fails', () => {
@@ -168,6 +168,6 @@ describe('MathSubmissionComponent', () => {
 
         component.submit();
 
-        expect(component.submission.submitted).toBe(false);
+        expect(component.submission().submitted).toBe(false);
     });
 });

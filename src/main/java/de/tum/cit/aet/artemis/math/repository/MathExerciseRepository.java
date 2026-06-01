@@ -42,6 +42,16 @@ public interface MathExerciseRepository extends JpaRepository<MathExercise, Long
             """)
     Optional<MathExercise> findByIdWithCourseAndExampleSubmissions(@Param("id") Long id);
 
+    @Query("""
+            SELECT e FROM MathExercise e
+            LEFT JOIN FETCH e.course
+            LEFT JOIN FETCH e.gradingCriteria gc
+            LEFT JOIN FETCH gc.structuredGradingInstructions
+            LEFT JOIN FETCH e.exampleSubmissions
+            WHERE e.id = :id
+            """)
+    Optional<MathExercise> findByIdWithCourseGradingCriteriaAndExampleSubmissions(@Param("id") Long id);
+
     @Query("SELECT e FROM MathExercise e LEFT JOIN FETCH e.categories WHERE e.course.id = :courseId")
     List<MathExercise> findByCourseIdWithCategories(@Param("courseId") Long courseId);
 

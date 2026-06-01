@@ -1,6 +1,6 @@
-@if (mathExercise) {
-    <div [id]="'exercise-' + mathExercise?.id">
-        <jhi-header-exercise-page-with-details class="d-block mb-4" [exercise]="mathExercise" [studentParticipation]="participation" [title]="mathExercise?.title" />
+@if (mathExercise()) {
+    <div [id]="'exercise-' + mathExercise()?.id">
+        <jhi-header-exercise-page-with-details class="d-block mb-4" [exercise]="mathExercise()" [studentParticipation]="participation()" [title]="mathExercise()?.title" />
 
         <!-- Math Complete banner -->
         @if (isComplete() && hasAstExpressions) {
@@ -21,7 +21,7 @@
         <!-- Autosave indicator -->
         @if (hasUnsavedChanges() || lastSavedAt()) {
             <div class="d-flex justify-content-end mb-2">
-                @if (isSaving) {
+                @if (isSaving()) {
                     <small class="text-muted fst-italic" jhiTranslate="artemisApp.mathExercise.autoSaving">Saving…</small>
                 } @else if (hasUnsavedChanges()) {
                     <small class="text-warning fst-italic" jhiTranslate="artemisApp.mathExercise.unsavedChanges">Unsaved changes</small>
@@ -37,8 +37,8 @@
                 <ng-template pTemplate="header">
                     <h4 class="px-3 pt-3 mb-0" jhiTranslate="artemisApp.exercise.problemStatement">Problem Statement</h4>
                 </ng-template>
-                @if (mathExercise.problemStatement) {
-                    <span [innerHTML]="mathExercise.problemStatement | htmlForMarkdown"></span>
+                @if (mathExercise().problemStatement) {
+                    <span [innerHTML]="mathExercise().problemStatement | htmlForMarkdown"></span>
                 }
                 @if (hasAstExpressions) {
                     <div class="mt-3 rounded border overflow-hidden d-flex flex-column" style="font-size: 0.9em">
@@ -98,16 +98,16 @@
                                 jhiTranslate="artemisApp.mathExercise.statePanel.goal"
                                 >Goal</span
                             >
-                            <span [innerHTML]="mathExercise.targetExpression | mathNodeLatex"></span>
+                            <span [innerHTML]="mathExercise().targetExpression | mathNodeLatex"></span>
                             @if (isComplete()) {
                                 <p-tag class="ms-auto" severity="success" value="✓" />
                             }
                         </div>
                     </div>
                 }
-                @if (mathExercise.description) {
+                @if (mathExercise().description) {
                     <hr />
-                    <span [innerHTML]="mathExercise.description | htmlForMarkdown"></span>
+                    <span [innerHTML]="mathExercise().description | htmlForMarkdown"></span>
                 }
             </p-card>
 
@@ -118,7 +118,22 @@
                         <div class="d-flex align-items-center justify-content-between px-3 pt-3">
                             <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.derivation">Derivation</h4>
                             <div class="d-flex gap-2">
-                                @if (steps().length > 0 && !submission?.submitted && canVerify) {
+                                @if (!submission()?.submitted && mathExercise()?.allowVerification && !isComplete()) {
+                                    <p-button
+                                        size="small"
+                                        severity="info"
+                                        [outlined]="true"
+                                        (onClick)="requestHints()"
+                                        [disabled]="hintsLoading()"
+                                        [pTooltip]="'artemisApp.mathExercise.hintsTitle' | artemisTranslate"
+                                        [label]="
+                                            hintsLoading()
+                                                ? ('artemisApp.mathExercise.hintsLoading' | artemisTranslate)
+                                                : ('artemisApp.mathExercise.suggestHint' | artemisTranslate)
+                                        "
+                                    />
+                                }
+                                @if (steps().length > 0 && !submission()?.submitted && canVerify) {
                                     <p-button
                                         size="small"
                                         severity="secondary"
@@ -130,6 +145,27 @@
                             </div>
                         </div>
                     </ng-template>
+                    @if (hints().length > 0) {
+                        <div class="px-3 py-2 border-bottom small bg-light">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="fw-semibold text-muted" jhiTranslate="artemisApp.mathExercise.hintsHeader">Suggestions</span>
+                                <p-button size="small" [text]="true" styleClass="p-0" (onClick)="dismissHints()" [label]="'artemisApp.mathExercise.dismiss' | artemisTranslate" />
+                            </div>
+                            <div class="d-flex flex-column gap-1">
+                                @for (hint of hints(); track hint.ruleId + '-' + hint.path.join(',')) {
+                                    <p-button size="small" severity="primary" [outlined]="true" styleClass="text-start" (onClick)="applyHint(hint)">
+                                        <span class="fw-semibold">{{ hint.rationale ?? hint.ruleId }}</span>
+                                        <span class="text-muted ms-2" style="font-size: 0.85em">
+                                            →
+                                            <span [innerHTML]="hint.previewResult | mathNodeLatex"></span>
+                                        </span>
+                                    </p-button>
+                                }
+                            </div>
+                        </div>
+                    } @else if (hintsError()) {
+                        <div class="px-3 py-2 border-bottom small text-muted">{{ hintsError() }}</div>
+                    }
                     @if (progress() !== undefined && !isComplete()) {
                         <div class="px-3 py-2 border-bottom d-flex align-items-center gap-2 small text-muted">
                             <span jhiTranslate="artemisApp.mathExercise.progressLabel">Progress</span>
@@ -139,7 +175,7 @@
                     }
                     <div class="d-flex gap-3">
                         <!-- Rule palette sidebar -->
-                        @if (!submission?.submitted && !pendingManualStep()) {
+                        @if (!submission()?.submitted && !pendingManualStep()) {
                             <div class="d-flex flex-column" style="width: 180px; flex-shrink: 0">
                                 @if (operatorBlocks.length > 0) {
                                     <small class="text-muted fw-semibold d-block mb-1" jhiTranslate="artemisApp.mathExercise.blocksPanel">Blocks</small>
@@ -213,7 +249,7 @@
                                         <div
                                             class="d-flex align-items-center gap-2 px-3 py-1 rounded border"
                                             style="font-size: 0.78em; user-select: none"
-                                            [style.cursor]="submission?.submitted ? 'default' : 'pointer'"
+                                            [style.cursor]="submission()?.submitted ? 'default' : 'pointer'"
                                             [class.border-secondary]="stepStatuses()[i] === 'pending'"
                                             [class.bg-light]="stepStatuses()[i] === 'pending'"
                                             [class.text-secondary]="stepStatuses()[i] === 'pending'"
@@ -221,7 +257,7 @@
                                             [class.bg-success-subtle]="stepStatuses()[i] === 'valid'"
                                             [class.border-danger]="stepStatuses()[i] === 'invalid'"
                                             [class.bg-danger-subtle]="stepStatuses()[i] === 'invalid'"
-                                            (click)="!submission?.submitted && truncateToStep(i)"
+                                            (click)="!submission()?.submitted && truncateToStep(i)"
                                         >
                                             <span class="fst-italic opacity-75" jhiTranslate="artemisApp.mathExercise.by">by</span>
                                             <span
@@ -229,10 +265,10 @@
                                                 [class.text-secondary]="stepStatuses()[i] === 'pending'"
                                                 [class.text-success-emphasis]="stepStatuses()[i] === 'valid'"
                                                 [class.text-danger-emphasis]="stepStatuses()[i] === 'invalid'"
-                                                >{{ getRuleName(step.appliedRuleId) }}</span
+                                                >{{ ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId }}</span
                                             >
                                             <span class="text-muted small" title="Direction">{{ step.direction === 'REVERSE' ? '←' : '→' }}</span>
-                                            @if (!submission?.submitted) {
+                                            @if (!submission()?.submitted) {
                                                 <span class="ms-auto opacity-50">✎</span>
                                             }
                                         </div>
@@ -255,7 +291,7 @@
 
                             <!-- Interactive expression canvas -->
                             <div class="mb-3">
-                                @if (!submission?.submitted) {
+                                @if (!submission()?.submitted) {
                                     <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.selectNode">Click a node or drop a rule onto it:</small>
                                 }
                                 <jhi-math-expression-canvas
@@ -263,13 +299,13 @@
                                     [draggingPayload]="draggingPayload()"
                                     [nodeCtx]="submissionNodeCtx()"
                                     [blocks]="blocks()"
-                                    [readonly]="!!submission?.submitted || pendingManualStep()"
+                                    [readonly]="!!submission()?.submitted || pendingManualStep()"
                                     (gapDrop)="handleGapDrop($event)"
                                 />
                             </div>
 
                             <!-- Controls -->
-                            @if (!submission?.submitted) {
+                            @if (!submission()?.submitted) {
                                 @if (pendingManualStep()) {
                                     <!-- Manual mode: student constructs the result expression -->
                                     <div class="border border-primary rounded p-3 mt-2">
@@ -347,7 +383,7 @@
             }
 
             <!-- Submission card -->
-            @if (submission?.submitted) {
+            @if (submission()?.submitted) {
                 <p-card styleClass="border-success">
                     <div class="d-flex align-items-center gap-3">
                         <div class="rounded-circle bg-success d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px">
@@ -355,20 +391,20 @@
                         </div>
                         <div>
                             <strong class="text-success d-block" jhiTranslate="artemisApp.mathExercise.submittedTitle">Submitted</strong>
-                            @if (submission?.submissionDate) {
-                                <small class="text-muted">{{ submission.submissionDate!.toDate().toLocaleString() }}</small>
+                            @if (submission()?.submissionDate) {
+                                <small class="text-muted">{{ submission().submissionDate!.toDate().toLocaleString() }}</small>
                             }
                         </div>
                     </div>
-                    @if (result) {
+                    @if (result()) {
                         <hr class="my-3" />
                         <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.score">Score</small>
-                        <p class="fs-4 mb-0">{{ result.score }}%</p>
+                        <p class="fs-4 mb-0">{{ result().score }}%</p>
                     }
                 </p-card>
             } @else {
                 <p-card>
-                    <jhi-exercise-submit-button [exercise]="mathExercise" [isLoading]="isSaving" [isSubmitted]="false" (onSubmit)="submit()" />
+                    <jhi-exercise-submit-button [exercise]="mathExercise()" [isLoading]="isSaving()" [isSubmitted]="false" (onSubmit)="submit()" />
                 </p-card>
             }
         </div>

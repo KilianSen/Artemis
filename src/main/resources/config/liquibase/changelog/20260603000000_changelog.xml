@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Grading configuration for math exercises: which grader runs and whether partial credit is awarded. -->
+
+    <changeSet id="20260603000000-1" author="kilian">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="math_exercise_details" columnName="grader_type"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="math_exercise_details">
+            <column name="grader_type" type="varchar(32)" defaultValue="REWRITE_CHAIN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="partial_credit_enabled" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

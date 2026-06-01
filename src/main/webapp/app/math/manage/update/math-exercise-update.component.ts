@@ -5,7 +5,7 @@ import { MathExerciseService } from '../service/math-exercise.service';
 import { FormsModule } from '@angular/forms';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ExerciseCategory } from 'app/exercise/shared/entities/exercise/exercise-category.model';
-import { CategorySelectorComponent } from 'app/exercise/category-selector/category-selector.component';
+import { CategorySelectorPrimengComponent } from 'app/exercise/category-selector-primeng/category-selector-primeng.component';
 import { DifficultyPickerComponent } from 'app/exercise/difficulty-picker/difficulty-picker.component';
 import { IncludedInOverallScorePickerComponent } from 'app/exercise/included-in-overall-score-picker/included-in-overall-score-picker.component';
 import { MarkdownEditorMonacoComponent } from 'app/editor/markdown-editor/monaco/markdown-editor-monaco.component';
@@ -14,7 +14,9 @@ import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { MathNode } from '../../shared/entities/math-node.model';
 import { DerivationStep } from '../../shared/entities/derivation-step.model';
+import { GRADER_TYPES_AVAILABLE, GRADER_TYPE_LABELS, GraderType } from '../../shared/entities/grader-type.model';
 import { GOAL_MODE_LABELS, GoalMode } from '../../shared/entities/goal-mode.model';
+import { ReachabilityReport } from '../../shared/entities/hint-suggestion.model';
 import { MathBuilderComponent } from './math-builder/math-builder.component';
 import { MathDerivationWorkspaceComponent } from './math-derivation-workspace/math-derivation-workspace.component';
 import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
@@ -34,7 +36,7 @@ import { TooltipModule } from 'primeng/tooltip';
     imports: [
         FormsModule,
         TranslateDirective,
-        CategorySelectorComponent,
+        CategorySelectorPrimengComponent,
         DifficultyPickerComponent,
         IncludedInOverallScorePickerComponent,
         MarkdownEditorMonacoComponent,
@@ -60,16 +62,27 @@ export class MathExerciseUpdateComponent implements OnInit {
     private router = inject(Router);
     private profileService = inject(ProfileService);
 
+    // eslint-disable-next-line localRules/prefer-signal-template-state -- template-driven form binds exercise sub-fields via [(ngModel)]; a signal cannot back two-way member writes
     mathExercise: MathExercise;
-    isSaving: boolean;
+    readonly isSaving = signal(false);
     exerciseCategories = signal<ExerciseCategory[]>([]);
     existingCategories = signal<ExerciseCategory[]>([]);
     onlyShowApplicableRules = signal(false);
+
+    readonly graderTypeOptions: { value: GraderType; label: string; disabled: boolean }[] = (Object.keys(GRADER_TYPE_LABELS) as GraderType[]).map((value) => ({
+        value,
+        label: GRADER_TYPE_LABELS[value],
+        disabled: !GRADER_TYPES_AVAILABLE.includes(value),
+    }));
 
     readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({
         value,
         label: GOAL_MODE_LABELS[value],
     }));
+
+    reachability = signal<ReachabilityReport | undefined>(undefined);
+    reachabilityChecking = signal(false);
+    reachabilityError = signal<string | undefined>(undefined);
 
     releaseDateField = viewChild<FormDateTimePickerComponent>('releaseDate');
     startDateField = viewChild<FormDateTimePickerComponent>('startDate');
@@ -77,7 +90,7 @@ export class MathExerciseUpdateComponent implements OnInit {
     assessmentDateField = viewChild<FormDateTimePickerComponent>('assessmentDueDate');
 
     ngOnInit() {
-        this.isSaving = false;
+        this.isSaving.set(false);
         this.activatedRoute.data.subscribe(({ mathExercise }) => {
             this.mathExercise = mathExercise;
             this.exerciseCategories.set(this.mathExercise.categories || []);
@@ -114,6 +127,30 @@ export class MathExerciseUpdateComponent implements OnInit {
         this.mathExercise.goalMode = mode;
         // Reset example derivations — they're tied to the previous start expression.
         this.mathExercise.exampleDerivations = [];
+        this.reachability.set(undefined);
+    }
+
+    checkReachability(): void {
+        if (!this.mathExercise.id) {
+            this.reachabilityError.set('artemisApp.mathExercise.reachability.saveFirst');
+            return;
+        }
+        this.reachabilityError.set(undefined);
+        this.reachabilityChecking.set(true);
+        this.mathExerciseService.verifyReachability(this.mathExercise.id).subscribe({
+            next: (report) => {
+                this.reachability.set(report);
+                if (!report) {
+                    this.reachabilityError.set('artemisApp.mathExercise.reachability.notSupported');
+                }
+                this.reachabilityChecking.set(false);
+            },
+            error: () => {
+                this.reachability.set(undefined);
+                this.reachabilityError.set('artemisApp.mathExercise.reachability.failed');
+                this.reachabilityChecking.set(false);
+            },
+        });
     }
 
     addExampleDerivation(): void {
@@ -178,7 +215,7 @@ export class MathExerciseUpdateComponent implements OnInit {
     }
 
     save() {
-        this.isSaving = true;
+        this.isSaving.set(true);
         if (this.mathExercise.id !== undefined) {
             this.mathExerciseService.update(this.mathExercise).subscribe({
                 next: () => this.onSaveSuccess(),
@@ -197,11 +234,11 @@ export class MathExerciseUpdateComponent implements OnInit {
     }
 
     private onSaveSuccess() {
-        this.isSaving = false;
+        this.isSaving.set(false);
         this.previousState();
     }
 
     private onSaveError() {
-        this.isSaving = false;
+        this.isSaving.set(false);
     }
 }

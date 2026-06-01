@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpResponse } from '@angular/common/http';
@@ -63,51 +63,51 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
 
     readonly ExerciseType = ExerciseType;
 
-    mathExercise: MathExercise;
-    course?: Course;
+    readonly mathExercise = signal<MathExercise>(undefined!);
+    readonly course = signal<Course | undefined>(undefined);
     formattedProblemStatement: SafeHtml | null;
     formattedExampleSolution: SafeHtml | null;
-    submissions: MathSubmission[] = [];
+    readonly submissions = signal<MathSubmission[]>([]);
 
-    doughnutStats: ExerciseManagementStatisticsDto;
-    detailOverviewSections: DetailOverviewSection[];
+    readonly doughnutStats = signal<ExerciseManagementStatisticsDto>(undefined!);
+    readonly detailOverviewSections = signal<DetailOverviewSection[]>([]);
 
     private subscription: Subscription;
     private eventSubscriber: Subscription;
 
     ngOnInit() {
         this.route.data.subscribe(({ mathExercise }) => {
-            this.mathExercise = mathExercise;
+            this.mathExercise.set(mathExercise);
             this.onExerciseLoaded();
         });
         this.registerChangeInMathExercises();
     }
 
     onExerciseLoaded() {
-        this.course = this.mathExercise.course;
+        this.course.set(this.mathExercise().course);
 
-        this.formattedProblemStatement = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise.problemStatement);
-        this.formattedExampleSolution = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise.exampleSolution);
-        this.detailOverviewSections = this.getExerciseDetailSections();
+        this.formattedProblemStatement = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise().problemStatement);
+        this.formattedExampleSolution = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise().exampleSolution);
+        this.detailOverviewSections.set(this.getExerciseDetailSections());
 
-        this.statisticsService.getExerciseStatistics(this.mathExercise.id!).subscribe((statistics: ExerciseManagementStatisticsDto) => {
-            this.doughnutStats = statistics;
+        this.statisticsService.getExerciseStatistics(this.mathExercise().id!).subscribe((statistics: ExerciseManagementStatisticsDto) => {
+            this.doughnutStats.set(statistics);
         });
 
-        this.mathSubmissionService.getSubmittedSubmissions(this.mathExercise.id!).subscribe((submissions) => {
-            this.submissions = submissions;
+        this.mathSubmissionService.getSubmittedSubmissions(this.mathExercise().id!).subscribe((submissions) => {
+            this.submissions.set(submissions);
         });
     }
 
     load(exerciseId: number) {
         this.mathExerciseService.find(exerciseId).subscribe((mathExerciseResponse: HttpResponse<MathExercise>) => {
-            this.mathExercise = mathExerciseResponse.body!;
+            this.mathExercise.set(mathExerciseResponse.body!);
             this.onExerciseLoaded();
         });
     }
 
     getExerciseDetailSections(): DetailOverviewSection[] {
-        const exercise = this.mathExercise;
+        const exercise = this.mathExercise();
         const generalSection = getExerciseGeneralDetailsSection(exercise);
         const modeSection = getExerciseModeDetailSection(exercise);
         const problemSection = getExerciseProblemDetailSection(this.formattedProblemStatement, exercise);
@@ -144,6 +144,6 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
     }
 
     registerChangeInMathExercises() {
-        this.eventSubscriber = this.eventManager.subscribe('mathExerciseListModification', () => this.load(this.mathExercise.id!));
+        this.eventSubscriber = this.eventManager.subscribe('mathExerciseListModification', () => this.load(this.mathExercise().id!));
     }
 }

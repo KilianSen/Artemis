@@ -17,6 +17,7 @@ import { KatexStringPipe } from 'app/math/shared/katex-string.pipe';
 import { MathNode, applyRule, distance, equalsAC, isTautology, normalizeAC } from 'app/math/shared/entities/math-node.model';
 import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
 import { StepDirection } from 'app/math/shared/entities/rule-direction.model';
+import { HintSuggestion } from 'app/math/shared/entities/hint-suggestion.model';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathNodeContext } from 'app/math/manage/update/math-math-node/math-math-node.component';
 import { MathExpressionCanvasComponent } from 'app/math/shared/expression-canvas/math-expression-canvas.component';
@@ -62,17 +63,28 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
     participationId = input<number>();
 
-    mathExercise: MathExercise;
-    participation: StudentParticipation;
-    submission: MathSubmission;
-    result?: Result;
+    readonly mathExercise = signal<MathExercise>(undefined!);
+    readonly participation = signal<StudentParticipation>(undefined!);
+    readonly submission = signal<MathSubmission>(undefined!);
+    readonly result = signal<Result | undefined>(undefined);
 
-    isSaving = false;
+    readonly isSaving = signal(false);
 
     // Derivation state
     currentExpression = signal<MathNode | undefined>(undefined);
     steps = signal<DerivationStep[]>([]);
     blocks = signal<BlockDefinitionModel[]>([]);
+
+    /** Memoized rule-id → display-name lookup, recomputed only when the block registry changes (avoids a per-row scan on every change-detection cycle). */
+    ruleNameById = computed<Map<string, string>>(() => {
+        const map = new Map<string, string>();
+        for (const block of this.blocks()) {
+            for (const rule of block.rules ?? []) {
+                map.set(rule.id, rule.name);
+            }
+        }
+        return map;
+    });
     selectedRuleId = signal<string>('');
     selectedDirection = signal<StepDirection>('FORWARD');
     selectedNodePath = signal<number[] | undefined>(undefined);
@@ -85,6 +97,11 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     pendingManualStep = signal(false);
     manualResultExpression = signal<MathNode | undefined>(undefined);
 
+    // Hint state
+    hints = signal<HintSuggestion[]>([]);
+    hintsLoading = signal(false);
+    hintsError = signal<string | undefined>(undefined);
+
     // Rule palette search
     ruleSearch = signal('');
 
@@ -94,7 +111,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
         let result = this.blocks();
 
-        if (this.mathExercise?.onlyShowApplicableRules && this.selectedNodePath() !== undefined) {
+        if (this.mathExercise()?.onlyShowApplicableRules && this.selectedNodePath() !== undefined) {
             const applicable = this.applicableRuleIds();
             result = result.map((block) => ({ ...block, rules: (block.rules ?? []).filter((r) => applicable.has(r.id)) })).filter((block) => block.rules.length > 0);
         }
@@ -130,23 +147,23 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     isComplete = computed(() => {
         const current = this.currentExpression();
         if (!current) return false;
-        const ac = !!this.mathExercise?.acNormalization;
-        const mode = this.mathExercise?.goalMode ?? 'TRANSFORMATION';
+        const ac = !!this.mathExercise()?.acNormalization;
+        const mode = this.mathExercise()?.goalMode ?? 'TRANSFORMATION';
         if (mode === 'EQUATION') {
             return isTautology(canonical(current, ac)!);
         }
-        const target = this.mathExercise?.targetExpression;
+        const target = this.mathExercise()?.targetExpression;
         return !!target && (equalsAC(current, target, ac) || isTautology(canonical(current, ac)!));
     });
 
     /** The tree to start the workspace from, based on the exercise's goal mode. */
     startExpression(): MathNode | undefined {
-        return (this.mathExercise?.goalMode ?? 'TRANSFORMATION') === 'EQUATION' ? this.mathExercise?.goalExpression : this.mathExercise?.sourceExpression;
+        return (this.mathExercise()?.goalMode ?? 'TRANSFORMATION') === 'EQUATION' ? this.mathExercise()?.goalExpression : this.mathExercise()?.sourceExpression;
     }
 
     /** Set of trees the student has already visited — start expression + every recorded step result. */
     private visitedStates = computed<Set<string>>(() => {
-        const ac = !!this.mathExercise?.acNormalization;
+        const ac = !!this.mathExercise()?.acNormalization;
         const set = new Set<string>();
         const start = this.startExpression();
         if (start) set.add(JSON.stringify(canonical(start, ac)));
@@ -158,15 +175,15 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     progress = computed<number | undefined>(() => {
         const cur = this.currentExpression();
         if (!cur) return undefined;
-        const ac = !!this.mathExercise?.acNormalization;
-        const mode = this.mathExercise?.goalMode ?? 'TRANSFORMATION';
+        const ac = !!this.mathExercise()?.acNormalization;
+        const mode = this.mathExercise()?.goalMode ?? 'TRANSFORMATION';
         if (mode === 'EQUATION') {
-            const goal = this.mathExercise?.goalExpression;
+            const goal = this.mathExercise()?.goalExpression;
             if (!goal) return undefined;
             return computeProgressEquation(goal, cur, ac);
         }
-        const src = this.mathExercise?.sourceExpression;
-        const tgt = this.mathExercise?.targetExpression;
+        const src = this.mathExercise()?.sourceExpression;
+        const tgt = this.mathExercise()?.targetExpression;
         if (!src || !tgt) return undefined;
         return computeProgressTransformation(src, tgt, cur, ac);
     });
@@ -179,7 +196,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
         const path = this.selectedNodePath();
         const current = this.currentExpression();
         if (path === undefined || !current) return new Set<string>();
-        const ac = !!this.mathExercise?.acNormalization;
+        const ac = !!this.mathExercise()?.acNormalization;
         const visited = this.visitedStates();
         const fresh = (tree: MathNode | undefined) => tree !== undefined && !visited.has(JSON.stringify(canonical(tree, ac)));
         const applicable = new Set<string>();
@@ -228,18 +245,19 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
         this.mathSubmissionService.getDataForMathEditor(participationId).subscribe({
             next: (response) => {
-                this.submission = response.body as MathSubmission;
-                this.participation = this.submission.participation as StudentParticipation;
-                this.mathExercise = this.participation.exercise as MathExercise;
+                const submission = response.body as MathSubmission;
+                this.submission.set(submission);
+                this.participation.set(submission.participation as StudentParticipation);
+                this.mathExercise.set(this.participation().exercise as MathExercise);
 
-                const results = this.submission.results;
+                const results = submission.results;
                 if (results && results.length > 0) {
-                    this.result = results[results.length - 1];
+                    this.result.set(results[results.length - 1]);
                 }
 
-                if (this.submission.steps && this.submission.steps.length > 0) {
-                    this.steps.set(this.submission.steps);
-                    const lastStep = this.submission.steps[this.submission.steps.length - 1];
+                if (submission.steps && submission.steps.length > 0) {
+                    this.steps.set(submission.steps);
+                    const lastStep = submission.steps[submission.steps.length - 1];
                     this.currentExpression.set(lastStep.resultExpression);
                 } else {
                     this.currentExpression.set(this.startExpression());
@@ -254,7 +272,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
         this.autosaveInterval = setInterval(() => {
             this.autosaveTick++;
-            if (this.autosaveTick >= AUTOSAVE_EXERCISE_INTERVAL && this.hasUnsavedChanges() && !this.submission?.submitted) {
+            if (this.autosaveTick >= AUTOSAVE_EXERCISE_INTERVAL && this.hasUnsavedChanges() && !this.submission()?.submitted) {
                 this.autosaveTick = 0;
                 this.save(true);
             }
@@ -268,18 +286,18 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     }
 
     get hasAstExpressions(): boolean {
-        if ((this.mathExercise?.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
-            return !!this.mathExercise?.goalExpression;
+        if ((this.mathExercise()?.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+            return !!this.mathExercise()?.goalExpression;
         }
-        return !!(this.mathExercise?.sourceExpression && this.mathExercise?.targetExpression);
+        return !!(this.mathExercise()?.sourceExpression && this.mathExercise()?.targetExpression);
     }
 
     get isManualMode(): boolean {
-        return !!this.mathExercise?.manualDerivation;
+        return !!this.mathExercise()?.manualDerivation;
     }
 
     get canVerify(): boolean {
-        return this.mathExercise?.allowVerification !== false;
+        return this.mathExercise()?.allowVerification !== false;
     }
 
     get allRules(): RewriteRuleModel[] {
@@ -292,10 +310,6 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
     get selectedRuleName(): string {
         return this.allRules.find((r) => r.id === this.selectedRuleId())?.name ?? this.selectedRuleId();
-    }
-
-    getRuleName(ruleId: string): string {
-        return this.allRules.find((r) => r.id === ruleId)?.name ?? ruleId;
     }
 
     isSelectedPath(path: number[]): boolean {
@@ -358,7 +372,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
             this.ruleApplicationError.set('Please build the result expression first.');
             return;
         }
-        if (this.visitedStates().has(JSON.stringify(canonical(result, !!this.mathExercise?.acNormalization)))) {
+        if (this.visitedStates().has(JSON.stringify(canonical(result, !!this.mathExercise()?.acNormalization)))) {
             this.ruleApplicationError.set('This step would return to a previously visited state.');
             return;
         }
@@ -424,7 +438,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
             this.ruleApplicationError.set('Rule does not apply at the selected node.');
             return;
         }
-        if (this.visitedStates().has(JSON.stringify(canonical(newTree, !!this.mathExercise?.acNormalization)))) {
+        if (this.visitedStates().has(JSON.stringify(canonical(newTree, !!this.mathExercise()?.acNormalization)))) {
             this.ruleApplicationError.set('This step would return to a previously visited state.');
             return;
         }
@@ -528,6 +542,46 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
         this.hasUnsavedChanges.set(true);
     }
 
+    requestHints(): void {
+        const exerciseId = this.mathExercise()?.id;
+        const current = this.currentExpression();
+        if (!exerciseId || !current) return;
+        this.hintsError.set(undefined);
+        this.hintsLoading.set(true);
+        this.mathSubmissionService.getHints(exerciseId, current).subscribe({
+            next: (suggestions) => {
+                this.hints.set(suggestions);
+                this.hintsLoading.set(false);
+            },
+            error: () => {
+                this.hints.set([]);
+                this.hintsLoading.set(false);
+                this.hintsError.set('Hints are not available for this exercise.');
+            },
+        });
+    }
+
+    dismissHints(): void {
+        this.hints.set([]);
+        this.hintsError.set(undefined);
+    }
+
+    applyHint(hint: HintSuggestion): void {
+        const rule = this.allRules.find((r) => r.id === hint.ruleId);
+        if (!rule) return;
+        this.selectedRuleId.set(hint.ruleId);
+        this.selectedNodePath.set(hint.path);
+        // Direction is encoded in the rationale string; default to FORWARD unless the hint marks reverse.
+        const reverse = !!hint.rationale && hint.rationale.toLowerCase().includes('reverse');
+        this.selectedDirection.set(reverse ? 'REVERSE' : 'FORWARD');
+        if (this.isManualMode) {
+            this.openManualBuilder();
+        } else {
+            this.applySelectedRule();
+        }
+        this.dismissHints();
+    }
+
     verifyFullMath() {
         const source = this.startExpression();
         if (!source) return;
@@ -545,7 +599,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
             }
             const prev = index === 0 ? source : stepsSnapshot[index - 1].resultExpression;
             const result = applyRule(prev, step.targetNodePath, rule.pattern, rule.template, rule.constraints ?? [], step.direction ?? 'FORWARD', rule.direction);
-            const isValid = !!result && equalsAC(result, step.resultExpression, !!this.mathExercise?.acNormalization);
+            const isValid = !!result && equalsAC(result, step.resultExpression, !!this.mathExercise()?.acNormalization);
             statuses.push(isValid ? 'valid' : 'invalid');
             errors.push(isValid ? undefined : 'Rule does not produce this result from the previous expression.');
         });
@@ -562,20 +616,21 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     // ── Save / Submit ─────────────────────────────────────────────────────────
 
     save(silent = false) {
-        if (!this.submission || !this.mathExercise) {
+        const submission = this.submission();
+        if (!submission || !this.mathExercise()) {
             return;
         }
-        this.isSaving = true;
-        this.submission.steps = this.steps();
+        this.isSaving.set(true);
+        submission.steps = this.steps();
 
-        const observable = this.submission.id
-            ? this.mathSubmissionService.update(this.submission, this.mathExercise.id!)
-            : this.mathSubmissionService.create(this.submission, this.mathExercise.id!);
+        const observable = submission.id
+            ? this.mathSubmissionService.update(submission, this.mathExercise().id!)
+            : this.mathSubmissionService.create(submission, this.mathExercise().id!);
 
         observable.subscribe({
             next: (response) => {
-                this.submission = response.body!;
-                this.isSaving = false;
+                this.submission.set(response.body!);
+                this.isSaving.set(false);
                 this.hasUnsavedChanges.set(false);
                 this.lastSavedAt.set(new Date());
                 if (!silent) {
@@ -583,7 +638,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
                 }
             },
             error: () => {
-                this.isSaving = false;
+                this.isSaving.set(false);
                 if (!silent) {
                     this.alertService.error('artemisApp.mathExercise.saveFailed');
                 }
@@ -592,29 +647,31 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     }
 
     submit() {
-        if (!this.submission || !this.mathExercise) {
+        const submission = this.submission();
+        if (!submission || !this.mathExercise()) {
             return;
         }
-        this.submission.submitted = true;
-        this.submission.steps = this.steps();
+        submission.submitted = true;
+        submission.steps = this.steps();
 
-        const observable = this.submission.id
-            ? this.mathSubmissionService.update(this.submission, this.mathExercise.id!)
-            : this.mathSubmissionService.create(this.submission, this.mathExercise.id!);
+        const observable = submission.id
+            ? this.mathSubmissionService.update(submission, this.mathExercise().id!)
+            : this.mathSubmissionService.create(submission, this.mathExercise().id!);
 
         observable.subscribe({
             next: (response) => {
-                this.submission = response.body!;
+                const updated = response.body!;
+                this.submission.set(updated);
                 this.hasUnsavedChanges.set(false);
                 this.lastSavedAt.set(new Date());
                 this.alertService.success('artemisApp.mathExercise.submitSuccessful');
 
-                if (this.submission.results && this.submission.results.length > 0) {
-                    this.result = this.submission.results[0];
+                if (updated.results && updated.results.length > 0) {
+                    this.result.set(updated.results[0]);
                 }
             },
             error: () => {
-                this.submission.submitted = false;
+                submission.submitted = false;
                 this.alertService.error('artemisApp.mathExercise.submitFailed');
             },
         });

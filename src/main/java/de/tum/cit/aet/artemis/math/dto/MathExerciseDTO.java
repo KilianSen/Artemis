@@ -12,6 +12,7 @@ import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
 
 /**
  * Data Transfer Object for {@link MathExercise}.
@@ -45,6 +46,11 @@ import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
  * @param manualDerivation                       true if students write the result expression themselves (false = system auto-applies)
  * @param allowVerification                      whether students may trigger math verification
  * @param onlyShowApplicableRules                whether the rule palette shows only rules applicable at the selected node
+ * @param partialCreditEnabled                   whether partial credit is awarded proportionally based on valid steps completed
+ * @param graderType                             which {@link GraderType} backend grades this exercise (only REWRITE_CHAIN is wired today; M3+ adds egg)
+ * @param goalMode                               how the goal is encoded: TRANSFORMATION (source→target) or EQUATION (single goal tree closed by tautology)
+ * @param goalExpression                         the goal tree for EQUATION mode (typically an {@code equality(LHS, RHS)}); {@code null} in TRANSFORMATION mode
+ * @param acNormalization                        whether the grader treats {@code +} and {@code ·} as commutative/associative for equality comparisons
  * @param exampleDerivations                     instructor-supplied example derivations (each is an ordered list of steps)
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -52,8 +58,8 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         DifficultyLevel difficulty, Double maxPoints, Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments,
         Boolean allowFeedbackRequests, Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions,
         ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId,
-        MathNode sourceExpression, MathNode targetExpression, Boolean manualDerivation, Boolean allowVerification, Boolean onlyShowApplicableRules, GoalMode goalMode,
-        MathNode goalExpression, Boolean acNormalization, List<List<DerivationStepDTO>> exampleDerivations) {
+        MathNode sourceExpression, MathNode targetExpression, Boolean manualDerivation, Boolean allowVerification, Boolean onlyShowApplicableRules, Boolean partialCreditEnabled,
+        GraderType graderType, GoalMode goalMode, MathNode goalExpression, Boolean acNormalization, List<List<DerivationStepDTO>> exampleDerivations) {
 
     /**
      * @param exercise the entity to project
@@ -67,7 +73,8 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
                 exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(),
                 exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId,
                 exercise.getSourceExpression(), exercise.getTargetExpression(), exercise.isManualDerivation(), exercise.isAllowVerification(), exercise.isOnlyShowApplicableRules(),
-                exercise.getGoalMode(), exercise.getGoalExpression(), exercise.isAcNormalization(), exercise.getExampleDerivations());
+                exercise.isPartialCreditEnabled(), exercise.getGraderType(), exercise.getGoalMode(), exercise.getGoalExpression(), exercise.isAcNormalization(),
+                exercise.getExampleDerivations());
     }
 
     /**
@@ -103,6 +110,8 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         exercise.setManualDerivation(Boolean.TRUE.equals(manualDerivation));
         exercise.setAllowVerification(allowVerification == null ? exercise.isAllowVerification() : allowVerification);
         exercise.setOnlyShowApplicableRules(Boolean.TRUE.equals(onlyShowApplicableRules));
+        exercise.setPartialCreditEnabled(Boolean.TRUE.equals(partialCreditEnabled));
+        exercise.setGraderType(graderType == null ? GraderType.REWRITE_CHAIN : graderType);
         exercise.setGoalMode(goalMode == null ? GoalMode.TRANSFORMATION : goalMode);
         exercise.setGoalExpression(goalExpression);
         exercise.setAcNormalization(Boolean.TRUE.equals(acNormalization));

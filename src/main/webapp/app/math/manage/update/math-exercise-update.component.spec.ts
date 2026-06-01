@@ -17,13 +17,14 @@ describe('MathExerciseUpdateComponent', () => {
     setupTestBed({ zoneless: true });
 
     let component: MathExerciseUpdateComponent;
-    let mathExerciseService: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    let mathExerciseService: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>; verifyReachability: ReturnType<typeof vi.fn> };
     let router: { navigate: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
         mathExerciseService = {
             create: vi.fn().mockReturnValue(of({ body: new MathExercise(undefined) })),
             update: vi.fn().mockReturnValue(of({ body: new MathExercise(undefined) })),
+            verifyReachability: vi.fn().mockReturnValue(of(undefined)),
         };
         router = { navigate: vi.fn() };
         const exercise = new MathExercise(undefined);
@@ -56,7 +57,7 @@ describe('MathExerciseUpdateComponent', () => {
     it('initialises with exampleDerivations defaulted to an empty array', () => {
         expect(component.mathExercise).toBeTruthy();
         expect(component.mathExercise.exampleDerivations).toEqual([]);
-        expect(component.isSaving).toBe(false);
+        expect(component.isSaving()).toBe(false);
     });
 
     it('addExampleDerivation pushes a new empty step list', () => {
@@ -80,5 +81,10 @@ describe('MathExerciseUpdateComponent', () => {
         component.mathExercise.id = 5;
         component.save();
         expect(mathExerciseService.update).toHaveBeenCalled();
+    });
+
+    it('checkReachability sets the saveFirst i18n key when the exercise is unsaved', () => {
+        component.checkReachability();
+        expect(component.reachabilityError()).toBe('artemisApp.mathExercise.reachability.saveFirst');
     });
 });

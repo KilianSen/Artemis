@@ -99,6 +99,8 @@ public class MathExerciseImportService extends ExerciseImportService {
         newExercise.setAllowVerification(importedExercise.isAllowVerification());
         newExercise.setOnlyShowApplicableRules(importedExercise.isOnlyShowApplicableRules());
         newExercise.setAcNormalization(importedExercise.isAcNormalization());
+        newExercise.setPartialCreditEnabled(importedExercise.isPartialCreditEnabled());
+        newExercise.setGraderType(importedExercise.getGraderType());
         newExercise.setExampleDerivations(importedExercise.getExampleDerivations());
         return newExercise;
     }

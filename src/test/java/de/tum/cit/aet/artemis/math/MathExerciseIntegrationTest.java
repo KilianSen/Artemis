@@ -138,6 +138,25 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void reEvaluateAndUpdateMathExercise_asInstructor_returnsOk() throws Exception {
+        exercise.setDescription("Re-evaluated description");
+        MathExerciseDTO updateDTO = MathExerciseDTO.of(exercise);
+
+        MathExerciseDTO result = request.putWithResponseBody("/api/math/math-exercises/" + exercise.getId() + "/re-evaluate", updateDTO, MathExerciseDTO.class, HttpStatus.OK);
+
+        assertThat(result.description()).isEqualTo("Re-evaluated description");
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void reEvaluateAndUpdateMathExercise_idMismatch_returnsBadRequest() throws Exception {
+        MathExerciseDTO updateDTO = MathExerciseDTO.of(exercise);
+
+        request.putWithResponseBody("/api/math/math-exercises/" + (exercise.getId() + 1) + "/re-evaluate", updateDTO, MathExerciseDTO.class, HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_asInstructor_returnsCreated() throws Exception {
         MathExerciseDTO importTarget = MathExerciseFactory.generateMathExerciseDTO(ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(1),
                 ZonedDateTime.now().plusDays(2), course);
@@ -148,6 +167,9 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotEqualTo(exercise.getId());
         assertThat(result.description()).isEqualTo(exercise.getDescription());
+        // the imported exercise must preserve the expression configuration sent in the import payload
+        assertThat(result.sourceExpression()).isNotNull();
+        assertThat(result.targetExpression()).isNotNull();
     }
 
     @Test
@@ -155,7 +177,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     void importMathExercise_preservesManualDerivation() throws Exception {
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null,
                 null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null,
-                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), null, null, true, false, false, null, null, false, null);
+                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), null, null, true, false, false, false, null, null, null, false, null);
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);
