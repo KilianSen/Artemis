@@ -13,6 +13,8 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.SecondaryTable;
 
+import org.hibernate.Hibernate;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
@@ -97,7 +99,8 @@ public class MathExercise extends Exercise {
         if (!isExampleSolutionPublished()) {
             setExampleSolution(null);
             // The per-problem example derivations are the instructor's worked solution; never expose them to students before the example solution is published.
-            if (problems != null) {
+            // Only touch the collection when it is loaded — an unloaded lazy collection is not serialized either, so there is nothing to filter.
+            if (Hibernate.isInitialized(problems)) {
                 problems.forEach(problem -> problem.setExampleDerivations(null));
             }
         }

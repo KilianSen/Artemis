@@ -85,9 +85,12 @@ public class RewriteChainGrader implements MathGrader {
         if (direction == StepDirection.REVERSE && rule.direction() != RuleDirection.BIDIRECTIONAL) {
             return Optional.empty();
         }
+        // A null path targets the root (an empty path). Client JSON may omit an empty targetNodePath (NON_EMPTY serialization),
+        // which deserializes to null; treat that as the root rather than failing.
+        List<Integer> safePath = path == null ? List.of() : path;
         MathNode patternSide = direction == StepDirection.REVERSE ? rule.template() : rule.pattern();
         MathNode templateSide = direction == StepDirection.REVERSE ? rule.pattern() : rule.template();
-        MathNode target = nodeAtPath(tree, path);
+        MathNode target = nodeAtPath(tree, safePath);
         Map<String, MathNode> bindings = match(patternSide, target);
         if (bindings == null) {
             return Optional.empty();
@@ -98,7 +101,7 @@ public class RewriteChainGrader implements MathGrader {
             }
         }
         MathNode result = instantiate(templateSide, bindings);
-        return Optional.of(replaceAtPath(tree, path, result));
+        return Optional.of(replaceAtPath(tree, safePath, result));
     }
 
     @Override
