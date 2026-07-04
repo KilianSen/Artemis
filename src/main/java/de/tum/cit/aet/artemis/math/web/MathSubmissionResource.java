@@ -143,7 +143,7 @@ public class MathSubmissionResource {
             result.setRated(true);
             result.setExerciseId(exerciseId);
 
-            double score = mathGradingService.gradeSubmission(mathExercise, saved);
+            double score = mathGradingService.gradeSubmission(mathExercise, saved.getSteps());
             result.setScore(score, mathExercise.getCourseViaExerciseGroupOrCourseMember());
 
             resultRepository.save(result);

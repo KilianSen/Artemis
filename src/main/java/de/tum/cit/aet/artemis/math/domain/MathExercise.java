@@ -30,7 +30,7 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
 @DiscriminatorValue(value = "R")
 @SecondaryTable(name = "math_exercise_details")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class MathExercise extends Exercise {
+public class MathExercise extends Exercise implements MathProblemConfig {
 
     @Column(table = "math_exercise_details", name = "description")
     private String description;

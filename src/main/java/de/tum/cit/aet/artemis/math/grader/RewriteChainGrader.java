@@ -19,10 +19,9 @@ import org.springframework.stereotype.Service;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.GoalMode;
-import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
-import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.domain.RuleConstraint;
 import de.tum.cit.aet.artemis.math.domain.RuleDirection;
@@ -103,31 +102,30 @@ public class RewriteChainGrader implements MathGrader {
     }
 
     @Override
-    public GradingResult grade(MathExercise exercise, MathSubmission submission) {
-        return GradingResult.of(gradeSubmission(exercise, submission));
+    public GradingResult grade(MathProblemConfig config, List<DerivationStep> steps) {
+        return GradingResult.of(gradeSubmission(config, steps));
     }
 
     /**
-     * Grades a submission and returns the raw score. Dispatches on {@link MathExercise#getGoalMode()}
+     * Grades a derivation and returns the raw score. Dispatches on {@link MathProblemConfig#getGoalMode()}
      * — TRANSFORMATION mode compares against {@code targetExpression}, EQUATION mode reduces to a tautology.
      *
-     * @param exercise   the exercise being graded
-     * @param submission the student's submission
+     * @param config the problem configuration being graded
+     * @param steps  the student's ordered derivation steps
      * @return score in [0, 100]
      */
-    public double gradeSubmission(MathExercise exercise, MathSubmission submission) {
-        GoalMode mode = exercise.getGoalMode() == null ? GoalMode.TRANSFORMATION : exercise.getGoalMode();
-        return mode == GoalMode.EQUATION ? gradeEquationMode(exercise, submission) : gradeTransformationMode(exercise, submission);
+    public double gradeSubmission(MathProblemConfig config, List<DerivationStep> steps) {
+        GoalMode mode = config.getGoalMode() == null ? GoalMode.TRANSFORMATION : config.getGoalMode();
+        return mode == GoalMode.EQUATION ? gradeEquationMode(config, steps) : gradeTransformationMode(config, steps);
     }
 
-    private double gradeTransformationMode(MathExercise exercise, MathSubmission submission) {
-        MathNode source = exercise.getSourceExpression();
-        MathNode target = exercise.getTargetExpression();
+    private double gradeTransformationMode(MathProblemConfig config, List<DerivationStep> steps) {
+        MathNode source = config.getSourceExpression();
+        MathNode target = config.getTargetExpression();
         if (source == null || target == null) {
             return 0.0;
         }
-        boolean ac = exercise.isAcNormalization();
-        List<DerivationStep> steps = submission.getSteps();
+        boolean ac = config.isAcNormalization();
         if (steps == null || steps.isEmpty()) {
             return MathNodes.equalsAC(source, target, ac) ? 100.0 : 0.0;
         }
@@ -135,19 +133,18 @@ public class RewriteChainGrader implements MathGrader {
         if (MathNodes.equalsAC(r.current(), target, ac)) {
             return 100.0;
         }
-        if (!exercise.isPartialCreditEnabled()) {
+        if (!config.isPartialCreditEnabled()) {
             return 0.0;
         }
         return distanceBasedScore(comparableDistance(source, target, ac), comparableDistance(r.current(), target, ac));
     }
 
-    private double gradeEquationMode(MathExercise exercise, MathSubmission submission) {
-        MathNode goal = exercise.getGoalExpression();
+    private double gradeEquationMode(MathProblemConfig config, List<DerivationStep> steps) {
+        MathNode goal = config.getGoalExpression();
         if (goal == null) {
             return 0.0;
         }
-        boolean ac = exercise.isAcNormalization();
-        List<DerivationStep> steps = submission.getSteps();
+        boolean ac = config.isAcNormalization();
         if (steps == null || steps.isEmpty()) {
             return MathNodes.isTautology(canonicalise(goal, ac)) ? 100.0 : 0.0;
         }
@@ -155,7 +152,7 @@ public class RewriteChainGrader implements MathGrader {
         if (MathNodes.isTautology(canonicalise(r.current(), ac))) {
             return 100.0;
         }
-        if (!exercise.isPartialCreditEnabled()) {
+        if (!config.isPartialCreditEnabled()) {
             return 0.0;
         }
         // In EQUATION mode, partial credit reflects how close the two sides of the current equation are to each other,
@@ -216,12 +213,12 @@ public class RewriteChainGrader implements MathGrader {
     }
 
     @Override
-    public List<HintSuggestion> suggestHints(MathExercise exercise, MathNode currentState) {
+    public List<HintSuggestion> suggestHints(MathProblemConfig config, MathNode currentState) {
         if (currentState == null) {
             return List.of();
         }
-        boolean ac = exercise.isAcNormalization();
-        ToIntFunction<MathNode> metric = progressMetricFor(exercise, ac);
+        boolean ac = config.isAcNormalization();
+        ToIntFunction<MathNode> metric = progressMetricFor(config, ac);
         if (metric == null) {
             return List.of();
         }
@@ -242,12 +239,12 @@ public class RewriteChainGrader implements MathGrader {
     }
 
     @Override
-    public Optional<ReachabilityReport> verifyReachability(MathExercise exercise) {
-        boolean ac = exercise.isAcNormalization();
-        GoalMode mode = exercise.getGoalMode() == null ? GoalMode.TRANSFORMATION : exercise.getGoalMode();
+    public Optional<ReachabilityReport> verifyReachability(MathProblemConfig config) {
+        boolean ac = config.isAcNormalization();
+        GoalMode mode = config.getGoalMode() == null ? GoalMode.TRANSFORMATION : config.getGoalMode();
         ReductionStrategy strategy = forwardOnlyStrategy();
         if (mode == GoalMode.EQUATION) {
-            MathNode goal = exercise.getGoalExpression();
+            MathNode goal = config.getGoalExpression();
             if (goal == null) {
                 return Optional.empty();
             }
@@ -256,8 +253,8 @@ public class RewriteChainGrader implements MathGrader {
             int finalDist = sideDistance(reduced.tree(), ac);
             return Optional.of(new ReachabilityReport(finalDist == 0, initialDist, finalDist, reduced.tree()));
         }
-        MathNode source = exercise.getSourceExpression();
-        MathNode target = exercise.getTargetExpression();
+        MathNode source = config.getSourceExpression();
+        MathNode target = config.getTargetExpression();
         if (source == null || target == null) {
             return Optional.empty();
         }
@@ -268,15 +265,15 @@ public class RewriteChainGrader implements MathGrader {
     }
 
     /** Returns the progress metric to rank hint candidates by, or {@code null} if no goal is configured. */
-    private ToIntFunction<MathNode> progressMetricFor(MathExercise exercise, boolean ac) {
-        GoalMode mode = exercise.getGoalMode() == null ? GoalMode.TRANSFORMATION : exercise.getGoalMode();
+    private ToIntFunction<MathNode> progressMetricFor(MathProblemConfig config, boolean ac) {
+        GoalMode mode = config.getGoalMode() == null ? GoalMode.TRANSFORMATION : config.getGoalMode();
         if (mode == GoalMode.EQUATION) {
-            if (exercise.getGoalExpression() == null) {
+            if (config.getGoalExpression() == null) {
                 return null;
             }
             return tree -> sideDistance(tree, ac);
         }
-        MathNode target = exercise.getTargetExpression();
+        MathNode target = config.getTargetExpression();
         if (target == null) {
             return null;
         }

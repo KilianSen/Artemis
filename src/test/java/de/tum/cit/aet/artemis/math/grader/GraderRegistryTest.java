@@ -9,8 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import de.tum.cit.aet.artemis.math.domain.BlockDefinition;
-import de.tum.cit.aet.artemis.math.domain.MathExercise;
-import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
+import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 import de.tum.cit.aet.artemis.math.domain.blocks.AddBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.EqualityBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.FractionBlockDefinition;
@@ -58,7 +58,7 @@ class GraderRegistryTest {
             }
 
             @Override
-            public GradingResult grade(MathExercise exercise, MathSubmission submission) {
+            public GradingResult grade(MathProblemConfig config, List<DerivationStep> steps) {
                 return GradingResult.of(0.0);
             }
         };

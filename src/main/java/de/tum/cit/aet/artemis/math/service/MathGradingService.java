@@ -8,9 +8,9 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
-import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
-import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.grader.GraderRegistry;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
@@ -38,38 +38,38 @@ public class MathGradingService {
     }
 
     /**
-     * Grades a submission, dispatching to the grader configured on the exercise.
+     * Grades a derivation, dispatching to the grader configured on the problem configuration.
      *
-     * @param exercise   the exercise being graded
-     * @param submission the student's submission
+     * @param config the problem configuration being graded (a standalone {@code MathExercise} or a multiplex problem)
+     * @param steps  the student's ordered derivation steps
      * @return score in [0, 100]
      */
-    public double gradeSubmission(MathExercise exercise, MathSubmission submission) {
-        GraderType type = exercise.getGraderType() == null ? GraderType.REWRITE_CHAIN : exercise.getGraderType();
-        return graderRegistry.getGrader(type).grade(exercise, submission).score();
+    public double gradeSubmission(MathProblemConfig config, List<DerivationStep> steps) {
+        GraderType type = config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType();
+        return graderRegistry.getGrader(type).grade(config, steps).score();
     }
 
     /**
-     * Asks the exercise's grader for hint suggestions at the current state.
+     * Asks the configuration's grader for hint suggestions at the current state.
      *
-     * @param exercise     the exercise being worked on
+     * @param config       the problem configuration being worked on
      * @param currentState the student's current math state
      * @return ranked suggestions, possibly empty
      */
-    public List<HintSuggestion> suggestHints(MathExercise exercise, MathNode currentState) {
-        GraderType type = exercise.getGraderType() == null ? GraderType.REWRITE_CHAIN : exercise.getGraderType();
-        return graderRegistry.getGrader(type).suggestHints(exercise, currentState);
+    public List<HintSuggestion> suggestHints(MathProblemConfig config, MathNode currentState) {
+        GraderType type = config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType();
+        return graderRegistry.getGrader(type).suggestHints(config, currentState);
     }
 
     /**
-     * Asks the exercise's grader whether the target is automatically reachable.
+     * Asks the configuration's grader whether the target is automatically reachable.
      *
-     * @param exercise the exercise to analyse
+     * @param config the problem configuration to analyse
      * @return reachability report, or empty if the grader does not support this check
      */
-    public Optional<ReachabilityReport> verifyReachability(MathExercise exercise) {
-        GraderType type = exercise.getGraderType() == null ? GraderType.REWRITE_CHAIN : exercise.getGraderType();
-        return graderRegistry.getGrader(type).verifyReachability(exercise);
+    public Optional<ReachabilityReport> verifyReachability(MathProblemConfig config) {
+        GraderType type = config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType();
+        return graderRegistry.getGrader(type).verifyReachability(config);
     }
 
     /**

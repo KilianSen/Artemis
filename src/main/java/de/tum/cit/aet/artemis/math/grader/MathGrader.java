@@ -3,9 +3,9 @@ package de.tum.cit.aet.artemis.math.grader;
 import java.util.List;
 import java.util.Optional;
 
-import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
-import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 
 /**
  * Strategy interface implemented by every math-grading backend.
@@ -27,35 +27,35 @@ public interface MathGrader {
     GraderType getType();
 
     /**
-     * Grade an entire submission and return the score plus per-step status.
+     * Grade a derivation (the ordered steps) against a problem configuration and return the score plus per-step status.
      *
-     * @param exercise   the exercise being graded
-     * @param submission the student's submission
+     * @param config the problem configuration being graded (a standalone exercise or a multiplex problem)
+     * @param steps  the student's ordered derivation steps
      * @return a {@link GradingResult} with score in [0, 100] and per-step status
      */
-    GradingResult grade(MathExercise exercise, MathSubmission submission);
+    GradingResult grade(MathProblemConfig config, List<DerivationStep> steps);
 
     /**
      * Suggest possible next steps the student could take from the current state.
      * Optional — used to power the "Hint" button in the workspace.
      *
-     * @param exercise     the exercise being worked on
+     * @param config       the problem configuration being worked on
      * @param currentState the student's current math state
      * @return up to a handful of {@link HintSuggestion}s ranked by usefulness, or empty
      */
-    default List<HintSuggestion> suggestHints(MathExercise exercise, MathNode currentState) {
+    default List<HintSuggestion> suggestHints(MathProblemConfig config, MathNode currentState) {
         return List.of();
     }
 
     /**
-     * Run an automated reachability check from the exercise's starting expression toward its target.
+     * Run an automated reachability check from the configuration's starting expression toward its target.
      * Optional — different graders implement this differently (rewrite-chain runs a reduction strategy;
      * Lean would run {@code simp} / {@code auto}). Empty when the grader cannot answer the question.
      *
-     * @param exercise the exercise to analyse
+     * @param config the problem configuration to analyse
      * @return a {@link ReachabilityReport}, or empty if this grader does not support reachability checks
      */
-    default Optional<ReachabilityReport> verifyReachability(MathExercise exercise) {
+    default Optional<ReachabilityReport> verifyReachability(MathProblemConfig config) {
         return Optional.empty();
     }
 }

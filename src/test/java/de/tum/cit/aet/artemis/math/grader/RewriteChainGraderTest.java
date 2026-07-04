@@ -185,7 +185,7 @@ class RewriteChainGraderTest {
     void gradeSubmission_singleValidStep_reachesTarget() {
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -193,7 +193,7 @@ class RewriteChainGraderTest {
         // Source 0 + x, target x. Step claims add_zero_left at root with result "y" (wrong)
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("y")));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(0.0);
     }
 
     @Test
@@ -208,7 +208,7 @@ class RewriteChainGraderTest {
                 List.of(List.of(new DerivationStepDTO(null, 0, "add_zero_left", List.of(0), afterStep1), new DerivationStepDTO(null, 1, "add_zero_right", List.of(), target))));
         // Student does step 1 only: at path [0] (the left add subtree), 0+x -> x. Result is x + 0.
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(0), afterStep1));
-        double score = grader.gradeSubmission(exercise, submission);
+        double score = grader.gradeSubmission(exercise, submission.getSteps());
         assertThat(score).isEqualTo(50.0);
     }
 
@@ -216,14 +216,14 @@ class RewriteChainGraderTest {
     void gradeSubmission_invalidRuleId_breaksChain() {
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
         MathSubmission submission = submissionOf(step(0, "nonexistent_rule", List.of(), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(0.0);
     }
 
     @Test
     void gradeSubmission_emptySteps_sourceEqualsTarget_scores100() {
         MathExercise exercise = exerciseOf(MathNodes.var("x"), MathNodes.var("x"));
         MathSubmission submission = submissionOf();
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     // ----- Direction-aware rule application -----
@@ -314,7 +314,7 @@ class RewriteChainGraderTest {
         DerivationStep step = step(0, "add_assoc", List.of(), target);
         step.setDirection(StepDirection.REVERSE);
         MathSubmission submission = submissionOf(step);
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -325,7 +325,7 @@ class RewriteChainGraderTest {
         DerivationStep step = step(0, "add_zero_left", List.of(), MathNodes.add(MathNodes.num("0"), MathNodes.var("x")));
         step.setDirection(StepDirection.REVERSE);
         MathSubmission submission = submissionOf(step);
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(0.0);
     }
 
     // ----- No-regress + distance-based partial credit -----
@@ -341,7 +341,7 @@ class RewriteChainGraderTest {
         MathSubmission submission = submissionOf(step1, step2);
         // Source already equals target, so empty-step branch is what matters; with steps present, the loop should break on revisit
         // and score must remain controlled (not 100 from a back-flip).
-        double score = grader.gradeSubmission(exercise, submission);
+        double score = grader.gradeSubmission(exercise, submission.getSteps());
         assertThat(score).isLessThan(100.0);
     }
 
@@ -354,12 +354,12 @@ class RewriteChainGraderTest {
         MathExercise exercise = exerciseOf(source, target);
         exercise.setPartialCreditEnabled(true);
         MathSubmission oneStep = submissionOf(step(0, "add_zero_left", List.of(), afterOuter));
-        double oneStepScore = grader.gradeSubmission(exercise, oneStep);
+        double oneStepScore = grader.gradeSubmission(exercise, oneStep.getSteps());
         assertThat(oneStepScore).isGreaterThan(0.0).isLessThanOrEqualTo(99.0);
 
         // Two steps: get all the way to x → 100.
         MathSubmission twoSteps = submissionOf(step(0, "add_zero_left", List.of(), afterOuter), step(1, "add_zero_left", List.of(), target));
-        assertThat(grader.gradeSubmission(exercise, twoSteps)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, twoSteps.getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -372,7 +372,7 @@ class RewriteChainGraderTest {
         MathExercise exercise = exerciseOf(source, MathNodes.var("x"));
         exercise.setPartialCreditEnabled(true);
         MathSubmission full = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, full)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, full.getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -383,7 +383,7 @@ class RewriteChainGraderTest {
         MathExercise exercise = exerciseOf(source, MathNodes.var("x"));
         exercise.setPartialCreditEnabled(true);
         MathSubmission submission = submissionOf(step(0, "add_comm", List.of(), swapped));
-        double score = grader.gradeSubmission(exercise, submission);
+        double score = grader.gradeSubmission(exercise, submission.getSteps());
         assertThat(score).isEqualTo(0.0);
     }
 
@@ -395,11 +395,11 @@ class RewriteChainGraderTest {
         MathExercise exercise = equationExerciseOf(goal);
         exercise.setPartialCreditEnabled(true);
         // Empty submission, goal not yet tautology → 0
-        assertThat(grader.gradeSubmission(exercise, submissionOf())).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submissionOf().getSteps())).isEqualTo(0.0);
         // One valid step that closes the math
         MathNode reduced = MathNodes.eq(MathNodes.var("x"), MathNodes.var("x"));
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(0), reduced));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     // ----- Reduction strategy + reachability -----
@@ -486,7 +486,7 @@ class RewriteChainGraderTest {
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.add(MathNodes.var("x"), MathNodes.num("0")));
         exercise.setAcNormalization(true);
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0); // x ≠ x + 0 under AC (since AC just sorts; sizes differ)
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(0.0); // x ≠ x + 0 under AC (since AC just sorts; sizes differ)
 
         // Sanity: when target genuinely matches by AC (a + b vs b + a), one step closes it.
         MathExercise exercise2 = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.add(MathNodes.var("a"), MathNodes.var("b"))),
@@ -494,7 +494,7 @@ class RewriteChainGraderTest {
         exercise2.setAcNormalization(true);
         MathNode afterStep = MathNodes.add(MathNodes.var("a"), MathNodes.var("b"));
         MathSubmission submission2 = submissionOf(step(0, "add_zero_left", List.of(), afterStep));
-        assertThat(grader.gradeSubmission(exercise2, submission2)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise2, submission2.getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -503,7 +503,7 @@ class RewriteChainGraderTest {
         MathNode goal = MathNodes.eq(MathNodes.add(MathNodes.var("a"), MathNodes.var("b")), MathNodes.add(MathNodes.var("b"), MathNodes.var("a")));
         MathExercise exercise = equationExerciseOf(goal);
         exercise.setAcNormalization(true);
-        assertThat(grader.gradeSubmission(exercise, submissionOf())).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submissionOf().getSteps())).isEqualTo(100.0);
     }
 
     @Test
@@ -511,7 +511,7 @@ class RewriteChainGraderTest {
         MathNode goal = MathNodes.eq(MathNodes.add(MathNodes.var("a"), MathNodes.var("b")), MathNodes.add(MathNodes.var("b"), MathNodes.var("a")));
         MathExercise exercise = equationExerciseOf(goal);
         // AC off (default) — empty submission is not enough.
-        assertThat(grader.gradeSubmission(exercise, submissionOf())).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submissionOf().getSteps())).isEqualTo(0.0);
     }
 
     // ----- isTautology -----
@@ -544,20 +544,20 @@ class RewriteChainGraderTest {
         MathExercise exercise = equationExerciseOf(goal);
         // Path [0] is the alphabetical-first slot of equality (left), where add(a, b) lives.
         MathSubmission submission = submissionOf(step(0, "add_comm", List.of(0), afterStep));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     @Test
     void gradeSubmission_equationMode_emptyStepsOnTautologicalGoal_scores100() {
         MathExercise exercise = equationExerciseOf(MathNodes.eq(MathNodes.var("x"), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, submissionOf())).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submissionOf().getSteps())).isEqualTo(100.0);
     }
 
     @Test
     void gradeSubmission_equationMode_emptyStepsOnNonTautologicalGoal_scoresZero() {
         MathNode goal = MathNodes.eq(MathNodes.add(MathNodes.var("a"), MathNodes.var("b")), MathNodes.add(MathNodes.var("b"), MathNodes.var("a")));
         MathExercise exercise = equationExerciseOf(goal);
-        assertThat(grader.gradeSubmission(exercise, submissionOf())).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submissionOf().getSteps())).isEqualTo(0.0);
     }
 
     @Test
@@ -566,7 +566,7 @@ class RewriteChainGraderTest {
         MathExercise exercise = equationExerciseOf(goal);
         // Claim add_comm on the left side but record a wrong result tree.
         MathSubmission submission = submissionOf(step(0, "add_comm", List.of(0), MathNodes.eq(MathNodes.var("z"), MathNodes.add(MathNodes.var("b"), MathNodes.var("a")))));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(0.0);
     }
 
     @Test
@@ -575,7 +575,7 @@ class RewriteChainGraderTest {
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
         assertThat(exercise.getGoalMode()).isEqualTo(GoalMode.TRANSFORMATION);
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
-        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+        assertThat(grader.gradeSubmission(exercise, submission.getSteps())).isEqualTo(100.0);
     }
 
     // ----- Grader-interface wrappers -----
@@ -584,7 +584,7 @@ class RewriteChainGraderTest {
     void grade_throughInterface_returnsGradingResult() {
         MathExercise exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
         MathSubmission submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
-        GradingResult result = grader.grade(exercise, submission);
+        GradingResult result = grader.grade(exercise, submission.getSteps());
         assertThat(result.score()).isEqualTo(100.0);
     }
 
