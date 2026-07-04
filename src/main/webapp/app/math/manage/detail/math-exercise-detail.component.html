@@ -40,7 +40,7 @@
                                     <tr>
                                         <td>{{ sub.participation?.studentName ?? sub.participation?.studentLogin ?? '—' }}</td>
                                         <td>{{ sub.submissionDate | artemisDate }}</td>
-                                        <td>{{ sub.steps?.length ?? 0 }}</td>
+                                        <td>{{ totalSteps(sub) }}</td>
                                         <td>
                                             @if (sub.results && sub.results.length > 0) {
                                                 {{ sub.results[sub.results.length - 1].score | number: '1.0-1' }}%
@@ -67,23 +67,45 @@
                 </div>
             }
 
-            @if (mathExercise().sourceExpression && mathExercise().targetExpression) {
+            @if ((mathExercise().problems ?? []).length > 0) {
                 <div class="row mt-3">
                     <div class="col-12">
                         <p-card>
                             <ng-template pTemplate="header">
-                                <h4 class="px-3 pt-3 mb-0" jhiTranslate="artemisApp.mathExercise.expressionsTitle">Math Expressions</h4>
+                                <div class="d-flex align-items-center justify-content-between px-3 pt-3">
+                                    <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.problems">Problems</h4>
+                                    <p-tag severity="secondary" [value]="mathExercise().problems!.length.toString()" />
+                                </div>
                             </ng-template>
-                            <div class="d-flex gap-4 align-items-center flex-wrap">
-                                <div>
-                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.sourceExpression">Source</small>
-                                    <span class="fs-5" [innerHTML]="mathExercise().sourceExpression | mathNodeLatex"></span>
-                                </div>
-                                <div class="fs-3 text-muted">→</div>
-                                <div>
-                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.targetExpression">Target</small>
-                                    <span class="fs-5" [innerHTML]="mathExercise().targetExpression | mathNodeLatex"></span>
-                                </div>
+                            <div class="d-flex flex-column gap-3">
+                                @for (problem of mathExercise().problems ?? []; track problem.id ?? $index; let i = $index) {
+                                    <div [class]="i > 0 ? 'border-top pt-3' : ''">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <strong>{{ problem.title || 'Problem ' + (i + 1) }}</strong>
+                                            <p-tag severity="secondary" [value]="(problem.points ?? 0) + ' pts'" />
+                                        </div>
+                                        @if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+                                            @if (problem.goalExpression) {
+                                                <div>
+                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.goalExpression">Goal</small>
+                                                    <span class="fs-5" [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
+                                                </div>
+                                            }
+                                        } @else if (problem.sourceExpression && problem.targetExpression) {
+                                            <div class="d-flex gap-4 align-items-center flex-wrap">
+                                                <div>
+                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.sourceExpression">Source</small>
+                                                    <span class="fs-5" [innerHTML]="problem.sourceExpression | mathNodeLatex"></span>
+                                                </div>
+                                                <div class="fs-3 text-muted">→</div>
+                                                <div>
+                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.targetExpression">Target</small>
+                                                    <span class="fs-5" [innerHTML]="problem.targetExpression | mathNodeLatex"></span>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
                             </div>
                         </p-card>
                     </div>

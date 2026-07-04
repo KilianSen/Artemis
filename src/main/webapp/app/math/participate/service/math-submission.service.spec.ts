@@ -116,8 +116,8 @@ describe('MathSubmissionService', () => {
 
     it('asks the backend for next-step hints', async () => {
         const node: MathNode = { type: 'var', value: 'x' };
-        const promise = firstValueFrom(service.getHints(3, node));
-        const req = httpMock.expectOne({ method: 'POST', url: 'api/math/exercises/3/hints' });
+        const promise = firstValueFrom(service.getHints(3, 5, node));
+        const req = httpMock.expectOne({ method: 'POST', url: 'api/math/exercises/3/problems/5/hints' });
         req.flush([]);
         const res = await promise;
 

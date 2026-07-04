@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
+import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 import { MathExerciseService } from '../service/math-exercise.service';
 import { FormsModule } from '@angular/forms';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
@@ -12,23 +13,14 @@ import { MarkdownEditorMonacoComponent } from 'app/editor/markdown-editor/monaco
 import { FormDateTimePickerComponent } from 'app/shared-ui/date-time-picker/date-time-picker.component';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
-import { MathNode } from '../../shared/entities/math-node.model';
-import { DerivationStep } from '../../shared/entities/derivation-step.model';
-import { GRADER_TYPES_AVAILABLE, GRADER_TYPE_LABELS, GraderType } from '../../shared/entities/grader-type.model';
-import { GOAL_MODE_LABELS, GoalMode } from '../../shared/entities/goal-mode.model';
-import { ReachabilityReport } from '../../shared/entities/hint-suggestion.model';
-import { MathBuilderComponent } from './math-builder/math-builder.component';
-import { MathDerivationWorkspaceComponent } from './math-derivation-workspace/math-derivation-workspace.component';
 import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
-import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
+import { MathProblemEditComponent } from './math-problem-edit/math-problem-edit.component';
 
 @Component({
     selector: 'jhi-math-exercise-update',
@@ -42,14 +34,10 @@ import { TooltipModule } from 'primeng/tooltip';
         MarkdownEditorMonacoComponent,
         FormDateTimePickerComponent,
         ArtemisTranslatePipe,
-        MathBuilderComponent,
-        MathDerivationWorkspaceComponent,
+        MathProblemEditComponent,
         ButtonModule,
         CardModule,
-        CheckboxModule,
         InputTextModule,
-        MessageModule,
-        SelectModule,
         TagModule,
         TextareaModule,
         TooltipModule,
@@ -67,22 +55,6 @@ export class MathExerciseUpdateComponent implements OnInit {
     readonly isSaving = signal(false);
     exerciseCategories = signal<ExerciseCategory[]>([]);
     existingCategories = signal<ExerciseCategory[]>([]);
-    onlyShowApplicableRules = signal(false);
-
-    readonly graderTypeOptions: { value: GraderType; label: string; disabled: boolean }[] = (Object.keys(GRADER_TYPE_LABELS) as GraderType[]).map((value) => ({
-        value,
-        label: GRADER_TYPE_LABELS[value],
-        disabled: !GRADER_TYPES_AVAILABLE.includes(value),
-    }));
-
-    readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({
-        value,
-        label: GOAL_MODE_LABELS[value],
-    }));
-
-    reachability = signal<ReachabilityReport | undefined>(undefined);
-    reachabilityChecking = signal(false);
-    reachabilityError = signal<string | undefined>(undefined);
 
     releaseDateField = viewChild<FormDateTimePickerComponent>('releaseDate');
     startDateField = viewChild<FormDateTimePickerComponent>('startDate');
@@ -94,10 +66,15 @@ export class MathExerciseUpdateComponent implements OnInit {
         this.activatedRoute.data.subscribe(({ mathExercise }) => {
             this.mathExercise = mathExercise;
             this.exerciseCategories.set(this.mathExercise.categories || []);
-            if (!this.mathExercise.exampleDerivations) {
-                this.mathExercise.exampleDerivations = [];
+            if (!this.mathExercise.problems) {
+                this.mathExercise.problems = [];
             }
         });
+    }
+
+    /** Max points is the sum of the individual problem points — displayed read-only and written to maxPoints on save. */
+    get totalPoints(): number {
+        return (this.mathExercise.problems ?? []).reduce((sum, problem) => sum + (problem.points ?? 0), 0);
     }
 
     updateCategories(categories: ExerciseCategory[]) {
@@ -108,65 +85,33 @@ export class MathExerciseUpdateComponent implements OnInit {
         this.exerciseService.validateDate(this.mathExercise);
     }
 
-    onSourceExpressionChange(node: MathNode | undefined) {
-        this.mathExercise.sourceExpression = node;
-        this.mathExercise.exampleDerivations = [];
+    addProblem(): void {
+        this.mathExercise.problems = [...(this.mathExercise.problems ?? []), new MathProblem()];
     }
 
-    onTargetExpressionChange(node: MathNode | undefined) {
-        this.mathExercise.targetExpression = node;
-        // Workspaces re-evaluate isComplete automatically via the targetExpression signal input.
+    removeProblem(index: number): void {
+        const updated = [...(this.mathExercise.problems ?? [])];
+        updated.splice(index, 1);
+        this.mathExercise.problems = updated;
     }
 
-    onGoalExpressionChange(node: MathNode | undefined) {
-        this.mathExercise.goalExpression = node;
-        this.mathExercise.exampleDerivations = [];
-    }
-
-    onGoalModeChange(mode: GoalMode) {
-        this.mathExercise.goalMode = mode;
-        // Reset example derivations — they're tied to the previous start expression.
-        this.mathExercise.exampleDerivations = [];
-        this.reachability.set(undefined);
-    }
-
-    checkReachability(): void {
-        if (!this.mathExercise.id) {
-            this.reachabilityError.set('artemisApp.mathExercise.reachability.saveFirst');
+    moveProblemUp(index: number): void {
+        if (index <= 0) {
             return;
         }
-        this.reachabilityError.set(undefined);
-        this.reachabilityChecking.set(true);
-        this.mathExerciseService.verifyReachability(this.mathExercise.id).subscribe({
-            next: (report) => {
-                this.reachability.set(report);
-                if (!report) {
-                    this.reachabilityError.set('artemisApp.mathExercise.reachability.notSupported');
-                }
-                this.reachabilityChecking.set(false);
-            },
-            error: () => {
-                this.reachability.set(undefined);
-                this.reachabilityError.set('artemisApp.mathExercise.reachability.failed');
-                this.reachabilityChecking.set(false);
-            },
-        });
+        const updated = [...(this.mathExercise.problems ?? [])];
+        [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+        this.mathExercise.problems = updated;
     }
 
-    addExampleDerivation(): void {
-        this.mathExercise.exampleDerivations = [...(this.mathExercise.exampleDerivations ?? []), []];
-    }
-
-    removeExampleDerivation(index: number): void {
-        const updated = [...(this.mathExercise.exampleDerivations ?? [])];
-        updated.splice(index, 1);
-        this.mathExercise.exampleDerivations = updated;
-    }
-
-    onExampleStepsChange(index: number, steps: DerivationStep[]): void {
-        const updated = [...(this.mathExercise.exampleDerivations ?? [])];
-        updated[index] = steps;
-        this.mathExercise.exampleDerivations = updated;
+    moveProblemDown(index: number): void {
+        const problems = this.mathExercise.problems ?? [];
+        if (index >= problems.length - 1) {
+            return;
+        }
+        const updated = [...problems];
+        [updated[index + 1], updated[index]] = [updated[index], updated[index + 1]];
+        this.mathExercise.problems = updated;
     }
 
     // Dev-only JSON import/export tools — gated by the isDev getter (profileService.isDevelopment()).
@@ -207,6 +152,9 @@ export class MathExerciseUpdateComponent implements OnInit {
             try {
                 const parsed = JSON.parse(reader.result as string) as MathExercise;
                 Object.assign(this.mathExercise, parsed);
+                if (!this.mathExercise.problems) {
+                    this.mathExercise.problems = [];
+                }
             } catch {
                 // malformed JSON — silently ignore in dev helper
             }
@@ -215,6 +163,8 @@ export class MathExerciseUpdateComponent implements OnInit {
     }
 
     save() {
+        // Max points is derived from the sum of problem points so shared scoring keeps working.
+        this.mathExercise.maxPoints = this.totalPoints;
         this.isSaving.set(true);
         if (this.mathExercise.id !== undefined) {
             this.mathExerciseService.update(this.mathExercise).subscribe({

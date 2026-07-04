@@ -12,6 +12,7 @@ import { MathExerciseService } from 'app/math/manage/service/math-exercise.servi
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
+import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 
 describe('MathExerciseUpdateComponent', () => {
     setupTestBed({ zoneless: true });
@@ -54,26 +55,74 @@ describe('MathExerciseUpdateComponent', () => {
         component.ngOnInit();
     });
 
-    it('initialises with exampleDerivations defaulted to an empty array', () => {
+    it('initialises with problems defaulted to an empty array', () => {
         expect(component.mathExercise).toBeTruthy();
-        expect(component.mathExercise.exampleDerivations).toEqual([]);
+        expect(component.mathExercise.problems).toEqual([]);
         expect(component.isSaving()).toBe(false);
     });
 
-    it('addExampleDerivation pushes a new empty step list', () => {
-        component.addExampleDerivation();
-        expect(component.mathExercise.exampleDerivations).toHaveLength(1);
+    it('addProblem pushes a new MathProblem', () => {
+        component.addProblem();
+        expect(component.mathExercise.problems).toHaveLength(1);
+        expect(component.mathExercise.problems![0]).toBeInstanceOf(MathProblem);
     });
 
-    it('removeExampleDerivation drops the entry at the given index', () => {
-        component.addExampleDerivation();
-        component.addExampleDerivation();
-        component.removeExampleDerivation(0);
-        expect(component.mathExercise.exampleDerivations).toHaveLength(1);
+    it('removeProblem drops the entry at the given index', () => {
+        component.addProblem();
+        component.addProblem();
+        component.mathExercise.problems![0].title = 'keep';
+        component.removeProblem(1);
+        expect(component.mathExercise.problems).toHaveLength(1);
+        expect(component.mathExercise.problems![0].title).toBe('keep');
     });
 
-    it('save() routes through create when the exercise has no id', () => {
+    it('moveProblemUp swaps a problem with its predecessor', () => {
+        component.addProblem();
+        component.addProblem();
+        component.mathExercise.problems![0].title = 'first';
+        component.mathExercise.problems![1].title = 'second';
+        component.moveProblemUp(1);
+        expect(component.mathExercise.problems![0].title).toBe('second');
+        expect(component.mathExercise.problems![1].title).toBe('first');
+    });
+
+    it('moveProblemUp is a no-op for the first problem', () => {
+        component.addProblem();
+        component.mathExercise.problems![0].title = 'only';
+        component.moveProblemUp(0);
+        expect(component.mathExercise.problems![0].title).toBe('only');
+    });
+
+    it('moveProblemDown swaps a problem with its successor', () => {
+        component.addProblem();
+        component.addProblem();
+        component.mathExercise.problems![0].title = 'first';
+        component.mathExercise.problems![1].title = 'second';
+        component.moveProblemDown(0);
+        expect(component.mathExercise.problems![0].title).toBe('second');
+        expect(component.mathExercise.problems![1].title).toBe('first');
+    });
+
+    it('moveProblemDown is a no-op for the last problem', () => {
+        component.addProblem();
+        component.mathExercise.problems![0].title = 'only';
+        component.moveProblemDown(0);
+        expect(component.mathExercise.problems![0].title).toBe('only');
+    });
+
+    it('totalPoints sums the points of all problems', () => {
+        component.addProblem();
+        component.addProblem();
+        component.mathExercise.problems![0].points = 3;
+        component.mathExercise.problems![1].points = 4;
+        expect(component.totalPoints).toBe(7);
+    });
+
+    it('save() writes the summed problem points to maxPoints and routes through create when the exercise has no id', () => {
+        component.addProblem();
+        component.mathExercise.problems![0].points = 5;
         component.save();
+        expect(component.mathExercise.maxPoints).toBe(5);
         expect(mathExerciseService.create).toHaveBeenCalled();
     });
 
@@ -81,10 +130,5 @@ describe('MathExerciseUpdateComponent', () => {
         component.mathExercise.id = 5;
         component.save();
         expect(mathExerciseService.update).toHaveBeenCalled();
-    });
-
-    it('checkReachability sets the saveFirst i18n key when the exercise is unsaved', () => {
-        component.checkReachability();
-        expect(component.reachabilityError()).toBe('artemisApp.mathExercise.reachability.saveFirst');
     });
 });

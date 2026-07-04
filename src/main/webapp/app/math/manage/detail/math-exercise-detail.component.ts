@@ -146,4 +146,9 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
     registerChangeInMathExercises() {
         this.eventSubscriber = this.eventManager.subscribe('mathExerciseListModification', () => this.load(this.mathExercise().id!));
     }
+
+    /** Total number of derivation steps a student submitted across all their per-problem answers. */
+    totalSteps(submission: MathSubmission): number {
+        return (submission.answers ?? []).reduce((sum, answer) => sum + (answer.steps?.length ?? 0), 0);
+    }
 }

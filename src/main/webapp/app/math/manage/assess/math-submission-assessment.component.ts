@@ -1,13 +1,15 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NgClass } from '@angular/common';
+import { DecimalPipe, NgClass } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
+import { MathProblem } from 'app/math/shared/entities/math-problem.model';
+import { MathProblemAnswer } from 'app/math/shared/entities/math-problem-answer.model';
 import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { BlockDefinitionModel } from 'app/math/shared/entities/block-definition.model';
 import { DerivationStep } from 'app/math/shared/entities/derivation-step.model';
-import { mathNodesEqual } from 'app/math/shared/entities/math-node.model';
+import { MathNode, isTautology, mathNodesEqual } from 'app/math/shared/entities/math-node.model';
 import { AssessmentLayoutComponent } from 'app/assessment/manage/assessment-layout/assessment-layout.component';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { HtmlForMarkdownPipe } from 'app/foundation/pipes/html-for-markdown.pipe';
@@ -31,6 +33,7 @@ import { TagModule } from 'primeng/tag';
         HtmlForMarkdownPipe,
         MathNodeLatexPipe,
         NgClass,
+        DecimalPipe,
         ArtemisDatePipe,
         FormsModule,
         ButtonModule,
@@ -67,6 +70,15 @@ export class MathSubmissionAssessmentComponent implements OnInit {
         }
         return map;
     });
+
+    /** The ordered problems of the exercise under review. */
+    readonly problems = computed<MathProblem[]>(() => this.mathExercise()?.problems ?? []);
+
+    /** Aggregate points earned across all answered problems. */
+    readonly earnedPoints = computed<number>(() => (this.submission()?.answers ?? []).reduce((sum, answer) => sum + (answer.scoreInPoints ?? 0), 0));
+
+    /** Sum of the exercise's problem points. */
+    readonly maxPoints = computed<number>(() => this.problems().reduce((sum, problem) => sum + (problem.points ?? 0), 0));
 
     ngOnInit() {
         this.route.data.subscribe(({ mathSubmission }) => {
@@ -109,24 +121,31 @@ export class MathSubmissionAssessmentComponent implements OnInit {
         });
     }
 
-    get hasAstExpressions(): boolean {
-        return !!(this.mathExercise()?.sourceExpression && this.mathExercise()?.targetExpression);
+    /** The student's answer for a given problem, if any. */
+    answerForProblem(problem: MathProblem): MathProblemAnswer | undefined {
+        return (this.submission()?.answers ?? []).find((answer) => answer.problemId === problem.id);
     }
 
-    get hasExampleDerivations(): boolean {
-        return !!this.mathExercise()?.exampleDerivations?.length;
+    /** The expression a problem's derivation starts from. */
+    startExpression(problem: MathProblem): MathNode | undefined {
+        return (problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION' ? problem.goalExpression : problem.sourceExpression;
     }
 
-    isExampleComplete(derivation: DerivationStep[]): boolean {
-        const target = this.mathExercise()?.targetExpression;
-        if (!derivation?.length || !target) return false;
-        return mathNodesEqual(derivation[derivation.length - 1].resultExpression, target);
+    hasExpressions(problem: MathProblem): boolean {
+        if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+            return !!problem.goalExpression;
+        }
+        return !!(problem.sourceExpression && problem.targetExpression);
     }
 
-    get isMathComplete(): boolean {
-        const steps = this.submission()?.steps;
-        const target = this.mathExercise()?.targetExpression;
-        if (!steps?.length || !target) return false;
-        return mathNodesEqual(steps[steps.length - 1].resultExpression, target);
+    /** Whether a list of steps reaches the problem's goal (target expression, or tautology in EQUATION mode). */
+    isDerivationComplete(problem: MathProblem, steps: DerivationStep[] | undefined): boolean {
+        if (!steps?.length) return false;
+        const last = steps[steps.length - 1].resultExpression;
+        if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+            return isTautology(last);
+        }
+        const target = problem.targetExpression;
+        return !!target && mathNodesEqual(last, target);
     }
 }

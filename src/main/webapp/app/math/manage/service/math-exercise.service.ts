@@ -86,8 +86,10 @@ export class MathExerciseService implements ExerciseServicable<MathExercise> {
             .pipe(map((res: EntityResponseType) => this.exerciseService.processExerciseEntityResponse(res)));
     }
 
-    /** Runs the configured grader's reachability check; 404 if the grader does not support the check. */
-    verifyReachability(exerciseId: number): Observable<ReachabilityReport | undefined> {
-        return this.http.get<ReachabilityReport>(`${this.resourceUrl}/${exerciseId}/verify-reachability`, { observe: 'response' }).pipe(map((res) => res.body ?? undefined));
+    /** Runs the configured grader's reachability check for a single problem; 404 if the grader does not support the check. */
+    verifyReachability(exerciseId: number, problemId: number): Observable<ReachabilityReport | undefined> {
+        return this.http
+            .get<ReachabilityReport>(`${this.resourceUrl}/${exerciseId}/problems/${problemId}/verify-reachability`, { observe: 'response' })
+            .pipe(map((res) => res.body ?? undefined));
     }
 }

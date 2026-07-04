@@ -9,14 +9,15 @@ import { MockComponent, MockDirective, MockPipe, MockProvider } from 'ng-mocks';
 import { TranslateService } from '@ngx-translate/core';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MathSubmissionComponent } from 'app/math/participate/math-submission/math-submission.component';
+import { MathProblemParticipationComponent } from 'app/math/participate/math-problem-participation/math-problem-participation.component';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
 import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
+import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { HeaderExercisePageWithDetailsComponent } from 'app/exercise/exercise-headers/with-details/header-exercise-page-with-details.component';
-import { ButtonComponent } from 'app/shared-ui/components/buttons/button/button.component';
 import { ExerciseSubmitButtonComponent } from 'app/exercise/shared/exercise-submit-button/exercise-submit-button.component';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
@@ -34,6 +35,11 @@ describe('MathSubmissionComponent', () => {
         const ex = new MathExercise(undefined);
         ex.id = 10;
         ex.type = ExerciseType.MATH;
+        const problem = new MathProblem();
+        problem.id = 1;
+        problem.points = 5;
+        problem.goalMode = 'TRANSFORMATION';
+        ex.problems = [problem];
         return ex;
     };
 
@@ -74,12 +80,12 @@ describe('MathSubmissionComponent', () => {
             ],
             declarations: [],
         }).overrideComponent(MathSubmissionComponent, {
-            remove: { imports: [HeaderExercisePageWithDetailsComponent, ButtonComponent, ExerciseSubmitButtonComponent] },
+            remove: { imports: [HeaderExercisePageWithDetailsComponent, ExerciseSubmitButtonComponent, MathProblemParticipationComponent] },
             add: {
                 imports: [
                     MockComponent(HeaderExercisePageWithDetailsComponent),
-                    MockComponent(ButtonComponent),
                     MockComponent(ExerciseSubmitButtonComponent),
+                    MockComponent(MathProblemParticipationComponent),
                     MockDirective(TranslateDirective),
                     MockPipe(ArtemisTranslatePipe),
                     MockPipe(HtmlForMarkdownPipe),
@@ -97,6 +103,7 @@ describe('MathSubmissionComponent', () => {
         const exercise = mockExercise();
         const participation = mockParticipation(exercise);
         const submission = mockSubmission(participation);
+        submission.answers = [{ id: 7, problemId: 1, steps: [] }];
         vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
 
         fixture.detectChanges();
@@ -127,6 +134,9 @@ describe('MathSubmissionComponent', () => {
         component.save();
 
         expect(createSpy).toHaveBeenCalled();
+        expect(submission.answers).toBeDefined();
+        expect(submission.answers!.length).toBe(1);
+        expect(submission.answers![0].problemId).toBe(1);
     });
 
     it('should call update when saving an existing submission', () => {
@@ -156,6 +166,20 @@ describe('MathSubmissionComponent', () => {
         expect(updateSpy).toHaveBeenCalled();
         expect(component.submission().submitted).toBe(true);
         expect(component.result()?.score).toBe(100);
+    });
+
+    it('should refresh per-problem scores from answers after submit', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        const submittedSub = { ...submission, submitted: true, results: [{ score: 80 }], answers: [{ id: 9, problemId: 1, scoreInPoints: 4, steps: [] }] };
+        vi.spyOn(mathSubmissionService, 'update').mockReturnValue(of(new HttpResponse({ body: submittedSub as any })));
+        fixture.detectChanges();
+
+        component.submit();
+
+        expect(component.scoreFor(1)).toBe(4);
     });
 
     it('should revert submitted=false when submit fails', () => {

@@ -1,0 +1,214 @@
+<p-card styleClass="mb-3">
+    <h4 class="border-bottom pb-2" jhiTranslate="artemisApp.mathExercise.configuration">Math Configuration</h4>
+    <div class="row">
+        <div class="col-12 col-md-8">
+            <div class="form-group">
+                <label class="form-control-label" jhiTranslate="artemisApp.exercise.title" for="field_problemTitle">Title</label>
+                <input type="text" pInputText name="problemTitle" id="field_problemTitle" class="w-100" [(ngModel)]="problem().title" [ngModelOptions]="{ standalone: true }" />
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="form-group">
+                <label class="form-control-label" jhiTranslate="artemisApp.exercise.points" for="field_problemPoints">Points</label>
+                <input
+                    type="number"
+                    pInputText
+                    name="problemPoints"
+                    id="field_problemPoints"
+                    class="w-100"
+                    [(ngModel)]="problem().points"
+                    [ngModelOptions]="{ standalone: true }"
+                    required
+                />
+            </div>
+        </div>
+    </div>
+    <div class="d-flex align-items-start gap-2 mt-3">
+        <p-checkbox inputId="field_derivationMode" name="derivationMode" [(ngModel)]="problem().manualDerivation" [binary]="true" [ngModelOptions]="{ standalone: true }" />
+        <div>
+            <label for="field_derivationMode" jhiTranslate="artemisApp.mathExercise.derivationModeManual">Manual derivation mode</label>
+            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.derivationModeHint">
+                Student writes the result expression; in inference mode the system applies the rule automatically.
+            </small>
+        </div>
+    </div>
+    <div class="d-flex align-items-start gap-2 mt-3">
+        <p-checkbox inputId="field_allowVerification" name="allowVerification" [(ngModel)]="problem().allowVerification" [binary]="true" [ngModelOptions]="{ standalone: true }" />
+        <div>
+            <label for="field_allowVerification" jhiTranslate="artemisApp.mathExercise.allowVerification">Allow Verification</label>
+            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.allowVerificationHint">Show the "Verify Math" button so students can check their steps.</small>
+        </div>
+    </div>
+    <div class="d-flex align-items-start gap-2 mt-2">
+        <p-checkbox
+            inputId="field_onlyShowApplicableRules"
+            name="onlyShowApplicableRules"
+            [(ngModel)]="problem().onlyShowApplicableRules"
+            [binary]="true"
+            [ngModelOptions]="{ standalone: true }"
+        />
+        <div>
+            <label for="field_onlyShowApplicableRules" jhiTranslate="artemisApp.mathExercise.onlyShowApplicableRules">Only Show Applicable Rules</label>
+            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.onlyShowApplicableRulesHint"
+                >Hide rules that cannot be applied at the currently selected node.</small
+            >
+        </div>
+    </div>
+    <div class="d-flex align-items-start gap-2 mt-2">
+        <p-checkbox
+            inputId="field_partialCreditEnabled"
+            name="partialCreditEnabled"
+            [(ngModel)]="problem().partialCreditEnabled"
+            [binary]="true"
+            [ngModelOptions]="{ standalone: true }"
+        />
+        <div>
+            <label for="field_partialCreditEnabled" jhiTranslate="artemisApp.mathExercise.partialCreditEnabled">Partial Credit</label>
+            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.partialCreditEnabledHint"
+                >Award proportional points for valid steps when the math is incomplete. Requires at least one example derivation to determine the expected step count.</small
+            >
+        </div>
+    </div>
+    <div class="d-flex align-items-start gap-2 mt-2">
+        <p-checkbox inputId="field_acNormalization" name="acNormalization" [(ngModel)]="problem().acNormalization" [binary]="true" [ngModelOptions]="{ standalone: true }" />
+        <div>
+            <label for="field_acNormalization" jhiTranslate="artemisApp.mathExercise.acNormalization">AC normalisation</label>
+            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.acNormalizationHint"
+                >Treat + and · as commutative / associative for equality comparisons. Students don't have to apply commutativity / associativity rules explicitly to make trees
+                match.</small
+            >
+        </div>
+    </div>
+    <div class="form-group mt-3">
+        <label for="field_graderType" jhiTranslate="artemisApp.mathExercise.graderType">Grader</label>
+        <p-select
+            inputId="field_graderType"
+            name="graderType"
+            styleClass="w-100"
+            [options]="graderTypeOptions"
+            optionLabel="label"
+            optionValue="value"
+            optionDisabled="disabled"
+            [(ngModel)]="problem().graderType"
+            [ngModelOptions]="{ standalone: true }"
+        />
+        <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.graderTypeHint">Step-by-step is the only grader available today.</small>
+    </div>
+</p-card>
+
+<p-card styleClass="mb-3">
+    <div class="d-flex align-items-center justify-content-between border-bottom pb-2">
+        <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.expressions">Expressions</h4>
+        <div class="d-flex align-items-center gap-2">
+            <p-button
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="checkReachability()"
+                [disabled]="reachabilityChecking()"
+                [pTooltip]="'artemisApp.mathExercise.verifyReachabilityHint' | artemisTranslate"
+                [label]="
+                    reachabilityChecking()
+                        ? ('artemisApp.mathExercise.verifyReachabilityRunning' | artemisTranslate)
+                        : ('artemisApp.mathExercise.verifyReachability' | artemisTranslate)
+                "
+            />
+            @if (reachability(); as report) {
+                @if (report.reachable) {
+                    <p-tag severity="success" [value]="'artemisApp.mathExercise.reachabilityReachable' | artemisTranslate" />
+                } @else {
+                    <p-tag
+                        severity="warn"
+                        [value]="('artemisApp.mathExercise.reachabilityPartial' | artemisTranslate) + ' (' + report.finalDistance + ' / ' + report.initialDistance + ')'"
+                    />
+                }
+            }
+            @if (reachabilityError(); as err) {
+                <small class="text-danger" [jhiTranslate]="err"></small>
+            }
+        </div>
+    </div>
+    <div class="form-group mb-3">
+        <label for="field_goalMode" jhiTranslate="artemisApp.mathExercise.goalMode">Goal mode</label>
+        <p-select
+            inputId="field_goalMode"
+            name="goalMode"
+            styleClass="w-100"
+            [options]="goalModeOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="problem().goalMode ?? 'TRANSFORMATION'"
+            (ngModelChange)="onGoalModeChange($event)"
+            [ngModelOptions]="{ standalone: true }"
+        />
+        <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.goalModeHint"
+            >Transformation: students transform a source tree into a target tree. Equation: students reduce a single equation to a tautology (LHS structurally equals RHS).</small
+        >
+    </div>
+    @if ((problem().goalMode ?? 'TRANSFORMATION') === 'TRANSFORMATION') {
+        @if (!problem().sourceExpression || !problem().targetExpression) {
+            <p-message severity="warn" styleClass="mb-3">
+                <span jhiTranslate="artemisApp.mathExercise.expressionsRequired">
+                    Both a source and a target expression are required for the derivation workspace to appear for students.
+                </span>
+            </p-message>
+        }
+        <div class="d-flex flex-column gap-4">
+            <div>
+                <h6 jhiTranslate="artemisApp.mathExercise.sourceExpression">Source Expression (start)</h6>
+                <jhi-math-builder [expression]="problem().sourceExpression" [label]="'Source'" (expressionChange)="onSourceExpressionChange($event)" />
+            </div>
+            <div class="border-top pt-3">
+                <div class="text-center text-muted mb-2" style="font-size: 1.4rem">↓</div>
+                <h6 jhiTranslate="artemisApp.mathExercise.targetExpression">Target Expression (goal)</h6>
+                <jhi-math-builder [expression]="problem().targetExpression" [label]="'Target'" (expressionChange)="onTargetExpressionChange($event)" />
+            </div>
+        </div>
+    } @else {
+        @if (!problem().goalExpression) {
+            <p-message severity="warn" styleClass="mb-3">
+                <span jhiTranslate="artemisApp.mathExercise.goalExpressionRequired">
+                    A goal expression is required for the workspace to appear. Typical shape is an equality with two non-trivial sides.
+                </span>
+            </p-message>
+        }
+        <div>
+            <h6 jhiTranslate="artemisApp.mathExercise.goalExpression">Goal Expression</h6>
+            <small class="text-muted d-block mb-2" jhiTranslate="artemisApp.mathExercise.goalExpressionHint">Math is complete when this reduces to a tautology (e.g. t = t).</small>
+            <jhi-math-builder [expression]="problem().goalExpression" [label]="'Goal'" (expressionChange)="onGoalExpressionChange($event)" />
+        </div>
+    }
+</p-card>
+
+@if ((problem().goalMode ?? 'TRANSFORMATION') === 'TRANSFORMATION' ? problem().sourceExpression : problem().goalExpression) {
+    <p-card styleClass="mb-3">
+        <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+            <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.exampleSolution">Example Solution</h4>
+            <div class="d-flex align-items-center gap-2">
+                <p-button
+                    size="small"
+                    severity="secondary"
+                    [outlined]="!previewOnlyApplicableRules()"
+                    (onClick)="previewOnlyApplicableRules.set(!previewOnlyApplicableRules())"
+                    pTooltip="Only show rules applicable at the selected node"
+                    [label]="(previewOnlyApplicableRules() ? '★' : '☆') + ' Only applicable rules'"
+                />
+                @if ((problem().exampleDerivations ?? []).length > 0) {
+                    <p-button size="small" severity="danger" [outlined]="true" (onClick)="clearExampleDerivation()">
+                        <span jhiTranslate="entity.action.clear">Clear</span>
+                    </p-button>
+                }
+            </div>
+        </div>
+        <jhi-math-derivation-workspace
+            [sourceExpression]="problem().sourceExpression"
+            [targetExpression]="problem().targetExpression"
+            [goalMode]="problem().goalMode ?? 'TRANSFORMATION'"
+            [goalExpression]="problem().goalExpression"
+            [acNormalization]="!!problem().acNormalization"
+            [initialSteps]="problem().exampleDerivations ?? []"
+            [onlyShowApplicableRules]="previewOnlyApplicableRules()"
+            (stepsChange)="onExampleStepsChange($event)"
+        />
+    </p-card>
+}

@@ -75,10 +75,10 @@ export class MathSubmissionService {
             .pipe(map((res: HttpResponse<MathSubmission>) => res.body!));
     }
 
-    /** Asks the backend for ranked next-step suggestions at the current math state. */
-    getHints(exerciseId: number, currentExpression: MathNode): Observable<HintSuggestion[]> {
+    /** Asks the backend for ranked next-step suggestions for a specific problem at the current math state. */
+    getHints(exerciseId: number, problemId: number, currentExpression: MathNode): Observable<HintSuggestion[]> {
         return this.http
-            .post<HintSuggestion[]>(`api/math/exercises/${exerciseId}/hints`, { currentExpression }, { observe: 'response' })
+            .post<HintSuggestion[]>(`api/math/exercises/${exerciseId}/problems/${problemId}/hints`, { currentExpression }, { observe: 'response' })
             .pipe(map((res: HttpResponse<HintSuggestion[]>) => res.body ?? []));
     }
 }
