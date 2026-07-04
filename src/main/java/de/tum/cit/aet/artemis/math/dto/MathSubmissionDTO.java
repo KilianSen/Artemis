@@ -15,23 +15,24 @@ import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
+import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.domain.StepDirection;
 
 /**
  * Data Transfer Object for {@link MathSubmission}.
- * Used as both request body (student sends {@code submitted}, {@code steps}) and response body.
+ * Used as both request body (student sends {@code submitted}, {@code answers}) and response body.
  *
  * @param id             the submission ID (null for new submissions)
  * @param submitted      whether this is a final submission (triggers automatic grading)
  * @param submissionDate when the submission was last saved (response only)
  * @param results        automatic grading results (response only, populated after submit)
  * @param participation  the student's participation including exercise info (response only)
- * @param steps          the ordered derivation steps
+ * @param answers        the student's per-problem answers, each carrying its ordered derivation steps
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submissionDate, List<MathResultDTO> results, MathParticipationDTO participation,
-        List<DerivationStepDTO> steps) {
+        List<MathProblemAnswerDTO> answers) {
 
     /**
      * One derivation step in the student's math.
@@ -110,7 +111,7 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
      * Projects a {@link MathSubmission} into a DTO suitable for serialization back to the client.
      *
      * @param submission the entity to project
-     * @return the DTO carrying the user-facing submission fields (results, participation, steps)
+     * @return the DTO carrying the user-facing submission fields (results, participation, answers)
      */
     public static MathSubmissionDTO of(MathSubmission submission) {
         List<MathResultDTO> resultDTOs = null;
@@ -124,19 +125,21 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
             participationDTO = MathParticipationDTO.of(sp);
         }
 
-        List<DerivationStepDTO> stepDTOs = null;
-        List<DerivationStep> steps = submission.getSteps();
-        if (steps != null && !steps.isEmpty()) {
-            stepDTOs = steps.stream().map(DerivationStepDTO::of).toList();
+        List<MathProblemAnswerDTO> answerDTOs = null;
+        List<MathProblemAnswer> answers = submission.getAnswers();
+        if (answers != null && !answers.isEmpty()) {
+            answerDTOs = answers.stream().map(MathProblemAnswerDTO::of).toList();
         }
 
-        return new MathSubmissionDTO(submission.getId(), submission.isSubmitted(), submission.getSubmissionDate(), resultDTOs, participationDTO, stepDTOs);
+        return new MathSubmissionDTO(submission.getId(), submission.isSubmitted(), submission.getSubmissionDate(), resultDTOs, participationDTO, answerDTOs);
     }
 
     /**
-     * Builds a fresh {@link MathSubmission} entity from this DTO.
+     * Builds a fresh {@link MathSubmission} entity from this DTO, wiring each answer's steps and back-reference.
+     * The per-answer {@link MathProblemAnswer#getProblem() problem} association is left unset — the caller must resolve
+     * it from the exercise by {@link MathProblemAnswerDTO#problemId()}.
      *
-     * @return a new entity populated with the DTO's submission fields (id, submitted flag, steps if present)
+     * @return a new entity populated with the DTO's submission fields (id, submitted flag, answers if present)
      */
     public MathSubmission toEntity() {
         MathSubmission submission = new MathSubmission();
@@ -144,8 +147,17 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
             submission.setId(id);
         }
         submission.setSubmitted(Boolean.TRUE.equals(submitted));
-        if (steps != null) {
-            submission.setSteps(new ArrayList<>(steps.stream().map(DerivationStepDTO::toEntity).toList()));
+        if (answers != null) {
+            List<MathProblemAnswer> answerEntities = new ArrayList<>();
+            for (MathProblemAnswerDTO answerDTO : answers) {
+                MathProblemAnswer answer = answerDTO.toEntity();
+                answer.setSubmission(submission);
+                for (DerivationStep step : answer.getSteps()) {
+                    step.setAnswer(answer);
+                }
+                answerEntities.add(answer);
+            }
+            submission.setAnswers(answerEntities);
         }
         return submission;
     }

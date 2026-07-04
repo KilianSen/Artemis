@@ -2,84 +2,44 @@ package de.tum.cit.aet.artemis.math.domain;
 
 import static de.tum.cit.aet.artemis.exercise.domain.ExerciseType.MATH;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.SecondaryTable;
-
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
-import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
-import de.tum.cit.aet.artemis.math.grader.GraderType;
 
 /**
  * A MathExercise.
+ * <p>
+ * Holds an ordered list of {@link MathProblem}s (questions), exactly like a quiz exercise holds quiz questions. A former
+ * single-problem exercise is simply the {@code N = 1} case. All per-problem grading configuration lives on the
+ * individual {@link MathProblem}s; the exercise keeps only the shared metadata (description, example solution).
  */
 @Entity
 @DiscriminatorValue(value = "R")
 @SecondaryTable(name = "math_exercise_details")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class MathExercise extends Exercise implements MathProblemConfig {
+public class MathExercise extends Exercise {
 
     @Column(table = "math_exercise_details", name = "description")
     private String description;
 
-    @Convert(converter = MathNodeConverter.class)
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    @Column(table = "math_exercise_details", name = "source_expression")
-    private MathNode sourceExpression;
-
-    @Convert(converter = MathNodeConverter.class)
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    @Column(table = "math_exercise_details", name = "target_expression")
-    private MathNode targetExpression;
-
     @Column(table = "math_exercise_details", name = "example_solution")
     private String exampleSolution;
 
-    @Column(table = "math_exercise_details", name = "manual_derivation")
-    private boolean manualDerivation = false;
-
-    @Column(table = "math_exercise_details", name = "allow_verification")
-    private boolean allowVerification = true;
-
-    @Column(table = "math_exercise_details", name = "only_show_applicable_rules")
-    private boolean onlyShowApplicableRules = false;
-
-    @Column(table = "math_exercise_details", name = "partial_credit_enabled")
-    private boolean partialCreditEnabled = false;
-
-    @Column(table = "math_exercise_details", name = "ac_normalization")
-    private boolean acNormalization = false;
-
-    @Enumerated(EnumType.STRING)
-    @Column(table = "math_exercise_details", name = "grader_type", length = 32, nullable = false)
-    private GraderType graderType = GraderType.REWRITE_CHAIN;
-
-    @Enumerated(EnumType.STRING)
-    @Column(table = "math_exercise_details", name = "goal_mode", length = 16, nullable = false)
-    private GoalMode goalMode = GoalMode.TRANSFORMATION;
-
-    @Convert(converter = MathNodeConverter.class)
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    @Column(table = "math_exercise_details", name = "goal_expression")
-    private MathNode goalExpression;
-
-    @Convert(converter = ExampleDerivationsConverter.class)
-    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
-    @Column(table = "math_exercise_details", name = "example_derivations")
-    private List<List<DerivationStepDTO>> exampleDerivations = Collections.emptyList();
+    @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderColumn(name = "math_problems_order")
+    private List<MathProblem> problems = new ArrayList<>();
 
     public String getDescription() {
         return description;
@@ -87,22 +47,6 @@ public class MathExercise extends Exercise implements MathProblemConfig {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public MathNode getSourceExpression() {
-        return sourceExpression;
-    }
-
-    public void setSourceExpression(MathNode sourceExpression) {
-        this.sourceExpression = sourceExpression;
-    }
-
-    public MathNode getTargetExpression() {
-        return targetExpression;
-    }
-
-    public void setTargetExpression(MathNode targetExpression) {
-        this.targetExpression = targetExpression;
     }
 
     public String getExampleSolution() {
@@ -113,12 +57,36 @@ public class MathExercise extends Exercise implements MathProblemConfig {
         this.exampleSolution = exampleSolution;
     }
 
-    public boolean isManualDerivation() {
-        return manualDerivation;
+    public List<MathProblem> getProblems() {
+        return problems;
     }
 
-    public void setManualDerivation(boolean manualDerivation) {
-        this.manualDerivation = manualDerivation;
+    public void setProblems(List<MathProblem> problems) {
+        this.problems = problems != null ? problems : new ArrayList<>();
+    }
+
+    /**
+     * Adds a problem to this exercise and wires the back-reference.
+     *
+     * @param problem the problem to add
+     */
+    public void addProblem(MathProblem problem) {
+        problems.add(problem);
+        problem.setExercise(this);
+    }
+
+    /**
+     * Re-establishes the parent back-reference on every problem so a detached exercise (e.g. deserialized from a DTO)
+     * can be persisted with its problems in one cascade. Call before saving.
+     */
+    public void reconnectProblems() {
+        if (problems == null) {
+            problems = new ArrayList<>();
+            return;
+        }
+        for (MathProblem problem : problems) {
+            problem.setExercise(this);
+        }
     }
 
     /**
@@ -128,74 +96,12 @@ public class MathExercise extends Exercise implements MathProblemConfig {
     public void filterSensitiveInformation() {
         if (!isExampleSolutionPublished()) {
             setExampleSolution(null);
-            // The example derivations are the instructor's worked solution; never expose them to students before the example solution is published.
-            setExampleDerivations(null);
+            // The per-problem example derivations are the instructor's worked solution; never expose them to students before the example solution is published.
+            if (problems != null) {
+                problems.forEach(problem -> problem.setExampleDerivations(null));
+            }
         }
         super.filterSensitiveInformation();
-    }
-
-    public boolean isAllowVerification() {
-        return allowVerification;
-    }
-
-    public void setAllowVerification(boolean allowVerification) {
-        this.allowVerification = allowVerification;
-    }
-
-    public boolean isOnlyShowApplicableRules() {
-        return onlyShowApplicableRules;
-    }
-
-    public void setOnlyShowApplicableRules(boolean onlyShowApplicableRules) {
-        this.onlyShowApplicableRules = onlyShowApplicableRules;
-    }
-
-    public boolean isPartialCreditEnabled() {
-        return partialCreditEnabled;
-    }
-
-    public void setPartialCreditEnabled(boolean partialCreditEnabled) {
-        this.partialCreditEnabled = partialCreditEnabled;
-    }
-
-    public boolean isAcNormalization() {
-        return acNormalization;
-    }
-
-    public void setAcNormalization(boolean acNormalization) {
-        this.acNormalization = acNormalization;
-    }
-
-    public GraderType getGraderType() {
-        return graderType;
-    }
-
-    public void setGraderType(GraderType graderType) {
-        this.graderType = graderType == null ? GraderType.REWRITE_CHAIN : graderType;
-    }
-
-    public GoalMode getGoalMode() {
-        return goalMode;
-    }
-
-    public void setGoalMode(GoalMode goalMode) {
-        this.goalMode = goalMode == null ? GoalMode.TRANSFORMATION : goalMode;
-    }
-
-    public MathNode getGoalExpression() {
-        return goalExpression;
-    }
-
-    public void setGoalExpression(MathNode goalExpression) {
-        this.goalExpression = goalExpression;
-    }
-
-    public List<List<DerivationStepDTO>> getExampleDerivations() {
-        return exampleDerivations;
-    }
-
-    public void setExampleDerivations(List<List<DerivationStepDTO>> exampleDerivations) {
-        this.exampleDerivations = exampleDerivations != null ? exampleDerivations : Collections.emptyList();
     }
 
     @Override

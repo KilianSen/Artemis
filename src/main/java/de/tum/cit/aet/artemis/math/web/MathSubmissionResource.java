@@ -34,11 +34,15 @@ import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
+import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.HintRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.HintSuggestionDTO;
 import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
+import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
+import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
@@ -97,37 +101,48 @@ public class MathSubmissionResource {
 
     private MathSubmissionDTO saveAndEvaluate(Long exerciseId, MathSubmissionDTO dto) {
         User user = userRepository.getUserWithGroupsAndAuthorities();
-        MathExercise mathExercise = mathExerciseRepository.findByIdWithCategories(exerciseId).orElseThrow();
+        MathExercise mathExercise = mathExerciseRepository.findByIdWithCategoriesAndProblems(exerciseId).orElseThrow();
         // Re-check current course membership: a StudentParticipation persists after un-enrollment, so its existence alone is not sufficient authorization.
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.STUDENT, mathExercise, user);
 
         MathSubmission submission;
         if (dto.id() != null) {
-            // Updating an existing submission: load it (with participation) so the ownership check below has data and only steps/submitted change.
-            submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(dto.id()).orElseThrow();
+            // Updating an existing submission: load it (with participation) so the ownership check below has data and only answers/submitted change.
+            submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(dto.id()).orElseThrow();
             submission.setSubmitted(Boolean.TRUE.equals(dto.submitted()));
-            // Replace the derivation steps with the incoming ones (orphanRemoval deletes the old step rows).
-            submission.getSteps().clear();
-            for (DerivationStep step : dto.toEntity().getSteps()) {
-                step.setSubmission(submission);
-                submission.getSteps().add(step);
-            }
+            // Replace the per-problem answers with the incoming ones (orphanRemoval deletes the old answer/step rows).
+            submission.getAnswers().clear();
         }
         else {
-            submission = dto.toEntity();
-            for (DerivationStep step : submission.getSteps()) {
-                step.setSubmission(submission);
-            }
+            submission = new MathSubmission();
+            submission.setSubmitted(Boolean.TRUE.equals(dto.submitted()));
         }
-        // Reject wildcard expressions and normalize each step's result tree before persisting.
-        for (DerivationStep step : submission.getSteps()) {
-            try {
-                MathNodes.assertWildcardFree(step.getResultExpression());
+        // Build one answer per submitted answer, resolving its problem from the exercise, then wildcard-validate + normalize each step.
+        if (dto.answers() != null) {
+            for (MathProblemAnswerDTO answerDTO : dto.answers()) {
+                MathProblem problem = findProblemOrThrow(mathExercise, answerDTO.problemId());
+                MathProblemAnswer answer = new MathProblemAnswer();
+                if (answerDTO.id() != null) {
+                    answer.setId(answerDTO.id());
+                }
+                answer.setProblem(problem);
+                answer.setSubmission(submission);
+                if (answerDTO.steps() != null) {
+                    for (DerivationStepDTO stepDTO : answerDTO.steps()) {
+                        DerivationStep step = stepDTO.toEntity();
+                        try {
+                            MathNodes.assertWildcardFree(step.getResultExpression());
+                        }
+                        catch (IllegalArgumentException e) {
+                            throw new BadRequestAlertException(e.getMessage(), "mathSubmission", "wildcardNotAllowed");
+                        }
+                        step.setResultExpression(MathNodes.normalize(step.getResultExpression()));
+                        step.setAnswer(answer);
+                        answer.getSteps().add(step);
+                    }
+                }
+                submission.getAnswers().add(answer);
             }
-            catch (IllegalArgumentException e) {
-                throw new BadRequestAlertException(e.getMessage(), "mathSubmission", "wildcardNotAllowed");
-            }
-            step.setResultExpression(MathNodes.normalize(step.getResultExpression()));
         }
         // Re-check course membership and, for updates, verify the submission belongs to the current user (prevents injecting into another student's submission).
         mathSubmissionService.checkSubmissionAllowanceElseThrow(mathExercise, submission, user);
@@ -136,14 +151,16 @@ public class MathSubmissionResource {
 
         // Auto-grade on submit: handleMathSubmission already stripped any client-injected result; attach the authoritative AUTOMATIC result.
         if (Boolean.TRUE.equals(saved.isSubmitted())) {
+            // The aggregate grader also records each answer's earned points on the answer entity; persist them.
+            double score = mathGradingService.gradeSubmission(mathExercise, saved);
+            saved = mathSubmissionRepository.save(saved);
+
             Result result = new Result();
             result.setSubmission(saved);
             result.setAssessmentType(AssessmentType.AUTOMATIC);
             result.setCompletionDate(ZonedDateTime.now());
             result.setRated(true);
             result.setExerciseId(exerciseId);
-
-            double score = mathGradingService.gradeSubmission(mathExercise, saved.getSteps());
             result.setScore(score, mathExercise.getCourseViaExerciseGroupOrCourseMember());
 
             resultRepository.save(result);
@@ -158,6 +175,14 @@ public class MathSubmissionResource {
         // Strip solution/grading data before returning the exercise to a student (nulls example solution when unpublished).
         mathExercise.filterSensitiveInformation();
         return MathSubmissionDTO.of(saved);
+    }
+
+    private MathProblem findProblemOrThrow(MathExercise exercise, Long problemId) {
+        if (problemId == null) {
+            throw new BadRequestAlertException("Each answer must reference a problem", "mathSubmission", "problemRequired");
+        }
+        return exercise.getProblems().stream().filter(problem -> problemId.equals(problem.getId())).findFirst()
+                .orElseThrow(() -> new BadRequestAlertException("Answer references a problem not in the exercise", "mathSubmission", "problemNotFound"));
     }
 
     /**
@@ -176,8 +201,8 @@ public class MathSubmissionResource {
         if (!(participation.getExercise() instanceof MathExercise mathExercise)) {
             throw new IllegalArgumentException("Participation does not belong to a math exercise");
         }
-        // Reload with categories to avoid LazyInitializationException when DTO is serialized/logged
-        mathExercise = mathExerciseRepository.findByIdWithCategories(mathExercise.getId()).orElseThrow();
+        // Reload with categories and problems to avoid LazyInitializationException when DTO is serialized/logged
+        mathExercise = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExercise.getId()).orElseThrow();
         participation.setExercise(mathExercise);
         boolean isOwner = authCheckService.isOwnerOfParticipation(participation);
         if (!(isOwner || authCheckService.isAtLeastTeachingAssistantForExercise(mathExercise))) {
@@ -191,7 +216,7 @@ public class MathSubmissionResource {
         Optional<MathSubmission> latestSubmission = participation.findLatestSubmission().filter(s -> s instanceof MathSubmission).map(s -> (MathSubmission) s);
 
         MathSubmission submission;
-        submission = latestSubmission.map(mathSubmission -> mathSubmissionRepository.findByIdWithStepsAndResults(mathSubmission.getId()).orElseThrow())
+        submission = latestSubmission.map(mathSubmission -> mathSubmissionRepository.findByIdWithAnswersAndResults(mathSubmission.getId()).orElseThrow())
                 .orElseGet(MathSubmission::new);
         submission.setParticipation(participation);
         // Strip solution/grading data before returning the exercise through the editor DTO (nulls example solution when unpublished).
@@ -209,7 +234,7 @@ public class MathSubmissionResource {
     @EnforceAtLeastStudent
     public ResponseEntity<MathSubmissionDTO> getMathSubmission(@PathVariable Long submissionId) {
         log.debug("REST request to get MathSubmission : {}", submissionId);
-        MathSubmission submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(submissionId).orElseThrow();
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (!(submission.getParticipation() instanceof StudentParticipation participation) || !(participation.getExercise() instanceof MathExercise mathExercise)) {
             throw new AccessForbiddenException("mathSubmission", submissionId);
         }
@@ -238,11 +263,11 @@ public class MathSubmissionResource {
     @EnforceAtLeastTutor
     public ResponseEntity<MathSubmissionDTO> getMathSubmissionForAssessment(@PathVariable Long submissionId) {
         log.debug("REST request to get MathSubmission for assessment : {}", submissionId);
-        MathSubmission submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(submissionId).orElseThrow();
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (!(submission.getParticipation() != null && submission.getParticipation().getExercise() instanceof MathExercise pe)) {
             throw new AccessForbiddenException("mathSubmission", submissionId);
         }
-        MathExercise exerciseWithCategories = mathExerciseRepository.findByIdWithCategoriesAndCourse(pe.getId()).orElseThrow();
+        MathExercise exerciseWithCategories = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exerciseWithCategories, null);
         submission.getParticipation().setExercise(exerciseWithCategories);
         return ResponseEntity.ok(MathSubmissionDTO.of(submission));
@@ -265,22 +290,25 @@ public class MathSubmissionResource {
     }
 
     /**
-     * POST /exercises/{exerciseId}/hints : ranked next-step suggestions for the student's current math state.
-     * Gated by {@link MathExercise#isAllowVerification()} — instructors can disable hints per exercise.
+     * POST /exercises/{exerciseId}/problems/{problemId}/hints : ranked next-step suggestions for the student's current
+     * math state on a single problem. Gated by {@link MathProblem#isAllowVerification()} — instructors can disable hints
+     * per problem.
      *
      * @param exerciseId the exercise the student is working on
+     * @param problemId  the problem the student is working on
      * @param request    the hint request body carrying the current expression
      * @return up to three {@link HintSuggestionDTO}s ranked by progress toward the goal
      */
-    @PostMapping("exercises/{exerciseId}/hints")
+    @PostMapping("exercises/{exerciseId}/problems/{problemId}/hints")
     @EnforceAtLeastStudent
-    public ResponseEntity<List<HintSuggestionDTO>> suggestHints(@PathVariable Long exerciseId, @RequestBody HintRequestDTO request) {
-        log.debug("REST request to compute hints for math exercise : {}", exerciseId);
+    public ResponseEntity<List<HintSuggestionDTO>> suggestHints(@PathVariable Long exerciseId, @PathVariable Long problemId, @RequestBody HintRequestDTO request) {
+        log.debug("REST request to compute hints for math exercise {} problem {}", exerciseId, problemId);
         User user = userRepository.getUserWithGroupsAndAuthorities();
-        MathExercise exercise = mathExerciseRepository.findByIdWithCategories(exerciseId).orElseThrow();
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndProblems(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.STUDENT, exercise, user);
-        if (!exercise.isAllowVerification()) {
-            throw new AccessForbiddenException("Hint generation is disabled for this exercise.");
+        MathProblem problem = findProblemOrThrow(exercise, problemId);
+        if (!problem.isAllowVerification()) {
+            throw new AccessForbiddenException("Hint generation is disabled for this problem.");
         }
         try {
             MathNodes.assertWildcardFree(request.currentExpression());
@@ -288,7 +316,7 @@ public class MathSubmissionResource {
         catch (IllegalArgumentException e) {
             throw new BadRequestAlertException(e.getMessage(), "mathSubmission", "wildcardNotAllowed");
         }
-        List<HintSuggestionDTO> hints = mathGradingService.suggestHints(exercise, MathNodes.normalize(request.currentExpression())).stream().map(HintSuggestionDTO::of).toList();
+        List<HintSuggestionDTO> hints = mathGradingService.suggestHints(problem, MathNodes.normalize(request.currentExpression())).stream().map(HintSuggestionDTO::of).toList();
         return ResponseEntity.ok(hints);
     }
 
@@ -304,11 +332,11 @@ public class MathSubmissionResource {
     @EnforceAtLeastTutor
     public ResponseEntity<MathSubmissionDTO> saveManualResult(@PathVariable Long submissionId, @RequestBody ManualResultRequestDTO request) {
         log.debug("REST request to save manual result for MathSubmission : {}", submissionId);
-        MathSubmission submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(submissionId).orElseThrow();
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (!(submission.getParticipation() != null && submission.getParticipation().getExercise() instanceof MathExercise pe)) {
             throw new AccessForbiddenException("mathSubmission", submissionId);
         }
-        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourse(pe.getId()).orElseThrow();
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
 
         Result result = submission.getLatestResult();
@@ -324,7 +352,7 @@ public class MathSubmissionResource {
         resultRepository.save(result);
         submission.addResult(result);
 
-        submission = mathSubmissionRepository.findByIdWithStepsResultsAndParticipation(submissionId).orElseThrow();
+        submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (submission.getParticipation() != null) {
             submission.getParticipation().setExercise(exercise);
         }

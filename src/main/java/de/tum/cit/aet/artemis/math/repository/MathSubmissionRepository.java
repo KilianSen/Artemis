@@ -20,11 +20,19 @@ import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 @Repository
 public interface MathSubmissionRepository extends JpaRepository<MathSubmission, Long> {
 
-    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.steps LEFT JOIN FETCH s.results WHERE s.id = :id")
-    Optional<MathSubmission> findByIdWithStepsAndResults(@Param("id") Long id);
+    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.answers a LEFT JOIN FETCH a.steps LEFT JOIN FETCH s.results WHERE s.id = :id")
+    Optional<MathSubmission> findByIdWithAnswersAndResults(@Param("id") Long id);
 
-    @Query("SELECT s FROM MathSubmission s LEFT JOIN FETCH s.steps LEFT JOIN FETCH s.results LEFT JOIN FETCH s.participation p LEFT JOIN FETCH p.exercise WHERE s.id = :id")
-    Optional<MathSubmission> findByIdWithStepsResultsAndParticipation(@Param("id") Long id);
+    @Query("""
+            SELECT s FROM MathSubmission s
+                LEFT JOIN FETCH s.answers a
+                LEFT JOIN FETCH a.steps
+                LEFT JOIN FETCH s.results
+                LEFT JOIN FETCH s.participation p
+                LEFT JOIN FETCH p.exercise
+            WHERE s.id = :id
+            """)
+    Optional<MathSubmission> findByIdWithAnswersResultsAndParticipation(@Param("id") Long id);
 
     @Query("""
             SELECT s FROM MathSubmission s
@@ -38,7 +46,8 @@ public interface MathSubmissionRepository extends JpaRepository<MathSubmission, 
     @Query("""
             SELECT s FROM MathSubmission s
             LEFT JOIN FETCH s.results
-            LEFT JOIN FETCH s.steps
+            LEFT JOIN FETCH s.answers a
+            LEFT JOIN FETCH a.steps
             LEFT JOIN FETCH s.participation p
             LEFT JOIN FETCH p.student
             WHERE p.exercise.id = :exerciseId AND s.submitted = true

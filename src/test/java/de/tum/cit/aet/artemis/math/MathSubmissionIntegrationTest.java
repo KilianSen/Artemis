@@ -24,6 +24,7 @@ import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.HintRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.HintSuggestionDTO;
 import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
+import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.util.MathExerciseFactory;
@@ -116,15 +117,18 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void submitMathSubmission_withValidStep_scores100() throws Exception {
-        // apply add_zero_left at root: 0 + x → x (exercise source=0+x, target=x)
+        // apply add_zero_left at root: 0 + x → x (problem source=0+x, target=x)
+        Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
 
         assertThat(result.submitted()).isTrue();
-        assertThat(result.steps()).hasSize(1);
+        assertThat(result.answers()).hasSize(1);
+        assertThat(result.answers().getFirst().steps()).hasSize(1);
         assertThat(result.results()).isNotEmpty();
         assertThat(result.results().getFirst().score()).isEqualTo(100.0);
     }
@@ -132,22 +136,27 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void updateMathSubmission_persistsSteps() throws Exception {
+        Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.putWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
 
-        assertThat(result.steps()).hasSize(1);
-        assertThat(result.steps().getFirst().appliedRuleId()).isEqualTo("add_zero_left");
+        assertThat(result.answers()).hasSize(1);
+        assertThat(result.answers().getFirst().steps()).hasSize(1);
+        assertThat(result.answers().getFirst().steps().getFirst().appliedRuleId()).isEqualTo("add_zero_left");
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void submitMathSubmission_withWrongStep_scores0() throws Exception {
         // wrong rule applied: result doesn't match target
+        Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_right", List.of(), MathNodes.var("x"));
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
@@ -160,9 +169,9 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void submitMathSubmission_noSteps_sourceEqualsTarget_scores100() throws Exception {
-        // Edge case: exercise with source == target, no steps required
-        exercise.setSourceExpression(MathNodes.var("x"));
-        exercise.setTargetExpression(MathNodes.var("x"));
+        // Edge case: problem with source == target, no steps required
+        exercise.getProblems().getFirst().setSourceExpression(MathNodes.var("x"));
+        exercise.getProblems().getFirst().setTargetExpression(MathNodes.var("x"));
         mathExerciseUtilService.saveExercise(exercise);
 
         MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, null);
@@ -226,7 +235,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void getDataForMathEditor_doesNotLeakExampleDerivationsToStudent() throws Exception {
         // The example derivations are the instructor's worked solution; a student must never receive them while the example solution is unpublished.
-        exercise.setExampleDerivations(List.of(List.of(new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x")))));
+        exercise.getProblems().getFirst().setExampleDerivations(List.of(new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"))));
         mathExerciseUtilService.saveExercise(exercise);
         MathSubmission saved = mathExerciseUtilService.createAndSaveSubmissionForExercise(exercise, TEST_PREFIX + "student1", false);
 
@@ -234,7 +243,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
         assertThat(result.participation()).isNotNull();
         assertThat(result.participation().exercise()).isNotNull();
-        assertThat(result.participation().exercise().exampleDerivations()).isNullOrEmpty();
+        assertThat(result.participation().exercise().problems().getFirst().exampleDerivations()).isNullOrEmpty();
     }
 
     @Test
@@ -309,8 +318,9 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void suggestHints_asEnrolledStudent_returnsOk() throws Exception {
-        List<HintSuggestionDTO> hints = request.postListWithResponseBody("/api/math/exercises/" + exercise.getId() + "/hints", new HintRequestDTO(MathNodes.var("x")),
-                HintSuggestionDTO.class, HttpStatus.OK);
+        Long problemId = exercise.getProblems().getFirst().getId();
+        List<HintSuggestionDTO> hints = request.postListWithResponseBody("/api/math/exercises/" + exercise.getId() + "/problems/" + problemId + "/hints",
+                new HintRequestDTO(MathNodes.var("x")), HintSuggestionDTO.class, HttpStatus.OK);
 
         assertThat(hints).isNotNull();
     }

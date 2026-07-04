@@ -3,6 +3,7 @@ package de.tum.cit.aet.artemis.math;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import de.tum.cit.aet.artemis.exercise.domain.Submission;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
+import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.util.MathExerciseFactory;
@@ -63,8 +65,9 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotNull();
         assertThat(result.description()).isEqualTo(newExercise.description());
-        assertThat(result.sourceExpression()).isNotNull();
-        assertThat(result.targetExpression()).isNotNull();
+        assertThat(result.problems()).hasSize(1);
+        assertThat(result.problems().getFirst().sourceExpression()).isNotNull();
+        assertThat(result.problems().getFirst().targetExpression()).isNotNull();
     }
 
     @Test
@@ -167,23 +170,27 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotEqualTo(exercise.getId());
         assertThat(result.description()).isEqualTo(exercise.getDescription());
-        // the imported exercise must preserve the expression configuration sent in the import payload
-        assertThat(result.sourceExpression()).isNotNull();
-        assertThat(result.targetExpression()).isNotNull();
+        // the imported exercise must preserve the problem configuration sent in the import payload
+        assertThat(result.problems()).hasSize(1);
+        assertThat(result.problems().getFirst().sourceExpression()).isNotNull();
+        assertThat(result.problems().getFirst().targetExpression()).isNotNull();
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_preservesManualDerivation() throws Exception {
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, false,
+                false, false, true, true, null);
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null,
                 null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null,
-                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), null, null, true, false, false, false, null, null, null, false, null);
+                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), List.of(problemDTO));
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);
 
         assertThat(result).isNotNull();
-        assertThat(result.manualDerivation()).isTrue();
+        assertThat(result.problems()).hasSize(1);
+        assertThat(result.problems().getFirst().manualDerivation()).isTrue();
     }
 
     @Test
@@ -205,10 +212,11 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(copiedSubmission).isNotNull();
         // The copy must be a distinct submission, not the shared template one, so deleting either exercise cannot cascade-remove the other's data.
         assertThat(copiedSubmission.getId()).isNotEqualTo(originalSubmissionId);
-        // The derivation steps must be deep-copied onto the new submission (not shared with the template's).
-        MathSubmission reloadedCopy = mathSubmissionRepository.findByIdWithStepsAndResults(copiedSubmission.getId()).orElseThrow();
-        assertThat(reloadedCopy.getSteps()).hasSize(1);
-        assertThat(reloadedCopy.getSteps().getFirst().getAppliedRuleId()).isEqualTo("example work");
+        // The answer's derivation steps must be deep-copied onto the new submission (not shared with the template's).
+        MathSubmission reloadedCopy = mathSubmissionRepository.findByIdWithAnswersAndResults(copiedSubmission.getId()).orElseThrow();
+        assertThat(reloadedCopy.getAnswers()).hasSize(1);
+        assertThat(reloadedCopy.getAnswers().getFirst().getSteps()).hasSize(1);
+        assertThat(reloadedCopy.getAnswers().getFirst().getSteps().getFirst().getAppliedRuleId()).isEqualTo("example work");
     }
 
     @Test

@@ -25,6 +25,8 @@ import de.tum.cit.aet.artemis.exercise.repository.ExerciseTestRepository;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
+import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
@@ -90,29 +92,38 @@ public class MathExerciseUtilService {
      * @return the saved ExampleSubmission
      */
     public ExampleSubmission addExampleSubmissionToMathExercise(MathExercise exercise, String ruleId) {
-        MathSubmission submission = saveExampleMathSubmission(ruleId);
+        MathSubmission submission = saveExampleMathSubmission(ruleId, firstProblem(exercise));
         ExampleSubmission exampleSubmission = new ExampleSubmission();
         exampleSubmission.setExercise(exercise);
         exampleSubmission.setSubmission(submission);
         return exampleSubmissionRepository.save(exampleSubmission);
     }
 
+    private MathProblem firstProblem(MathExercise exercise) {
+        return exercise.getProblems().getFirst();
+    }
+
     /**
-     * Creates and persists a MathSubmission flagged as an example submission carrying a single derivation step with the given rule id.
+     * Creates and persists a MathSubmission flagged as an example submission carrying a single answer with one derivation step.
      *
-     * @param ruleId the applied-rule id of the single derivation step stored on the MathSubmission
+     * @param ruleId  the applied-rule id of the single derivation step stored on the answer
+     * @param problem the problem the answer belongs to
      * @return the saved MathSubmission
      */
-    private MathSubmission saveExampleMathSubmission(String ruleId) {
+    private MathSubmission saveExampleMathSubmission(String ruleId, MathProblem problem) {
         MathSubmission submission = MathExerciseFactory.generateMathSubmission(true);
         submission.setExampleSubmission(true);
+        MathProblemAnswer answer = new MathProblemAnswer();
+        answer.setProblem(problem);
+        answer.setSubmission(submission);
         DerivationStep step = new DerivationStep();
         step.setStepIndex(0);
         step.setAppliedRuleId(ruleId);
         step.setTargetNodePath(List.of());
         step.setResultExpression(MathNodes.var("x"));
-        step.setSubmission(submission);
-        submission.getSteps().add(step);
+        step.setAnswer(answer);
+        answer.getSteps().add(step);
+        submission.getAnswers().add(answer);
         return mathSubmissionRepository.save(submission);
     }
 
@@ -127,7 +138,7 @@ public class MathExerciseUtilService {
      * @return the saved ExampleSubmission (its submission has one result with one feedback)
      */
     public ExampleSubmission addExampleSubmissionWithAssessmentToMathExercise(MathExercise exercise, String content, double score, String feedbackText) {
-        MathSubmission submission = saveExampleMathSubmission(content);
+        MathSubmission submission = saveExampleMathSubmission(content, firstProblem(exercise));
 
         Feedback feedback = new Feedback();
         feedback.setDetailText(feedbackText);

@@ -41,7 +41,9 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseSpecificationService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
+import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.dto.ReachabilityReportDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
@@ -111,10 +113,11 @@ public class MathExerciseResource {
         MathExercise exercise = new MathExercise();
         mathExerciseDTO.applyToEntity(exercise);
         normalizeExpressions(exercise);
+        exercise.reconnectProblems();
         applyCourse(mathExerciseDTO, exercise);
         exercise.validateTitle();
         exercise.validateGeneralSettings();
-        MathExercise saved = mathExerciseRepository.findByIdWithCategories(mathExerciseRepository.save(exercise).getId()).orElseThrow();
+        MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseRepository.save(exercise).getId()).orElseThrow();
         return ResponseEntity.created(new URI("/api/math/math-exercises/" + saved.getId()))
                 .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, saved.getTitle())).body(MathExerciseDTO.of(saved));
     }
@@ -135,14 +138,15 @@ public class MathExerciseResource {
             return createMathExercise(mathExerciseDTO);
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
-        MathExercise existing = mathExerciseRepository.findByIdWithCategoriesAndCourse(mathExerciseDTO.id()).orElseThrow();
+        MathExercise existing = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(mathExerciseDTO.id()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
         normalizeExpressions(existing);
+        existing.reconnectProblems();
         applyCourse(mathExerciseDTO, existing);
         existing.validateTitle();
         existing.validateGeneralSettings();
-        MathExercise saved = mathExerciseRepository.findByIdWithCategories(mathExerciseRepository.save(existing).getId()).orElseThrow();
+        MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseRepository.save(existing).getId()).orElseThrow();
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, saved.getId().toString())).body(MathExerciseDTO.of(saved));
     }
 
@@ -169,9 +173,10 @@ public class MathExerciseResource {
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
         normalizeExpressions(existing);
+        existing.reconnectProblems();
         applyCourse(mathExerciseDTO, existing);
         exerciseService.reEvaluateExercise(existing, Boolean.TRUE.equals(deleteFeedbackAfterGradingInstructionUpdate));
-        MathExercise saved = mathExerciseRepository.findByIdWithCategories(mathExerciseRepository.save(existing).getId()).orElseThrow();
+        MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseRepository.save(existing).getId()).orElseThrow();
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, saved.getId().toString())).body(MathExerciseDTO.of(saved));
     }
 
@@ -201,7 +206,7 @@ public class MathExerciseResource {
     @EnforceAtLeastTutor
     public ResponseEntity<MathExerciseDTO> getMathExercise(@PathVariable Long exerciseId) {
         log.debug("REST request to get MathExercise : {}", exerciseId);
-        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourse(exerciseId).orElseThrow();
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
         return ResponseEntity.ok(MathExerciseDTO.of(exercise));
     }
@@ -263,37 +268,49 @@ public class MathExerciseResource {
         MathExercise target = new MathExercise();
         importedExerciseDTO.applyToEntity(target);
         normalizeExpressions(target);
+        target.reconnectProblems();
         applyCourse(importedExerciseDTO, target);
         target.validateGeneralSettings();
-        MathExercise result = mathExerciseRepository.findByIdWithCategories(mathExerciseImportService.importMathExercise(sourceExercise, target).getId()).orElseThrow();
+        MathExercise result = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseImportService.importMathExercise(sourceExercise, target).getId()).orElseThrow();
         return ResponseEntity.created(new URI("/api/math/math-exercises/" + result.getId()))
                 .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getTitle())).body(MathExerciseDTO.of(result));
     }
 
     /**
-     * GET /math-exercises/{exerciseId}/verify-reachability : run the configured grader's automated reachability
-     * check on the exercise. For rewrite-chain exercises this runs the FORWARD_ONLY reduction strategy from the
-     * source (or goal in EQUATION mode) and reports how close it gets to the target / a tautology.
+     * GET /math-exercises/{exerciseId}/problems/{problemId}/verify-reachability : run the configured grader's automated
+     * reachability check on a single problem. For rewrite-chain problems this runs the FORWARD_ONLY reduction strategy
+     * from the source (or goal in EQUATION mode) and reports how close it gets to the target / a tautology.
      *
-     * @param exerciseId the exercise to analyse
+     * @param exerciseId the exercise the problem belongs to
+     * @param problemId  the problem to analyse
      * @return the reachability report, or 404 if the grader does not support this check
      */
-    @GetMapping("math-exercises/{exerciseId}/verify-reachability")
+    @GetMapping("math-exercises/{exerciseId}/problems/{problemId}/verify-reachability")
     @EnforceAtLeastEditor
-    public ResponseEntity<ReachabilityReportDTO> verifyReachability(@PathVariable Long exerciseId) {
-        log.debug("REST request to verify reachability for MathExercise : {}", exerciseId);
-        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourse(exerciseId).orElseThrow();
+    public ResponseEntity<ReachabilityReportDTO> verifyReachability(@PathVariable Long exerciseId, @PathVariable Long problemId) {
+        log.debug("REST request to verify reachability for MathExercise {} problem {}", exerciseId, problemId);
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, exercise, null);
-        return mathGradingService.verifyReachability(exercise).map(ReachabilityReportDTO::of).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        MathProblem problem = findProblemOrThrow(exercise, problemId);
+        return mathGradingService.verifyReachability(problem).map(ReachabilityReportDTO::of).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private MathProblem findProblemOrThrow(MathExercise exercise, Long problemId) {
+        return exercise.getProblems().stream().filter(problem -> problem.getId().equals(problemId)).findFirst()
+                .orElseThrow(() -> new BadRequestAlertException("Problem does not belong to the exercise", ENTITY_NAME, "problemNotFound"));
     }
 
     private void validateExpressionsWildcardFree(MathExerciseDTO dto) {
         try {
-            MathNodes.assertWildcardFree(dto.sourceExpression());
-            MathNodes.assertWildcardFree(dto.targetExpression());
-            MathNodes.assertWildcardFree(dto.goalExpression());
-            if (dto.exampleDerivations() != null) {
-                dto.exampleDerivations().forEach(derivation -> derivation.forEach(step -> MathNodes.assertWildcardFree(step.resultExpression())));
+            if (dto.problems() != null) {
+                for (MathProblemDTO problem : dto.problems()) {
+                    MathNodes.assertWildcardFree(problem.sourceExpression());
+                    MathNodes.assertWildcardFree(problem.targetExpression());
+                    MathNodes.assertWildcardFree(problem.goalExpression());
+                    if (problem.exampleDerivations() != null) {
+                        problem.exampleDerivations().forEach(step -> MathNodes.assertWildcardFree(step.resultExpression()));
+                    }
+                }
             }
         }
         catch (IllegalArgumentException e) {
@@ -302,12 +319,17 @@ public class MathExerciseResource {
     }
 
     private void normalizeExpressions(MathExercise exercise) {
-        exercise.setSourceExpression(MathNodes.normalize(exercise.getSourceExpression()));
-        exercise.setTargetExpression(MathNodes.normalize(exercise.getTargetExpression()));
-        exercise.setGoalExpression(MathNodes.normalize(exercise.getGoalExpression()));
-        if (exercise.getExampleDerivations() != null) {
-            exercise.getExampleDerivations().forEach(derivation -> derivation.replaceAll(
-                    step -> new DerivationStepDTO(step.id(), step.stepIndex(), step.appliedRuleId(), step.targetNodePath(), MathNodes.normalize(step.resultExpression()))));
+        if (exercise.getProblems() == null) {
+            return;
+        }
+        for (MathProblem problem : exercise.getProblems()) {
+            problem.setSourceExpression(MathNodes.normalize(problem.getSourceExpression()));
+            problem.setTargetExpression(MathNodes.normalize(problem.getTargetExpression()));
+            problem.setGoalExpression(MathNodes.normalize(problem.getGoalExpression()));
+            if (problem.getExampleDerivations() != null) {
+                problem.getExampleDerivations().replaceAll(
+                        step -> new DerivationStepDTO(step.id(), step.stepIndex(), step.appliedRuleId(), step.targetNodePath(), MathNodes.normalize(step.resultExpression())));
+            }
         }
     }
 

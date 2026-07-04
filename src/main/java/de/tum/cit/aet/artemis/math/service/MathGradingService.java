@@ -9,8 +9,12 @@ import org.springframework.stereotype.Service;
 
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
+import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
+import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
+import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.grader.GraderRegistry;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
@@ -22,9 +26,8 @@ import de.tum.cit.aet.artemis.math.grader.RewriteChainGrader;
 /**
  * Dispatch entry-point for math grading.
  * <p>
- * Selects the appropriate {@link MathGrader} based on the exercise's {@link MathExercise#getGraderType()}
- * and forwards the call. Existing in-process callers (resources, tests) use the legacy
- * {@code gradeSubmission} API; new code may go directly through {@link GraderRegistry}.
+ * Selects the appropriate {@link MathGrader} based on the configured {@link MathProblemConfig#getGraderType()} and
+ * forwards the call. For a whole submission it aggregates the per-problem scores weighted by each problem's points.
  */
 @Conditional(MathEnabled.class)
 @Lazy
@@ -38,9 +41,45 @@ public class MathGradingService {
     }
 
     /**
-     * Grades a derivation, dispatching to the grader configured on the problem configuration.
+     * Grades a whole submission against an exercise, aggregating the per-problem scores.
+     * <p>
+     * For every {@link MathProblem} in the exercise, the student's matching {@link MathProblemAnswer} is graded with the
+     * per-problem grader (yielding a score in [0, 100]), scaled by the problem's points, and stored on the answer via
+     * {@link MathProblemAnswer#setScoreInPoints(Double)}. The overall score is {@code earnedPoints / totalPoints * 100},
+     * or {@code 0} when the exercise carries no points.
      *
-     * @param config the problem configuration being graded (a standalone {@code MathExercise} or a multiplex problem)
+     * @param exercise   the exercise providing the problems and their point weights
+     * @param submission the student's submission carrying one answer per problem
+     * @return the aggregate score in [0, 100]
+     */
+    public double gradeSubmission(MathExercise exercise, MathSubmission submission) {
+        List<MathProblem> problems = exercise.getProblems();
+        if (problems == null || problems.isEmpty()) {
+            return 0.0;
+        }
+        double totalPoints = 0.0;
+        double earnedPoints = 0.0;
+        for (MathProblem problem : problems) {
+            totalPoints += problem.getPoints();
+            MathProblemAnswer answer = submission.answerForProblem(problem.getId());
+            List<DerivationStep> steps = answer != null ? answer.getSteps() : List.of();
+            double percent = gradeSubmission(problem, steps);
+            double pointsForProblem = percent / 100.0 * problem.getPoints();
+            if (answer != null) {
+                answer.setScoreInPoints(pointsForProblem);
+            }
+            earnedPoints += pointsForProblem;
+        }
+        if (totalPoints <= 0.0) {
+            return 0.0;
+        }
+        return earnedPoints / totalPoints * 100.0;
+    }
+
+    /**
+     * Grades a single derivation, dispatching to the grader configured on the problem configuration.
+     *
+     * @param config the problem configuration being graded (a {@link MathProblem})
      * @param steps  the student's ordered derivation steps
      * @return score in [0, 100]
      */
@@ -50,26 +89,26 @@ public class MathGradingService {
     }
 
     /**
-     * Asks the configuration's grader for hint suggestions at the current state.
+     * Asks the problem's grader for hint suggestions at the current state.
      *
-     * @param config       the problem configuration being worked on
+     * @param problem      the problem being worked on
      * @param currentState the student's current math state
      * @return ranked suggestions, possibly empty
      */
-    public List<HintSuggestion> suggestHints(MathProblemConfig config, MathNode currentState) {
-        GraderType type = config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType();
-        return graderRegistry.getGrader(type).suggestHints(config, currentState);
+    public List<HintSuggestion> suggestHints(MathProblem problem, MathNode currentState) {
+        GraderType type = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
+        return graderRegistry.getGrader(type).suggestHints(problem, currentState);
     }
 
     /**
-     * Asks the configuration's grader whether the target is automatically reachable.
+     * Asks the problem's grader whether the target is automatically reachable.
      *
-     * @param config the problem configuration to analyse
+     * @param problem the problem to analyse
      * @return reachability report, or empty if the grader does not support this check
      */
-    public Optional<ReachabilityReport> verifyReachability(MathProblemConfig config) {
-        GraderType type = config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType();
-        return graderRegistry.getGrader(type).verifyReachability(config);
+    public Optional<ReachabilityReport> verifyReachability(MathProblem problem) {
+        GraderType type = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
+        return graderRegistry.getGrader(type).verifyReachability(problem);
     }
 
     /**

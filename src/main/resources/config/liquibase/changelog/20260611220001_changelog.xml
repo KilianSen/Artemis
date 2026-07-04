@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Restructures math exercises so a single exercise holds multiple problems (questions), like a quiz holds
+         questions. The per-problem configuration moves off math_exercise_details onto a new math_problem table; a
+         student's derivation steps move off the submission onto a new math_problem_answer table (one answer per
+         problem). The feature is behind a disabled toggle and unreleased, so no data migration is required. -->
+
+    <!-- 1) Create the math_problem table holding one problem's configuration. -->
+    <changeSet id="20260611220001-1" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="math_problem"/>
+            </not>
+        </preConditions>
+        <createTable tableName="math_problem">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="math_exercise_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="math_problems_order" type="integer"/>
+            <column name="title" type="varchar(255)"/>
+            <column name="points" type="double" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_expression" type="longtext"/>
+            <column name="target_expression" type="longtext"/>
+            <column name="goal_expression" type="longtext"/>
+            <column name="example_derivations" type="longtext"/>
+            <column name="goal_mode" type="varchar(16)" defaultValue="TRANSFORMATION">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grader_type" type="varchar(32)" defaultValue="REWRITE_CHAIN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="partial_credit_enabled" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ac_normalization" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="only_show_applicable_rules" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="allow_verification" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="manual_derivation" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint
+            baseTableName="math_problem"
+            baseColumnNames="math_exercise_id"
+            constraintName="fk_math_problem_math_exercise_id"
+            referencedTableName="exercise"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- 2) Create the math_problem_answer table holding a student's answer to one problem. -->
+    <changeSet id="20260611220001-2" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="math_problem_answer"/>
+            </not>
+        </preConditions>
+        <createTable tableName="math_problem_answer">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="submission_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="problem_id" type="bigint"/>
+            <column name="score_in_points" type="double"/>
+        </createTable>
+        <addForeignKeyConstraint
+            baseTableName="math_problem_answer"
+            baseColumnNames="submission_id"
+            constraintName="fk_math_problem_answer_submission_id"
+            referencedTableName="submission"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+        <addForeignKeyConstraint
+            baseTableName="math_problem_answer"
+            baseColumnNames="problem_id"
+            constraintName="fk_math_problem_answer_problem_id"
+            referencedTableName="math_problem"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- 3) Repoint math_derivation_step from the submission to a problem answer, and record its order within the answer. -->
+    <changeSet id="20260611220001-3" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="math_derivation_step" columnName="submission_id"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="math_derivation_step" constraintName="fk_math_derivation_step_submission_id"/>
+        <dropColumn tableName="math_derivation_step" columnName="submission_id"/>
+        <addColumn tableName="math_derivation_step">
+            <column name="answer_id" type="bigint"/>
+            <column name="steps_order" type="integer"/>
+        </addColumn>
+        <addForeignKeyConstraint
+            baseTableName="math_derivation_step"
+            baseColumnNames="answer_id"
+            constraintName="fk_math_derivation_step_answer_id"
+            referencedTableName="math_problem_answer"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- 4) Drop the per-problem configuration columns that moved off math_exercise_details onto math_problem. -->
+    <changeSet id="20260611220001-4" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="math_exercise_details" columnName="source_expression"/>
+        </preConditions>
+        <dropColumn tableName="math_exercise_details" columnName="source_expression"/>
+        <dropColumn tableName="math_exercise_details" columnName="target_expression"/>
+        <dropColumn tableName="math_exercise_details" columnName="goal_expression"/>
+        <dropColumn tableName="math_exercise_details" columnName="example_derivations"/>
+        <dropColumn tableName="math_exercise_details" columnName="allow_verification"/>
+        <dropColumn tableName="math_exercise_details" columnName="only_show_applicable_rules"/>
+        <dropColumn tableName="math_exercise_details" columnName="ac_normalization"/>
+        <dropColumn tableName="math_exercise_details" columnName="goal_mode"/>
+        <dropColumn tableName="math_exercise_details" columnName="grader_type"/>
+        <dropColumn tableName="math_exercise_details" columnName="partial_credit_enabled"/>
+        <dropColumn tableName="math_exercise_details" columnName="manual_derivation"/>
+    </changeSet>
+
+</databaseChangeLog>

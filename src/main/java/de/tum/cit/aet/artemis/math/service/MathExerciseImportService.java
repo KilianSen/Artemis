@@ -29,6 +29,8 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseImportService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
+import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
@@ -71,9 +73,30 @@ public class MathExerciseImportService extends ExerciseImportService {
         MathExercise savedExercise = mathExerciseRepository.save(newExercise);
 
         channelService.createExerciseChannel(savedExercise, Optional.ofNullable(importedExercise.getChannelName()));
-        savedExercise.setExampleSubmissions(copyExampleSubmission(templateExercise, savedExercise, gradingInstructionCopyTracker));
+        Map<Long, MathProblem> problemMapping = buildProblemMapping(templateExercise, savedExercise);
+        savedExercise.setExampleSubmissions(copyExampleSubmission(templateExercise, savedExercise, gradingInstructionCopyTracker, problemMapping));
 
         return savedExercise;
+    }
+
+    /**
+     * Maps each template problem id to the corresponding freshly-copied problem on the new exercise, matched by position.
+     * Lets example-submission answers be re-pointed from the template's problems to the new exercise's problems.
+     *
+     * @param templateExercise the exercise being imported from
+     * @param savedExercise    the newly persisted exercise with its copied problems
+     * @return a mapping from template problem id to the new problem
+     */
+    private Map<Long, MathProblem> buildProblemMapping(MathExercise templateExercise, MathExercise savedExercise) {
+        Map<Long, MathProblem> mapping = new HashMap<>();
+        List<MathProblem> templateProblems = mathExerciseRepository.findByIdWithCategoriesAndProblems(templateExercise.getId()).map(MathExercise::getProblems).orElse(List.of());
+        List<MathProblem> newProblems = savedExercise.getProblems() == null ? List.of() : savedExercise.getProblems();
+        for (int i = 0; i < templateProblems.size() && i < newProblems.size(); i++) {
+            if (templateProblems.get(i).getId() != null) {
+                mapping.put(templateProblems.get(i).getId(), newProblems.get(i));
+            }
+        }
+        return mapping;
     }
 
     /**
@@ -91,18 +114,37 @@ public class MathExerciseImportService extends ExerciseImportService {
         super.copyExerciseBasis(newExercise, importedExercise, gradingInstructionCopyTracker);
         newExercise.setDescription(importedExercise.getDescription());
         newExercise.setExampleSolution(importedExercise.getExampleSolution());
-        newExercise.setSourceExpression(importedExercise.getSourceExpression());
-        newExercise.setTargetExpression(importedExercise.getTargetExpression());
-        newExercise.setGoalExpression(importedExercise.getGoalExpression());
-        newExercise.setGoalMode(importedExercise.getGoalMode());
-        newExercise.setManualDerivation(importedExercise.isManualDerivation());
-        newExercise.setAllowVerification(importedExercise.isAllowVerification());
-        newExercise.setOnlyShowApplicableRules(importedExercise.isOnlyShowApplicableRules());
-        newExercise.setAcNormalization(importedExercise.isAcNormalization());
-        newExercise.setPartialCreditEnabled(importedExercise.isPartialCreditEnabled());
-        newExercise.setGraderType(importedExercise.getGraderType());
-        newExercise.setExampleDerivations(importedExercise.getExampleDerivations());
+        // Deep-copy each problem so the new exercise owns its own problem rows (cascade/orphanRemoval on MathExercise#problems).
+        if (importedExercise.getProblems() != null) {
+            for (MathProblem originalProblem : importedExercise.getProblems()) {
+                newExercise.addProblem(copyProblem(originalProblem));
+            }
+        }
         return newExercise;
+    }
+
+    /**
+     * Creates a detached deep copy of a single problem's configuration (without its id or exercise back-reference).
+     *
+     * @param originalProblem the problem to copy
+     * @return the copied problem
+     */
+    private MathProblem copyProblem(MathProblem originalProblem) {
+        MathProblem copy = new MathProblem();
+        copy.setTitle(originalProblem.getTitle());
+        copy.setPoints(originalProblem.getPoints());
+        copy.setSourceExpression(originalProblem.getSourceExpression());
+        copy.setTargetExpression(originalProblem.getTargetExpression());
+        copy.setGoalExpression(originalProblem.getGoalExpression());
+        copy.setGoalMode(originalProblem.getGoalMode());
+        copy.setGraderType(originalProblem.getGraderType());
+        copy.setManualDerivation(originalProblem.isManualDerivation());
+        copy.setAllowVerification(originalProblem.isAllowVerification());
+        copy.setOnlyShowApplicableRules(originalProblem.isOnlyShowApplicableRules());
+        copy.setAcNormalization(originalProblem.isAcNormalization());
+        copy.setPartialCreditEnabled(originalProblem.isPartialCreditEnabled());
+        copy.setExampleDerivations(originalProblem.getExampleDerivations());
+        return copy;
     }
 
     /**
@@ -114,7 +156,8 @@ public class MathExerciseImportService extends ExerciseImportService {
      * @param gradingInstructionCopyTracker The mapping from original GradingInstruction Ids to new GradingInstruction instances.
      * @return The cloned set of example submissions
      */
-    private Set<ExampleSubmission> copyExampleSubmission(Exercise templateExercise, Exercise newExercise, Map<Long, GradingInstruction> gradingInstructionCopyTracker) {
+    private Set<ExampleSubmission> copyExampleSubmission(Exercise templateExercise, Exercise newExercise, Map<Long, GradingInstruction> gradingInstructionCopyTracker,
+            Map<Long, MathProblem> problemMapping) {
         log.debug("Copying the ExampleSubmissions to new Exercise: {}", newExercise);
         Set<ExampleSubmission> newExampleSubmissions = new HashSet<>();
         if (!Hibernate.isInitialized(templateExercise.getExampleSubmissions())) {
@@ -123,7 +166,7 @@ public class MathExerciseImportService extends ExerciseImportService {
         for (ExampleSubmission originalExampleSubmission : templateExercise.getExampleSubmissions()) {
             // Hard-copy the submission: ExampleSubmission.submission is a unique @OneToOne with cascade=REMOVE/orphanRemoval,
             // so the new example submission must own its own submission rather than share the template's.
-            MathSubmission newSubmission = copySubmission(originalExampleSubmission.getSubmission(), gradingInstructionCopyTracker);
+            MathSubmission newSubmission = copySubmission(originalExampleSubmission.getSubmission(), gradingInstructionCopyTracker, problemMapping);
 
             ExampleSubmission newExampleSubmission = new ExampleSubmission();
             newExampleSubmission.setExercise(newExercise);
@@ -144,7 +187,7 @@ public class MathExerciseImportService extends ExerciseImportService {
      * @param gradingInstructionCopyTracker The mapping from original GradingInstruction Ids to new GradingInstruction instances.
      * @return The cloned submission
      */
-    private MathSubmission copySubmission(final Submission originalSubmission, Map<Long, GradingInstruction> gradingInstructionCopyTracker) {
+    private MathSubmission copySubmission(final Submission originalSubmission, Map<Long, GradingInstruction> gradingInstructionCopyTracker, Map<Long, MathProblem> problemMapping) {
         MathSubmission newSubmission = new MathSubmission();
         if (originalSubmission != null) {
             log.debug("Copying the Submission to new ExampleSubmission: {}", newSubmission);
@@ -152,18 +195,28 @@ public class MathExerciseImportService extends ExerciseImportService {
             newSubmission.setSubmissionDate(originalSubmission.getSubmissionDate());
             newSubmission.setType(originalSubmission.getType());
             newSubmission.setParticipation(originalSubmission.getParticipation());
-            // Deep-copy the derivation steps (loaded lazily via a targeted query) so the example submission owns its own step rows
-            // rather than sharing the template submission's, which are removed with it (cascade/orphanRemoval on MathSubmission#steps).
-            List<DerivationStep> originalSteps = mathSubmissionRepository.findByIdWithStepsAndResults(originalSubmission.getId()).map(MathSubmission::getSteps).orElse(List.of());
-            for (DerivationStep originalStep : originalSteps) {
-                DerivationStep copiedStep = new DerivationStep();
-                copiedStep.setStepIndex(originalStep.getStepIndex());
-                copiedStep.setAppliedRuleId(originalStep.getAppliedRuleId());
-                copiedStep.setTargetNodePath(originalStep.getTargetNodePath());
-                copiedStep.setResultExpression(originalStep.getResultExpression());
-                copiedStep.setDirection(originalStep.getDirection());
-                copiedStep.setSubmission(newSubmission);
-                newSubmission.getSteps().add(copiedStep);
+            // Deep-copy the per-problem answers and their derivation steps (loaded lazily via a targeted query) so the example
+            // submission owns its own answer/step rows rather than sharing the template's (cascade/orphanRemoval on MathSubmission#answers).
+            List<MathProblemAnswer> originalAnswers = mathSubmissionRepository.findByIdWithAnswersAndResults(originalSubmission.getId()).map(MathSubmission::getAnswers)
+                    .orElse(List.of());
+            for (MathProblemAnswer originalAnswer : originalAnswers) {
+                MathProblemAnswer copiedAnswer = new MathProblemAnswer();
+                copiedAnswer.setScoreInPoints(originalAnswer.getScoreInPoints());
+                if (originalAnswer.getProblem() != null) {
+                    copiedAnswer.setProblem(problemMapping.get(originalAnswer.getProblem().getId()));
+                }
+                copiedAnswer.setSubmission(newSubmission);
+                for (DerivationStep originalStep : originalAnswer.getSteps()) {
+                    DerivationStep copiedStep = new DerivationStep();
+                    copiedStep.setStepIndex(originalStep.getStepIndex());
+                    copiedStep.setAppliedRuleId(originalStep.getAppliedRuleId());
+                    copiedStep.setTargetNodePath(originalStep.getTargetNodePath());
+                    copiedStep.setResultExpression(originalStep.getResultExpression());
+                    copiedStep.setDirection(originalStep.getDirection());
+                    copiedStep.setAnswer(copiedAnswer);
+                    copiedAnswer.getSteps().add(copiedStep);
+                }
+                newSubmission.getAnswers().add(copiedAnswer);
             }
             newSubmission = submissionRepository.saveAndFlush(newSubmission);
             // Load the assessment graph (result + feedbacks + assessor) in a separate targeted query instead of eagerly fetching

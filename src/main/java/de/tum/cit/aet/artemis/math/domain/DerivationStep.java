@@ -33,9 +33,9 @@ public class DerivationStep {
     private Long id;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "submission_id", nullable = false)
+    @JoinColumn(name = "answer_id", nullable = false)
     @JsonIgnore
-    private MathSubmission submission;
+    private MathProblemAnswer answer;
 
     @Column(name = "step_index")
     private int stepIndex;
@@ -73,12 +73,12 @@ public class DerivationStep {
         this.id = id;
     }
 
-    public MathSubmission getSubmission() {
-        return submission;
+    public MathProblemAnswer getAnswer() {
+        return answer;
     }
 
-    public void setSubmission(MathSubmission submission) {
-        this.submission = submission;
+    public void setAnswer(MathProblemAnswer answer) {
+        this.answer = answer;
     }
 
     public int getStepIndex() {

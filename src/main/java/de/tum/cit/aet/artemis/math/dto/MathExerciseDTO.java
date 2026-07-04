@@ -1,22 +1,25 @@
 package de.tum.cit.aet.artemis.math.dto;
 
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import org.hibernate.Hibernate;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.exercise.domain.DifficultyLevel;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
-import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
-import de.tum.cit.aet.artemis.math.domain.MathNode;
-import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
-import de.tum.cit.aet.artemis.math.grader.GraderType;
+import de.tum.cit.aet.artemis.math.domain.MathProblem;
 
 /**
  * Data Transfer Object for {@link MathExercise}.
  * Used for all exercise REST endpoints (create, update, get, list, import).
+ * <p>
+ * All per-problem configuration lives on the {@link MathProblemDTO}s in {@link #problems()}; the exercise itself carries
+ * only the shared metadata.
  *
  * @param id                                     the exercise ID (null for create, set for update/response)
  * @param title                                  the exercise title
@@ -26,7 +29,7 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
  * @param exampleSolution                        example solution text
  * @param categories                             exercise categories as JSON-encoded strings
  * @param difficulty                             the difficulty level
- * @param maxPoints                              maximum achievable points
+ * @param maxPoints                              maximum achievable points (computed as the sum of the problems' points)
  * @param bonusPoints                            additional bonus points
  * @param includedInOverallScore                 how this exercise counts toward the course grade
  * @param allowComplaintsForAutomaticAssessments whether complaints are allowed
@@ -41,25 +44,14 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
  * @param assessmentDueDate                      deadline for tutors to complete assessments
  * @param exampleSolutionPublicationDate         when the example solution becomes visible
  * @param courseId                               the course ID (math exercises are course-only)
- * @param sourceExpression                       the starting expression of the math (root MathNode)
- * @param targetExpression                       the goal expression students must derive
- * @param manualDerivation                       true if students write the result expression themselves (false = system auto-applies)
- * @param allowVerification                      whether students may trigger math verification
- * @param onlyShowApplicableRules                whether the rule palette shows only rules applicable at the selected node
- * @param partialCreditEnabled                   whether partial credit is awarded proportionally based on valid steps completed
- * @param graderType                             which {@link GraderType} backend grades this exercise (only REWRITE_CHAIN is wired today; M3+ adds egg)
- * @param goalMode                               how the goal is encoded: TRANSFORMATION (source→target) or EQUATION (single goal tree closed by tautology)
- * @param goalExpression                         the goal tree for EQUATION mode (typically an {@code equality(LHS, RHS)}); {@code null} in TRANSFORMATION mode
- * @param acNormalization                        whether the grader treats {@code +} and {@code ·} as commutative/associative for equality comparisons
- * @param exampleDerivations                     instructor-supplied example derivations (each is an ordered list of steps)
+ * @param problems                               the ordered list of math problems (questions) this exercise holds
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathExerciseDTO(Long id, String title, String shortName, String problemStatement, String description, String exampleSolution, Set<String> categories,
         DifficultyLevel difficulty, Double maxPoints, Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments,
         Boolean allowFeedbackRequests, Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions,
         ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId,
-        MathNode sourceExpression, MathNode targetExpression, Boolean manualDerivation, Boolean allowVerification, Boolean onlyShowApplicableRules, Boolean partialCreditEnabled,
-        GraderType graderType, GoalMode goalMode, MathNode goalExpression, Boolean acNormalization, List<List<DerivationStepDTO>> exampleDerivations) {
+        List<MathProblemDTO> problems) {
 
     /**
      * @param exercise the entity to project
@@ -67,19 +59,30 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
      */
     public static MathExerciseDTO of(MathExercise exercise) {
         Long courseId = exercise.getCourseViaExerciseGroupOrCourseMember() != null ? exercise.getCourseViaExerciseGroupOrCourseMember().getId() : null;
+        // The problems collection is lazy; only project it when it was fetched (e.g. list/search endpoints omit it).
+        boolean problemsLoaded = Hibernate.isInitialized(exercise.getProblems()) && exercise.getProblems() != null;
+        List<MathProblemDTO> problemDTOs = problemsLoaded ? exercise.getProblems().stream().map(MathProblemDTO::of).toList() : List.of();
+        double maxPoints = problemsLoaded ? computeMaxPoints(exercise) : (exercise.getMaxPoints() == null ? 0.0 : exercise.getMaxPoints());
         return new MathExerciseDTO(exercise.getId(), exercise.getTitle(), exercise.getShortName(), exercise.getProblemStatement(), exercise.getDescription(),
-                exercise.getExampleSolution(), exercise.getCategories(), exercise.getDifficulty(), exercise.getMaxPoints(), exercise.getBonusPoints(),
-                exercise.getIncludedInOverallScore(), exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getAllowFeedbackRequests(),
-                exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(),
-                exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId,
-                exercise.getSourceExpression(), exercise.getTargetExpression(), exercise.isManualDerivation(), exercise.isAllowVerification(), exercise.isOnlyShowApplicableRules(),
-                exercise.isPartialCreditEnabled(), exercise.getGraderType(), exercise.getGoalMode(), exercise.getGoalExpression(), exercise.isAcNormalization(),
-                exercise.getExampleDerivations());
+                exercise.getExampleSolution(), exercise.getCategories(), exercise.getDifficulty(), maxPoints, exercise.getBonusPoints(), exercise.getIncludedInOverallScore(),
+                exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getAllowFeedbackRequests(), exercise.getPresentationScoreEnabled(),
+                exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(), exercise.getReleaseDate(),
+                exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId, problemDTOs);
+    }
+
+    /** Sum of the exercise's problem points; falls back to the entity's own maxPoints if it has no problems yet. */
+    private static double computeMaxPoints(MathExercise exercise) {
+        if (exercise.getProblems() == null || exercise.getProblems().isEmpty()) {
+            return exercise.getMaxPoints() == null ? 0.0 : exercise.getMaxPoints();
+        }
+        return exercise.getProblems().stream().mapToDouble(MathProblem::getPoints).sum();
     }
 
     /**
-     * Applies the fields of this DTO to an existing {@link MathExercise} entity.
+     * Applies the fields of this DTO to an existing {@link MathExercise} entity, replacing its problem list.
      * The Course association is not applied here — the caller must set it from the database.
+     *
+     * @param exercise the entity to populate
      */
     public void applyToEntity(MathExercise exercise) {
         exercise.setTitle(title);
@@ -89,7 +92,6 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         exercise.setExampleSolution(exampleSolution);
         exercise.setCategories(categories);
         exercise.setDifficulty(difficulty);
-        exercise.setMaxPoints(maxPoints);
         exercise.setBonusPoints(bonusPoints);
         exercise.setIncludedInOverallScore(includedInOverallScore);
         exercise.setGradingInstructions(gradingInstructions);
@@ -105,16 +107,14 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         if (feedbackSuggestionModule != null) {
             exercise.setFeedbackSuggestionModule(feedbackSuggestionModule);
         }
-        exercise.setSourceExpression(sourceExpression);
-        exercise.setTargetExpression(targetExpression);
-        exercise.setManualDerivation(Boolean.TRUE.equals(manualDerivation));
-        exercise.setAllowVerification(allowVerification == null ? exercise.isAllowVerification() : allowVerification);
-        exercise.setOnlyShowApplicableRules(Boolean.TRUE.equals(onlyShowApplicableRules));
-        exercise.setPartialCreditEnabled(Boolean.TRUE.equals(partialCreditEnabled));
-        exercise.setGraderType(graderType == null ? GraderType.REWRITE_CHAIN : graderType);
-        exercise.setGoalMode(goalMode == null ? GoalMode.TRANSFORMATION : goalMode);
-        exercise.setGoalExpression(goalExpression);
-        exercise.setAcNormalization(Boolean.TRUE.equals(acNormalization));
-        exercise.setExampleDerivations(exampleDerivations);
+        List<MathProblem> problemEntities = new ArrayList<>();
+        if (problems != null) {
+            for (MathProblemDTO problemDTO : problems) {
+                problemEntities.add(problemDTO.toEntity());
+            }
+        }
+        exercise.setProblems(problemEntities);
+        // The exercise's maxPoints is the sum of its problems' points so the shared scoring machinery keeps working.
+        exercise.setMaxPoints(problemEntities.stream().mapToDouble(MathProblem::getPoints).sum());
     }
 }
