@@ -11,7 +11,6 @@ import { TextSubmissionService } from 'app/text/overview/service/text-submission
 import { ExampleSubmission } from 'app/assessment/shared/entities/example-submission.model';
 import { ArtemisMarkdownService } from 'app/foundation/service/markdown.service';
 import { TextExercise } from 'app/text/shared/entities/text-exercise.model';
-import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
 import { ModelingExercise } from 'app/modeling/shared/entities/modeling-exercise.model';
 import { UMLModel, importDiagram } from '@tumaet/apollon';
 import { ComplaintService } from 'app/assessment/shared/services/complaint.service';
@@ -349,11 +348,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit {
                         const fileUploadExercise = exercise as FileUploadExercise;
                         this.formattedSampleSolution.set(this.artemisMarkdown.safeHtmlForMarkdown(fileUploadExercise.exampleSolution));
                         break;
-                    case ExerciseType.MATH: {
-                        const mathExercise = exercise as MathExercise;
-                        this.formattedSampleSolution.set(this.artemisMarkdown.safeHtmlForMarkdown(mathExercise.exampleSolution));
-                        break;
-                    }
+                    // Math has no exercise-level example solution; the worked solution is per-problem (exampleDerivations).
                     case ExerciseType.PROGRAMMING:
                         this.programmingExercise.set(exercise as ProgrammingExercise);
                         break;

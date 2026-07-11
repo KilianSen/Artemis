@@ -21,7 +21,7 @@ describe('MathExerciseService', () => {
         const ex = new MathExercise(undefined);
         ex.id = 1;
         ex.title = 'Test Math';
-        ex.description = 'Prove X';
+        ex.problemStatement = 'Prove X';
         return ex;
     };
 
