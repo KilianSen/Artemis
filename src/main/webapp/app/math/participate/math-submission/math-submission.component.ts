@@ -1,6 +1,9 @@
 import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
@@ -52,6 +55,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     private blockRegistryService = inject(MathBlockRegistryService);
     private alertService = inject(AlertService);
     private accountService = inject(AccountService);
+    private participationWebsocketService = inject(ParticipationWebsocketService);
     private document = inject(DOCUMENT);
 
     participationId = input<number>();
@@ -66,12 +70,19 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
     readonly isSaving = signal(false);
 
-    /** True while a remote grader grades the submitted answer asynchronously; the view polls the submission until the result lands. */
+    /** True while a remote grader grades the submitted answer asynchronously; cleared when the result is pushed over the websocket. */
     readonly gradingPending = signal(false);
     /** True while a preliminary result exists but a slow certifier is still to upgrade it (Phase 2b). */
     readonly certifying = signal(false);
-    private gradingPollInterval: ReturnType<typeof setInterval> | undefined;
-    private gradingPollTries = 0;
+    /** Whether any problem configures a slow certifier — drives the "certifying…" badge after the preliminary result arrives. */
+    readonly willCertify = computed(() => this.problems().some((problem) => !!problem.certifyingGraderType));
+    private resultSubscription?: Subscription;
+    /** Number of pushed results seen since the last submit — distinguishes the preliminary push (1) from the certification push (2). */
+    private gradingResultsReceived = 0;
+    /** Safety net: clears the pending/certifying indicators if no websocket push arrives (e.g. backend down). */
+    private gradingFallbackTimeout: ReturnType<typeof setTimeout> | undefined;
+    /** How long to wait for a pushed result before giving up the pending indicator (the submission then stays for manual review). */
+    private static readonly GRADING_FALLBACK_MS = 120_000;
 
     /** The shared block registry, loaded once and passed down to every per-problem editor. */
     readonly blocks = signal<BlockDefinitionModel[]>([]);
@@ -116,6 +127,14 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
                 }
 
                 this.syncAnswerState(submission, true);
+
+                // Subscribe for the asynchronously-produced result (remote grading pushes it over the websocket).
+                this.subscribeForResult();
+                // If we reloaded while a remote grade is still in flight (submitted, no result yet), show the pending indicator.
+                if (submission.submitted && !(results && results.length > 0)) {
+                    this.gradingPending.set(true);
+                    this.armGradingFallback();
+                }
             },
             error: () => this.alertService.error('artemisApp.mathExercise.error'),
         });
@@ -137,49 +156,53 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
         if (this.autosaveInterval !== undefined) {
             clearInterval(this.autosaveInterval);
         }
-        this.stopGradingPoll();
-    }
-
-    /** Starts polling the submission for the asynchronously-produced result (remote grading). */
-    private startGradingPoll(): void {
-        this.stopGradingPoll();
-        this.gradingPending.set(true);
-        this.gradingPollTries = 0;
-        this.gradingPollInterval = setInterval(() => this.pollForGradingResult(), 3000);
-    }
-
-    private pollForGradingResult(): void {
+        this.clearGradingFallback();
+        this.resultSubscription?.unsubscribe();
         const participationId = this.participation()?.id;
-        // Give up after ~2 minutes; if the backend is down the submission simply stays for manual review.
-        if (participationId === undefined || this.gradingPollTries++ >= 40) {
-            this.stopGradingPoll();
+        if (participationId !== undefined && this.mathExercise()) {
+            this.participationWebsocketService.unsubscribeForLatestResultOfParticipation(participationId, this.mathExercise());
+        }
+    }
+
+    /**
+     * Subscribes to the participant's result websocket. The remote grader pushes the (preliminary, then possibly
+     * certified) result here, replacing the previous polling loop. The first push after a submit clears the pending
+     * indicator; while a certifier is configured the "certifying…" badge stays until the certification push arrives.
+     */
+    private subscribeForResult(): void {
+        const participation = this.participation();
+        if (!participation?.id) {
             return;
         }
-        this.mathSubmissionService.getDataForMathEditor(participationId).subscribe({
-            next: (response) => {
-                const updated = response.body as MathSubmission;
-                this.submission.set(updated);
-                this.syncAnswerState(updated);
-                const results = updated.results;
-                if (results && results.length > 0) {
-                    this.result.set(results[results.length - 1]);
-                }
-                // Keep polling through certification: a slow certifier (Phase 2b) may still upgrade the preliminary result.
-                const stillCertifying = (updated.answers ?? []).some((answer) => answer.certificationPending);
-                this.certifying.set(stillCertifying);
-                if (results && results.length > 0 && !stillCertifying) {
-                    this.stopGradingPoll();
-                }
-            },
-        });
+        this.resultSubscription?.unsubscribe();
+        this.resultSubscription = this.participationWebsocketService
+            .subscribeForLatestResultOfParticipation(participation.id, true, this.mathExercise()?.id)
+            .pipe(filter((result): result is Result => !!result && result.rated === true))
+            .subscribe((result) => this.onResultPushed(result));
     }
 
-    private stopGradingPoll(): void {
+    private onResultPushed(result: Result): void {
+        this.gradingResultsReceived++;
+        this.result.set(result);
         this.gradingPending.set(false);
-        this.certifying.set(false);
-        if (this.gradingPollInterval !== undefined) {
-            clearInterval(this.gradingPollInterval);
-            this.gradingPollInterval = undefined;
+        this.clearGradingFallback();
+        // With a certifier configured, the first push is the fast preliminary verdict; certification arrives as a second push.
+        this.certifying.set(this.willCertify() && this.gradingResultsReceived < 2);
+    }
+
+    /** Starts a fallback timer so the pending/certifying indicators never hang if no websocket push ever arrives. */
+    private armGradingFallback(): void {
+        this.clearGradingFallback();
+        this.gradingFallbackTimeout = setTimeout(() => {
+            this.gradingPending.set(false);
+            this.certifying.set(false);
+        }, MathSubmissionComponent.GRADING_FALLBACK_MS);
+    }
+
+    private clearGradingFallback(): void {
+        if (this.gradingFallbackTimeout !== undefined) {
+            clearTimeout(this.gradingFallbackTimeout);
+            this.gradingFallbackTimeout = undefined;
         }
     }
 
@@ -339,8 +362,12 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
                 if (updated.results && updated.results.length > 0) {
                     this.result.set(updated.results[0]);
                 } else {
-                    // No result yet — a remote grader is grading asynchronously; poll the submission until it lands.
-                    this.startGradingPoll();
+                    // No result yet — a remote grader is grading asynchronously; the authoritative result will be pushed
+                    // over the websocket subscription opened on init.
+                    this.gradingResultsReceived = 0;
+                    this.gradingPending.set(true);
+                    this.certifying.set(false);
+                    this.armGradingFallback();
                 }
             },
             error: () => {

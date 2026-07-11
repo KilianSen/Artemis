@@ -83,6 +83,15 @@ public interface StudentParticipationRepository extends ArtemisJpaRepository<Stu
             """)
     List<StudentParticipation> findWithStudentByExerciseId(@Param("exerciseId") long exerciseId);
 
+    @Query("""
+            SELECT p
+            FROM StudentParticipation p
+                LEFT JOIN FETCH p.student
+                LEFT JOIN FETCH p.exercise
+            WHERE p.id = :participationId
+            """)
+    Optional<StudentParticipation> findWithStudentAndExerciseById(@Param("participationId") long participationId);
+
     // NOTE: we have an edge case for quizzes where we need to take the first submission and not the last one
     @Query("""
             SELECT DISTINCT NEW de.tum.cit.aet.artemis.exercise.dto.CourseGradeScoreDTO(

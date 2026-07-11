@@ -163,9 +163,10 @@ public class MathSubmissionResource {
         if (Boolean.TRUE.equals(saved.isSubmitted())) {
             if (usesRemoteGrader(mathExercise)) {
                 // A remote backend may take seconds; grade off the request thread so the submit returns immediately.
-                // No result is attached yet — the client polls the submission until the authoritative result appears.
+                // No result is attached yet — a durable grading job is enqueued and the authoritative result is pushed
+                // to the client over the result websocket once it lands.
                 saved = mathSubmissionRepository.save(saved);
-                mathGradingDispatcher.gradeAsync(exerciseId, saved.getId());
+                mathGradingDispatcher.dispatch(exerciseId, saved.getId());
             }
             else {
                 // In-process grading is fast: grade synchronously and attach the authoritative AUTOMATIC result. The

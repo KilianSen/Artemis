@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- #1 Durable async grading: a per-submission grading job persists the state of an asynchronous remote
+         (Regate) grading pass so it survives a server restart. The recovery scheduler re-dispatches jobs left
+         PENDING after a crash. Unreleased feature, no data migration required. -->
+    <changeSet id="20260707000000-1" author="kiliansen">
+        <createTable tableName="math_grading_job">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="submission_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="exercise_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grader_type" type="varchar(32)"/>
+            <column name="lane" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="phase" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempts" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_date" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="started_date" type="timestamp"/>
+            <column name="finished_date" type="timestamp"/>
+            <column name="failure_reason" type="text"/>
+            <column name="version" type="bigint"/>
+        </createTable>
+        <createIndex tableName="math_grading_job" indexName="idx_math_grading_job_submission">
+            <column name="submission_id"/>
+        </createIndex>
+        <createIndex tableName="math_grading_job" indexName="idx_math_grading_job_status">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

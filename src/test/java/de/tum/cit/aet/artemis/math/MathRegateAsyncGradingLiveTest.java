@@ -20,10 +20,14 @@ import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.participation.util.ParticipationUtilService;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJob;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJobStatus;
+import de.tum.cit.aet.artemis.math.domain.MathGradingPhase;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
+import de.tum.cit.aet.artemis.math.repository.MathGradingJobRepository;
 import de.tum.cit.aet.artemis.math.util.MathExerciseUtilService;
 import de.tum.cit.aet.artemis.shared.base.AbstractSpringIntegrationIndependentTest;
 
@@ -33,10 +37,13 @@ import de.tum.cit.aet.artemis.shared.base.AbstractSpringIntegrationIndependentTe
  * and drives the exact production path a remote-graded submission takes:
  * <ol>
  * <li>the problem is routed to the {@code EGGREGATE} backend, so {@code MathSubmissionResource} takes the
- * {@code usesRemoteGrader} branch and dispatches grading to {@code MathGradingDispatcher.gradeAsync} — the
- * submit response returns <b>without</b> a result;</li>
- * <li>the async thread grades against the live eggregate backend and records the authoritative result;</li>
- * <li>polling the {@code math-editor} endpoint (as the client does) eventually sees the result.</li>
+ * {@code usesRemoteGrader} branch and dispatches grading to {@code MathGradingDispatcher.dispatch} — the
+ * submit response returns <b>without</b> a result and a durable {@code MathGradingJob} is persisted as
+ * {@code PENDING};</li>
+ * <li>the async thread grades against the live eggregate backend, records the authoritative result, and
+ * transitions the job to {@code COMPLETED};</li>
+ * <li>polling the {@code math-editor} endpoint (as the client would, before the websocket push) eventually
+ * sees the result.</li>
  * </ol>
  * Requires a running eggregate backend; inert unless {@code REGATE_LIVE_URL} is set (CI skips it, and its
  * URL is wired into {@code artemis.regate.eggregate.url} via {@link DynamicPropertySource}).
@@ -59,6 +66,9 @@ class MathRegateAsyncGradingLiveTest extends AbstractSpringIntegrationIndependen
 
     @Autowired
     private UserUtilService userUtilService;
+
+    @Autowired
+    private MathGradingJobRepository mathGradingJobRepository;
 
     private MathExercise exercise;
 
@@ -89,13 +99,24 @@ class MathRegateAsyncGradingLiveTest extends AbstractSpringIntegrationIndependen
                 HttpStatus.OK);
         assertThat(submitted.submitted()).isTrue();
         assertThat(submitted.results()).isNullOrEmpty();
+        Long submissionId = submitted.id();
 
-        // Poll the editor endpoint (exactly as the client does) until the async grading records the result.
+        // A durable grading job was enqueued for the preliminary pass.
+        MathGradingJob job = mathGradingJobRepository.findBySubmissionIdAndPhase(submissionId, MathGradingPhase.PRELIMINARY).orElseThrow();
+        assertThat(job.getStatus()).isIn(MathGradingJobStatus.PENDING, MathGradingJobStatus.COMPLETED);
+
+        // Poll the editor endpoint (as the client would, before the websocket push) until the async grading records the result.
         // pollInSameThread() keeps the polling on the test thread so the @WithMockUser security context applies.
         await().pollInSameThread().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofSeconds(1)).untilAsserted(() -> {
             MathSubmissionDTO polled = request.get("/api/math/participations/" + participation.getId() + "/math-editor", HttpStatus.OK, MathSubmissionDTO.class);
             assertThat(polled.results()).isNotEmpty();
             assertThat(polled.results().getFirst().score()).isEqualTo(100.0);
+        });
+
+        // The job settled to COMPLETED once the result was recorded.
+        await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(250)).untilAsserted(() -> {
+            MathGradingJob settled = mathGradingJobRepository.findBySubmissionIdAndPhase(submissionId, MathGradingPhase.PRELIMINARY).orElseThrow();
+            assertThat(settled.getStatus()).isEqualTo(MathGradingJobStatus.COMPLETED);
         });
     }
 }

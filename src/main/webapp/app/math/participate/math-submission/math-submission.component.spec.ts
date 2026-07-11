@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupTestBed } from '@analogjs/vitest-angular/setup-testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MockComponent, MockDirective, MockPipe, MockProvider } from 'ng-mocks';
@@ -13,6 +13,8 @@ import { MathProblemParticipationComponent } from 'app/math/participate/math-pro
 import { RatingComponent } from 'app/exercise/rating/rating.component';
 import { ComplaintsStudentViewComponent } from 'app/assessment/overview/complaints-for-students/complaints-student-view.component';
 import { AccountService } from 'app/core/auth/account.service';
+import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
+import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
@@ -33,6 +35,7 @@ describe('MathSubmissionComponent', () => {
     let fixture: ComponentFixture<MathSubmissionComponent>;
     let mathSubmissionService: MathSubmissionService;
     let alertService: AlertService;
+    let resultSubject: BehaviorSubject<Result | undefined>;
 
     const mockExercise = (): MathExercise => {
         const ex = new MathExercise(undefined);
@@ -59,6 +62,7 @@ describe('MathSubmissionComponent', () => {
     };
 
     beforeEach(() => {
+        resultSubject = new BehaviorSubject<Result | undefined>(undefined);
         TestBed.configureTestingModule({
             imports: [MathSubmissionComponent],
             providers: [
@@ -67,6 +71,10 @@ describe('MathSubmissionComponent', () => {
                 MockProvider(AlertService),
                 MockProvider(AccountService, { isOwnerOfParticipation: () => false }),
                 MockProvider(MathSubmissionService),
+                MockProvider(ParticipationWebsocketService, {
+                    subscribeForLatestResultOfParticipation: () => resultSubject as any,
+                    unsubscribeForLatestResultOfParticipation: () => {},
+                }),
                 MockProvider(MathBlockRegistryService, { getBlockRegistry: () => of([]) as any }),
                 MockProvider(TranslateService, {
                     instant: (key: string) => key,
@@ -194,6 +202,72 @@ describe('MathSubmissionComponent', () => {
         component.submit();
 
         expect(component.scoreFor(1)).toBe(4);
+    });
+
+    it('should mark grading pending on submit when no result is returned yet', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        const submittedSub = { ...submission, submitted: true };
+        vi.spyOn(mathSubmissionService, 'update').mockReturnValue(of(new HttpResponse({ body: submittedSub as any })));
+        fixture.detectChanges();
+
+        component.submit();
+
+        expect(component.gradingPending()).toBe(true);
+        expect(component.result()).toBeUndefined();
+    });
+
+    it('should apply a pushed websocket result and clear the pending indicator', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        const submittedSub = { ...submission, submitted: true };
+        vi.spyOn(mathSubmissionService, 'update').mockReturnValue(of(new HttpResponse({ body: submittedSub as any })));
+        fixture.detectChanges();
+        component.submit();
+        expect(component.gradingPending()).toBe(true);
+
+        // The remote grader pushes the authoritative result over the websocket subscription.
+        resultSubject.next({ id: 3, score: 100, rated: true } as Result);
+
+        expect(component.result()?.score).toBe(100);
+        expect(component.gradingPending()).toBe(false);
+        expect(component.certifying()).toBe(false);
+    });
+
+    it('should ignore unrated pushed results', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        fixture.detectChanges();
+
+        resultSubject.next({ id: 4, score: 50, rated: false } as Result);
+
+        expect(component.result()).toBeUndefined();
+    });
+
+    it('should keep the certifying indicator until the certification push arrives', () => {
+        const exercise = mockExercise();
+        exercise.problems![0].certifyingGraderType = 'LEANREGATE' as any;
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        const submittedSub = { ...submission, submitted: true };
+        vi.spyOn(mathSubmissionService, 'update').mockReturnValue(of(new HttpResponse({ body: submittedSub as any })));
+        fixture.detectChanges();
+        component.submit();
+
+        // Preliminary push: a certifier is configured, so certifying stays true.
+        resultSubject.next({ id: 5, score: 100, rated: true } as Result);
+        expect(component.certifying()).toBe(true);
+
+        // Certification push: the certifying indicator clears.
+        resultSubject.next({ id: 5, score: 100, rated: true } as Result);
+        expect(component.certifying()).toBe(false);
     });
 
     it('should revert submitted=false when submit fails', () => {
