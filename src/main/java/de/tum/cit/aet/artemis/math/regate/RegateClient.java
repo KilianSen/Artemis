@@ -40,8 +40,11 @@ public class RegateClient {
 
     private final HttpClient httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).build();
 
+    /** Default per-request read timeout, used when a caller does not specify a per-lane deadline. */
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
+
     /**
-     * Grades a request against a backend.
+     * Grades a request against a backend with the {@link #DEFAULT_TIMEOUT default timeout}.
      *
      * @param backendUrl base URL of the backend (e.g. {@code http://regate-lean:8001})
      * @param request    the grade request (MathNodes already in protocol vocabulary)
@@ -49,11 +52,24 @@ public class RegateClient {
      * @throws RegateException on transport failure, a non-2xx response, or an empty body
      */
     public GradeResponse grade(String backendUrl, GradeRequest request) {
+        return grade(backendUrl, request, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * Grades a request against a backend with an explicit read timeout — the per-lane deadline (fast graders get a
+     * short timeout, slow formal certifiers a long one) so a hung backend fails fast instead of riding the executor.
+     *
+     * @param backendUrl base URL of the backend (e.g. {@code http://regate-lean:8001})
+     * @param request    the grade request (MathNodes already in protocol vocabulary)
+     * @param timeout    the per-request read timeout (a timeout throws {@link RegateException}, routed to retry/review)
+     * @return the backend's grade response
+     * @throws RegateException on transport failure, a non-2xx response, or an empty body
+     */
+    public GradeResponse grade(String backendUrl, GradeRequest request, Duration timeout) {
         String url = backendUrl + "/grade";
         try {
             String json = JsonObjectMapper.get().writeValueAsString(request);
-            // Generous read timeout; the fast/slow lane executors (Phase 2) impose the real per-lane deadline.
-            HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(url)).header("Content-Type", "application/json").timeout(Duration.ofMinutes(2))
+            HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(url)).header("Content-Type", "application/json").timeout(timeout)
                     .POST(HttpRequest.BodyPublishers.ofString(json)).build();
             HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300) {
