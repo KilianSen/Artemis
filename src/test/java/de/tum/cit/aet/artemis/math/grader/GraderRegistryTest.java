@@ -16,7 +16,6 @@ import de.tum.cit.aet.artemis.math.domain.blocks.EqualityBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.FractionBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.MulBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.NumberBlockDefinition;
-import de.tum.cit.aet.artemis.math.domain.blocks.ParenthesesBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.SubBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.VariableBlockDefinition;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
@@ -30,7 +29,7 @@ class GraderRegistryTest {
     @BeforeEach
     void setUp() {
         List<BlockDefinition> blocks = List.of(new NumberBlockDefinition(), new VariableBlockDefinition(), new AddBlockDefinition(), new SubBlockDefinition(),
-                new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition(), new ParenthesesBlockDefinition());
+                new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition());
         BlockRegistry blockRegistry = new BlockRegistry(blocks);
         blockRegistry.index();
         rewriteChainGrader = new RewriteChainGrader(blockRegistry);
@@ -45,7 +44,7 @@ class GraderRegistryTest {
 
     @Test
     void getGrader_unregisteredType_throws() {
-        assertThatThrownBy(() -> registry.getGrader(GraderType.EGG_EGRAPH)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("No MathGrader");
+        assertThatThrownBy(() -> registry.getGrader(GraderType.LEANREGATE)).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("No MathGrader");
     }
 
     @Test

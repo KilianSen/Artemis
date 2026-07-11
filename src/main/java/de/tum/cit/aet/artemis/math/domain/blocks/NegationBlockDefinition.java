@@ -25,7 +25,7 @@ public class NegationBlockDefinition implements BlockDefinition {
 
     @Override
     public String getType() {
-        return "negation";
+        return "neg";
     }
 
     @Override

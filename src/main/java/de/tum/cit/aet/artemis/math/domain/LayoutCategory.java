@@ -5,5 +5,5 @@ package de.tum.cit.aet.artemis.math.domain;
  * The frontend uses this to drive generic rendering without hardcoding node type names.
  */
 public enum LayoutCategory {
-    TERMINAL_NUMBER, TERMINAL_VARIABLE, BINARY_INFIX, FRACTION, PARENTHESES, UNARY_PREFIX
+    TERMINAL_NUMBER, TERMINAL_VARIABLE, BINARY_INFIX, FRACTION, UNARY_PREFIX, POWER, SUCCESSOR
 }

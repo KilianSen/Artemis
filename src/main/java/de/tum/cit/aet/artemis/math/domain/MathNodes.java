@@ -25,7 +25,7 @@ public final class MathNodes {
     // ----------------------------------------------------------------------
 
     public static MathNode wc(String varName) {
-        return new MathNode("wildcard", varName, null);
+        return new MathNode("wild", varName, null);
     }
 
     public static MathNode num(String value) {
@@ -49,19 +49,23 @@ public final class MathNodes {
     }
 
     public static MathNode frac(MathNode numerator, MathNode denominator) {
-        return new MathNode("fraction", null, Map.of("numerator", List.of(numerator), "denominator", List.of(denominator)));
-    }
-
-    public static MathNode paren(MathNode content) {
-        return new MathNode("parentheses", null, Map.of("content", List.of(content)));
+        return new MathNode("frac", null, Map.of("numerator", List.of(numerator), "denominator", List.of(denominator)));
     }
 
     public static MathNode eq(MathNode left, MathNode right) {
-        return new MathNode("equality", null, Map.of("left", List.of(left), "right", List.of(right)));
+        return new MathNode("eq", null, Map.of("left", List.of(left), "right", List.of(right)));
     }
 
     public static MathNode neg(MathNode inner) {
-        return new MathNode("negation", null, Map.of("inner", List.of(inner)));
+        return new MathNode("neg", null, Map.of("inner", List.of(inner)));
+    }
+
+    public static MathNode pow(MathNode base, MathNode exponent) {
+        return new MathNode("pow", null, Map.of("base", List.of(base), "exponent", List.of(exponent)));
+    }
+
+    public static MathNode succ(MathNode inner) {
+        return new MathNode("succ", null, Map.of("inner", List.of(inner)));
     }
 
     // ----------------------------------------------------------------------
@@ -87,7 +91,7 @@ public final class MathNodes {
         if ("number".equals(type)) {
             return new MathNode(type, normalizeNumberLiteral(node.getValue()), null);
         }
-        if ("variable".equals(type) || "wildcard".equals(type)) {
+        if ("variable".equals(type) || "wild".equals(type)) {
             String v = node.getValue();
             return new MathNode(type, v == null ? null : v.trim(), null);
         }
@@ -113,7 +117,7 @@ public final class MathNodes {
      * @return {@code true} when the tree is an equality with identical sides; {@code false} otherwise
      */
     public static boolean isTautology(MathNode node) {
-        if (node == null || !"equality".equals(node.getType()) || node.getSlots() == null) {
+        if (node == null || !"eq".equals(node.getType()) || node.getSlots() == null) {
             return false;
         }
         List<MathNode> left = node.getSlots().get("left");
@@ -227,7 +231,7 @@ public final class MathNodes {
     }
 
     /**
-     * Throws {@link IllegalArgumentException} if any node in the tree has type {@code "wildcard"}.
+     * Throws {@link IllegalArgumentException} if any node in the tree has type {@code "wild"}.
      * Wildcards are a metasyntactic construct that may appear only in rule definitions, never in
      * submitted or instructor-authored expressions. The grading engine treats wildcards as
      * free metavariables, so a wildcard in submission data would let a student bypass equality checks.
@@ -238,7 +242,7 @@ public final class MathNodes {
         if (node == null) {
             return;
         }
-        if ("wildcard".equals(node.getType())) {
+        if ("wild".equals(node.getType())) {
             throw new IllegalArgumentException("Wildcard nodes are not allowed in submissions or exercise definitions");
         }
         if (node.getSlots() != null) {

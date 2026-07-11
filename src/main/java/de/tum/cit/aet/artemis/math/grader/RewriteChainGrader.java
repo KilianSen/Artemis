@@ -341,7 +341,7 @@ public class RewriteChainGrader implements MathGrader {
 
     /** Distance between the two sides of an {@code equality} node, optionally AC-normalised first. */
     private int sideDistance(MathNode equality, boolean ac) {
-        if (equality == null || !"equality".equals(equality.getType()) || equality.getSlots() == null) {
+        if (equality == null || !"eq".equals(equality.getType()) || equality.getSlots() == null) {
             return 0;
         }
         List<MathNode> left = equality.getSlots().get("left");
@@ -422,7 +422,7 @@ public class RewriteChainGrader implements MathGrader {
      * A wildcard variable that appears more than once must capture the same subtree.
      */
     private Map<String, MathNode> match(MathNode pattern, MathNode node) {
-        if ("wildcard".equals(pattern.getType())) {
+        if ("wild".equals(pattern.getType())) {
             return new HashMap<>(Map.of(pattern.getValue(), node));
         }
         if (!Objects.equals(pattern.getType(), node.getType())) {
@@ -470,7 +470,7 @@ public class RewriteChainGrader implements MathGrader {
 
     /** Substitutes wildcard nodes in {@code template} with their captured subtrees from {@code bindings}. */
     private MathNode instantiate(MathNode template, Map<String, MathNode> bindings) {
-        if ("wildcard".equals(template.getType())) {
+        if ("wild".equals(template.getType())) {
             MathNode bound = bindings.get(template.getValue());
             return bound != null ? bound : template;
         }

@@ -32,6 +32,7 @@
             <column name="target_expression" type="longtext"/>
             <column name="goal_expression" type="longtext"/>
             <column name="example_derivations" type="longtext"/>
+            <column name="induction_variable" type="varchar(64)"/>
             <column name="goal_mode" type="varchar(16)" defaultValue="TRANSFORMATION">
                 <constraints nullable="false"/>
             </column>
@@ -79,6 +80,12 @@
             </column>
             <column name="problem_id" type="bigint"/>
             <column name="score_in_points" type="double"/>
+            <column name="grading_outcome" type="varchar(32)"/>
+            <column name="certified" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grading_feedback" type="varchar(1024)"/>
+            <column name="witness" type="varchar(512)"/>
         </createTable>
         <addForeignKeyConstraint
             baseTableName="math_problem_answer"

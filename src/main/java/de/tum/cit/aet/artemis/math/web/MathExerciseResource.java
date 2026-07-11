@@ -3,6 +3,7 @@ package de.tum.cit.aet.artemis.math.web;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import de.tum.cit.aet.artemis.account.repository.UserRepository;
+import de.tum.cit.aet.artemis.communication.domain.conversation.Channel;
+import de.tum.cit.aet.artemis.communication.repository.conversation.ChannelRepository;
+import de.tum.cit.aet.artemis.communication.service.conversation.ChannelService;
 import de.tum.cit.aet.artemis.core.dto.SearchResultPageDTO;
 import de.tum.cit.aet.artemis.core.dto.pageablesearch.SearchTermPageableSearchDTO;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
@@ -39,6 +43,7 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseDeletionService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseSpecificationService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
+import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
@@ -46,6 +51,7 @@ import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.dto.ReachabilityReportDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.service.MathExerciseImportService;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
@@ -81,9 +87,14 @@ public class MathExerciseResource {
 
     private final AuthorizationCheckService authCheckService;
 
+    private final ChannelService channelService;
+
+    private final ChannelRepository channelRepository;
+
     public MathExerciseResource(MathExerciseRepository mathExerciseRepository, MathExerciseImportService mathExerciseImportService, CourseRepository courseRepository,
             UserRepository userRepository, ExerciseSpecificationService exerciseSpecificationService, ExerciseDeletionService exerciseDeletionService,
-            MathGradingService mathGradingService, ExerciseService exerciseService, AuthorizationCheckService authCheckService) {
+            MathGradingService mathGradingService, ExerciseService exerciseService, AuthorizationCheckService authCheckService, ChannelService channelService,
+            ChannelRepository channelRepository) {
         this.mathExerciseRepository = mathExerciseRepository;
         this.mathExerciseImportService = mathExerciseImportService;
         this.courseRepository = courseRepository;
@@ -93,6 +104,8 @@ public class MathExerciseResource {
         this.mathGradingService = mathGradingService;
         this.exerciseService = exerciseService;
         this.authCheckService = authCheckService;
+        this.channelService = channelService;
+        this.channelRepository = channelRepository;
     }
 
     /**
@@ -110,6 +123,7 @@ public class MathExerciseResource {
             throw new BadRequestAlertException("A new math exercise cannot already have an ID", ENTITY_NAME, "idexists");
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
+        validateGraderModeCompatibility(mathExerciseDTO);
         MathExercise exercise = new MathExercise();
         mathExerciseDTO.applyToEntity(exercise);
         normalizeExpressions(exercise);
@@ -117,7 +131,11 @@ public class MathExerciseResource {
         applyCourse(mathExerciseDTO, exercise);
         exercise.validateTitle();
         exercise.validateGeneralSettings();
-        MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseRepository.save(exercise).getId()).orElseThrow();
+        MathExercise persisted = mathExerciseRepository.save(exercise);
+        // Create the linked communication channel, consistent with every other exercise type (and math's own import path).
+        channelService.createExerciseChannel(persisted, Optional.ofNullable(mathExerciseDTO.channelName()));
+        MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(persisted.getId()).orElseThrow();
+        setChannelName(saved);
         return ResponseEntity.created(new URI("/api/math/math-exercises/" + saved.getId()))
                 .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, saved.getTitle())).body(MathExerciseDTO.of(saved));
     }
@@ -138,6 +156,7 @@ public class MathExerciseResource {
             return createMathExercise(mathExerciseDTO);
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
+        validateGraderModeCompatibility(mathExerciseDTO);
         MathExercise existing = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(mathExerciseDTO.id()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
@@ -146,7 +165,10 @@ public class MathExerciseResource {
         applyCourse(mathExerciseDTO, existing);
         existing.validateTitle();
         existing.validateGeneralSettings();
+        // Rename the linked communication channel if the channel name changed (no-op when the exercise has no channel).
+        channelService.updateExerciseChannel(existing, existing);
         MathExercise saved = mathExerciseRepository.findByIdWithCategoriesAndProblems(mathExerciseRepository.save(existing).getId()).orElseThrow();
+        setChannelName(saved);
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, saved.getId().toString())).body(MathExerciseDTO.of(saved));
     }
 
@@ -169,6 +191,7 @@ public class MathExerciseResource {
             throw new BadRequestAlertException("Exercise ID in path and body must match", ENTITY_NAME, "idMismatch");
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
+        validateGraderModeCompatibility(mathExerciseDTO);
         MathExercise existing = mathExerciseRepository.findByIdWithCourseGradingCriteriaAndExampleSubmissions(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
@@ -208,7 +231,16 @@ public class MathExerciseResource {
         log.debug("REST request to get MathExercise : {}", exerciseId);
         MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
+        setChannelName(exercise);
         return ResponseEntity.ok(MathExerciseDTO.of(exercise));
+    }
+
+    /** Populates the transient {@code channelName} from the exercise's linked communication channel, so the edit view shows the current name. */
+    private void setChannelName(MathExercise exercise) {
+        Channel channel = channelRepository.findChannelByExerciseId(exercise.getId());
+        if (channel != null) {
+            exercise.setChannelName(channel.getName());
+        }
     }
 
     /**
@@ -315,6 +347,29 @@ public class MathExerciseResource {
         }
         catch (IllegalArgumentException e) {
             throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "wildcardNotAllowed");
+        }
+    }
+
+    /**
+     * Rejects a problem whose grader cannot grade its goal mode — e.g. an induction-only backend
+     * ({@code COQREGATE}/{@code CVC5REGATE}) on a transformation problem, or the in-process rewrite engine
+     * on an induction problem. Uses the static {@link GraderType#supports(GoalMode)} capability.
+     */
+    private void validateGraderModeCompatibility(MathExerciseDTO dto) {
+        if (dto.problems() == null) {
+            return;
+        }
+        for (MathProblemDTO problem : dto.problems()) {
+            GraderType graderType = problem.graderType() == null ? GraderType.REWRITE_CHAIN : problem.graderType();
+            GoalMode goalMode = problem.goalMode() == null ? GoalMode.TRANSFORMATION : problem.goalMode();
+            if (!graderType.supports(goalMode)) {
+                throw new BadRequestAlertException("Grader " + graderType + " cannot grade goal mode " + goalMode, ENTITY_NAME, "graderModeMismatch");
+            }
+            // Phase 2b: the optional certifier must be a remote backend that also supports this mode (in-process cannot certify).
+            GraderType certifier = problem.certifyingGraderType();
+            if (certifier != null && (!certifier.isRemote() || !certifier.supports(goalMode))) {
+                throw new BadRequestAlertException("Certifier " + certifier + " cannot certify goal mode " + goalMode, ENTITY_NAME, "certifierModeMismatch");
+            }
         }
     }
 

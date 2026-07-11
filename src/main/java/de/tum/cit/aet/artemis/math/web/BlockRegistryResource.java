@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastEditor;
+import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastStudent;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.dto.BlockDefinitionDTO;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
@@ -32,14 +32,18 @@ public class BlockRegistryResource {
 
     /**
      * GET /block-registry : returns all registered block types with their rewrite rules.
+     * <p>
+     * Students need the catalogue to build their derivation during participation (the rule palette and node
+     * blocks), so this is student-accessible. The registry is code-defined, non-sensitive reference data.
      *
      * @return list of block definitions
      */
     @GetMapping("block-registry")
-    @EnforceAtLeastEditor
+    @EnforceAtLeastStudent
     public ResponseEntity<List<BlockDefinitionDTO>> getBlockRegistry() {
         log.debug("REST request to get block registry");
-        List<BlockDefinitionDTO> dtos = blockRegistry.getAllBlocks().stream().map(b -> BlockDefinitionDTO.of(b, blockRegistry.getNormalizedRulesFor(b))).toList();
+        List<BlockDefinitionDTO> dtos = blockRegistry.getAllBlocks().stream()
+                .map(b -> BlockDefinitionDTO.of(b, blockRegistry.getNormalizedRulesFor(b), blockRegistry.getNormalizedDefinitionsFor(b))).toList();
         return ResponseEntity.ok(dtos);
     }
 }

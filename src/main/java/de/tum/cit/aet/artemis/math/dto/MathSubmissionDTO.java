@@ -12,12 +12,14 @@ import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
+import de.tum.cit.aet.artemis.math.domain.DerivationRole;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.domain.StepDirection;
+import de.tum.cit.aet.artemis.math.domain.StepKind;
 
 /**
  * Data Transfer Object for {@link MathSubmission}.
@@ -45,11 +47,12 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
      * @param direction        direction in which the rule was applied; {@code null} defaults to {@link StepDirection#FORWARD}
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public record DerivationStepDTO(Long id, int stepIndex, String appliedRuleId, List<Integer> targetNodePath, MathNode resultExpression, StepDirection direction) {
+    public record DerivationStepDTO(Long id, int stepIndex, String appliedRuleId, List<Integer> targetNodePath, MathNode resultExpression, StepDirection direction,
+            DerivationRole derivationRole, StepKind kind, MathNode substitutionEquation) {
 
-        /** Convenience constructor for callers that don't care about direction (defaults to FORWARD). */
+        /** Convenience constructor for callers that don't care about direction/role/kind (default FORWARD/MAIN/A). */
         public DerivationStepDTO(Long id, int stepIndex, String appliedRuleId, List<Integer> targetNodePath, MathNode resultExpression) {
-            this(id, stepIndex, appliedRuleId, targetNodePath, resultExpression, StepDirection.FORWARD);
+            this(id, stepIndex, appliedRuleId, targetNodePath, resultExpression, StepDirection.FORWARD, DerivationRole.MAIN, StepKind.A, null);
         }
 
         /**
@@ -57,7 +60,8 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
          * @return a DTO mirroring the step
          */
         public static DerivationStepDTO of(DerivationStep step) {
-            return new DerivationStepDTO(step.getId(), step.getStepIndex(), step.getAppliedRuleId(), step.getTargetNodePath(), step.getResultExpression(), step.getDirection());
+            return new DerivationStepDTO(step.getId(), step.getStepIndex(), step.getAppliedRuleId(), step.getTargetNodePath(), step.getResultExpression(), step.getDirection(),
+                    step.getDerivationRole(), step.getKind(), step.getSubstitutionEquation());
         }
 
         /**
@@ -73,6 +77,9 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
             step.setTargetNodePath(targetNodePath);
             step.setResultExpression(resultExpression);
             step.setDirection(direction == null ? StepDirection.FORWARD : direction);
+            step.setDerivationRole(derivationRole == null ? DerivationRole.MAIN : derivationRole);
+            step.setKind(kind == null ? StepKind.A : kind);
+            step.setSubstitutionEquation(substitutionEquation);
             return step;
         }
     }

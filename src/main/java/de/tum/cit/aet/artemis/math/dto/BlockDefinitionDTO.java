@@ -16,8 +16,8 @@ import de.tum.cit.aet.artemis.math.domain.RuleDirection;
  * Serializable view of a {@link BlockDefinition} returned by {@code GET /api/math/block-registry}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record BlockDefinitionDTO(String type, String category, String label, String paletteLatex, List<String> slots, List<RewriteRuleDTO> rules, int precedence,
-        Associativity associativity, LayoutCategory layoutCategory, String displaySymbol, String latexSymbol) {
+public record BlockDefinitionDTO(String type, String category, String label, String paletteLatex, List<String> slots, List<RewriteRuleDTO> rules, List<RewriteRuleDTO> definitions,
+        int precedence, Associativity associativity, LayoutCategory layoutCategory, String displaySymbol, String latexSymbol) {
 
     /**
      * Serializable view of a {@link RewriteRule}.
@@ -39,9 +39,10 @@ public record BlockDefinitionDTO(String type, String category, String label, Str
      *                  rule list rather than calling {@link BlockDefinition#getRules()} directly, so that
      *                  literal canonicalisation applied at registry init flows through to the wire.
      */
-    public static BlockDefinitionDTO of(BlockDefinition block, List<RewriteRule> rules) {
+    public static BlockDefinitionDTO of(BlockDefinition block, List<RewriteRule> rules, List<RewriteRule> definitions) {
         List<RewriteRuleDTO> ruleDTOs = rules.stream().map(RewriteRuleDTO::of).toList();
-        return new BlockDefinitionDTO(block.getType(), block.getCategory(), block.getLabel(), block.getPaletteLatex(), block.getSlots(), ruleDTOs, block.getPrecedence(),
-                block.getAssociativity(), block.getLayoutCategory(), block.getDisplaySymbol(), block.getLatexSymbol());
+        List<RewriteRuleDTO> definitionDTOs = definitions.stream().map(RewriteRuleDTO::of).toList();
+        return new BlockDefinitionDTO(block.getType(), block.getCategory(), block.getLabel(), block.getPaletteLatex(), block.getSlots(), ruleDTOs, definitionDTOs,
+                block.getPrecedence(), block.getAssociativity(), block.getLayoutCategory(), block.getDisplaySymbol(), block.getLatexSymbol());
     }
 }

@@ -40,6 +40,18 @@ public interface BlockDefinition {
     List<RewriteRule> getRules();
 
     /**
+     * Recursive/definitional rewrite rules contributed by this block for INDUCTION mode (e.g. {@code pow_succ}:
+     * {@code a^(S n) → a · a^n}). Unlike {@link #getRules() catalogue rules} these are <em>trusted</em>
+     * definitions that travel in the grade request's {@code definitions} field. They are contributed in code —
+     * never authored per problem.
+     *
+     * @return the block's recursive definitions, or an empty list
+     */
+    default List<RewriteRule> getDefinitions() {
+        return List.of();
+    }
+
+    /**
      * Operator precedence for auto-parenthesization. Higher value binds tighter.
      * Terminals should return a high value (e.g., 100); unknown types default to 0.
      *

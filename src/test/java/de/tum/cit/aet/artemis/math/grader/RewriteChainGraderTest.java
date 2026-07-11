@@ -25,7 +25,6 @@ import de.tum.cit.aet.artemis.math.domain.blocks.FractionBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.MulBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.NegationBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.NumberBlockDefinition;
-import de.tum.cit.aet.artemis.math.domain.blocks.ParenthesesBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.SubBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.VariableBlockDefinition;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
@@ -44,7 +43,7 @@ class RewriteChainGraderTest {
     @BeforeEach
     void setUp() {
         List<BlockDefinition> blocks = List.of(new NumberBlockDefinition(), new VariableBlockDefinition(), new AddBlockDefinition(), new SubBlockDefinition(),
-                new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition(), new ParenthesesBlockDefinition(), new NegationBlockDefinition());
+                new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition(), new NegationBlockDefinition());
         registry = new BlockRegistry(blocks);
         registry.index();
         grader = new RewriteChainGrader(registry);
@@ -75,15 +74,6 @@ class RewriteChainGraderTest {
         RewriteRule rule = registry.findRuleById("mul_zero_left").orElseThrow();
         Optional<MathNode> result = grader.applyRule(tree, List.of(), rule);
         assertThat(result).contains(MathNodes.num("0"));
-    }
-
-    @Test
-    void applyRule_paren_unwrap_inside_add() {
-        MathNode tree = MathNodes.add(MathNodes.paren(MathNodes.var("x")), MathNodes.var("y"));
-        RewriteRule unwrap = registry.findRuleById("paren_unwrap").orElseThrow();
-        // Path [0] is the left child of add (alphabetical: left < right), i.e. the parens node
-        Optional<MathNode> result = grader.applyRule(tree, List.of(0), unwrap);
-        assertThat(result).contains(MathNodes.add(MathNodes.var("x"), MathNodes.var("y")));
     }
 
     @Test

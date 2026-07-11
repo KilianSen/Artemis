@@ -9,53 +9,56 @@ import org.springframework.stereotype.Component;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.BlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.LayoutCategory;
-import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
-import de.tum.cit.aet.artemis.math.domain.RuleDirection;
 
+/**
+ * The natural-number successor {@code S(n)}. Appears in induction obligations (the goal instantiated at
+ * {@code S n} in the inductive step). Like {@link PowBlockDefinition} it carries no global rules — successor
+ * semantics live in the proof kernel of a formal Regate backend.
+ */
 @Lazy
 @Conditional(MathEnabled.class)
 @Component
-public class ParenthesesBlockDefinition implements BlockDefinition {
+public class SuccBlockDefinition implements BlockDefinition {
 
     @Override
     public String getType() {
-        return "parentheses";
+        return "succ";
     }
 
     @Override
     public String getCategory() {
-        return "structural";
+        return "induction";
     }
 
     @Override
     public String getLabel() {
-        return "Parentheses";
+        return "Successor";
     }
 
     @Override
     public String getPaletteLatex() {
-        return "\\left(a\\right)";
+        return "S(a)";
     }
 
     @Override
     public List<String> getSlots() {
-        return List.of("content");
+        return List.of("inner");
     }
 
     @Override
     public int getPrecedence() {
-        return 90;
+        // A constructor application, effectively terminal-tight; it renders with its own parentheses.
+        return 95;
     }
 
     @Override
     public LayoutCategory getLayoutCategory() {
-        return LayoutCategory.PARENTHESES;
+        return LayoutCategory.SUCCESSOR;
     }
 
     @Override
     public List<RewriteRule> getRules() {
-        var a = MathNodes.wc("a");
-        return List.of(new RewriteRule("paren_unwrap", "Remove parentheses", "\\left(a\\right) \\to a", MathNodes.paren(a), a, RuleDirection.FORWARD_ONLY));
+        return List.of();
     }
 }

@@ -43,8 +43,10 @@ import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
+import de.tum.cit.aet.artemis.math.service.MathGradingDispatcher;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
 import de.tum.cit.aet.artemis.math.service.MathSubmissionService;
 
@@ -72,9 +74,11 @@ public class MathSubmissionResource {
 
     private final MathGradingService mathGradingService;
 
+    private final MathGradingDispatcher mathGradingDispatcher;
+
     public MathSubmissionResource(MathSubmissionRepository mathSubmissionRepository, MathExerciseRepository mathExerciseRepository, ResultRepository resultRepository,
             UserRepository userRepository, StudentParticipationRepository studentParticipationRepository, AuthorizationCheckService authCheckService,
-            MathSubmissionService mathSubmissionService, MathGradingService mathGradingService) {
+            MathSubmissionService mathSubmissionService, MathGradingService mathGradingService, MathGradingDispatcher mathGradingDispatcher) {
         this.mathSubmissionRepository = mathSubmissionRepository;
         this.mathExerciseRepository = mathExerciseRepository;
         this.resultRepository = resultRepository;
@@ -83,6 +87,12 @@ public class MathSubmissionResource {
         this.authCheckService = authCheckService;
         this.mathSubmissionService = mathSubmissionService;
         this.mathGradingService = mathGradingService;
+        this.mathGradingDispatcher = mathGradingDispatcher;
+    }
+
+    /** Whether any problem of the exercise is graded by a remote (Regate) backend — those are graded asynchronously. */
+    private boolean usesRemoteGrader(MathExercise exercise) {
+        return exercise.getProblems() != null && exercise.getProblems().stream().anyMatch(problem -> problem.getGraderType() != null && problem.getGraderType().isRemote());
     }
 
     @PostMapping("exercises/{exerciseId}/math-submissions")
@@ -151,20 +161,30 @@ public class MathSubmissionResource {
 
         // Auto-grade on submit: handleMathSubmission already stripped any client-injected result; attach the authoritative AUTOMATIC result.
         if (Boolean.TRUE.equals(saved.isSubmitted())) {
-            // The aggregate grader also records each answer's earned points on the answer entity; persist them.
-            double score = mathGradingService.gradeSubmission(mathExercise, saved);
-            saved = mathSubmissionRepository.save(saved);
-
-            Result result = new Result();
-            result.setSubmission(saved);
-            result.setAssessmentType(AssessmentType.AUTOMATIC);
-            result.setCompletionDate(ZonedDateTime.now());
-            result.setRated(true);
-            result.setExerciseId(exerciseId);
-            result.setScore(score, mathExercise.getCourseViaExerciseGroupOrCourseMember());
-
-            resultRepository.save(result);
-            saved.addResult(result);
+            if (usesRemoteGrader(mathExercise)) {
+                // A remote backend may take seconds; grade off the request thread so the submit returns immediately.
+                // No result is attached yet — the client polls the submission until the authoritative result appears.
+                saved = mathSubmissionRepository.save(saved);
+                mathGradingDispatcher.gradeAsync(exerciseId, saved.getId());
+            }
+            else {
+                // In-process grading is fast: grade synchronously and attach the authoritative AUTOMATIC result. The
+                // aggregate grader also records each answer's earned points on the answer entity; persist them.
+                GradingResult grading = mathGradingService.gradeSubmission(mathExercise, saved);
+                saved = mathSubmissionRepository.save(saved);
+                // Only attach a result for a conclusive verdict; an inconclusive one leaves the submission for manual review.
+                if (grading.conclusive()) {
+                    Result result = new Result();
+                    result.setSubmission(saved);
+                    result.setAssessmentType(AssessmentType.AUTOMATIC);
+                    result.setCompletionDate(ZonedDateTime.now());
+                    result.setRated(true);
+                    result.setExerciseId(exerciseId);
+                    result.setScore(grading.score(), mathExercise.getCourseViaExerciseGroupOrCourseMember());
+                    resultRepository.save(result);
+                    saved.addResult(result);
+                }
+            }
         }
 
         StudentParticipation participation = (StudentParticipation) saved.getParticipation();

@@ -62,6 +62,13 @@
             <column name="direction" type="varchar(8)" defaultValue="FORWARD">
                 <constraints nullable="false"/>
             </column>
+            <column name="derivation_role" type="varchar(8)" defaultValue="MAIN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="step_kind" type="varchar(4)" defaultValue="A">
+                <constraints nullable="false"/>
+            </column>
+            <column name="substitution_equation" type="longtext"/>
         </createTable>
         <addForeignKeyConstraint
             baseTableName="math_derivation_step"

@@ -19,6 +19,7 @@ import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.dto.BlockDefinitionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
@@ -64,10 +65,12 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotNull();
-        assertThat(result.description()).isEqualTo(newExercise.description());
+        assertThat(result.problemStatement()).isEqualTo(newExercise.problemStatement());
         assertThat(result.problems()).hasSize(1);
         assertThat(result.problems().getFirst().sourceExpression()).isNotNull();
         assertThat(result.problems().getFirst().targetExpression()).isNotNull();
+        // A linked communication channel is created on create, like every other exercise type (and math's own import path).
+        assertThat(result.channelName()).isNotNull();
     }
 
     @Test
@@ -94,13 +97,23 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(exercise.getId());
-        assertThat(result.description()).isEqualTo(exercise.getDescription());
+        assertThat(result.problemStatement()).isEqualTo(exercise.getProblemStatement());
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void getMathExercise_asStudent_returnsForbidden() throws Exception {
         request.get("/api/math/math-exercises/" + exercise.getId(), HttpStatus.FORBIDDEN, MathExerciseDTO.class);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void getBlockRegistry_asStudent_returnsCatalogue() throws Exception {
+        // Students need the block/rule catalogue to build a derivation during participation; the endpoint must be
+        // student-accessible (it was previously editor-gated, which broke participation with a 403 + empty rule list).
+        var blocks = request.getList("/api/math/block-registry", HttpStatus.OK, BlockDefinitionDTO.class);
+        assertThat(blocks).isNotEmpty();
+        assertThat(blocks).anySatisfy(block -> assertThat(block.rules()).isNotEmpty());
     }
 
     @Test
@@ -115,12 +128,12 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void updateMathExercise_asInstructor_returnsOk() throws Exception {
-        exercise.setDescription("Updated description");
+        exercise.setProblemStatement("Updated problem statement");
         MathExerciseDTO updateDTO = MathExerciseDTO.of(exercise);
 
         MathExerciseDTO result = request.putWithResponseBody("/api/math/math-exercises", updateDTO, MathExerciseDTO.class, HttpStatus.OK);
 
-        assertThat(result.description()).isEqualTo("Updated description");
+        assertThat(result.problemStatement()).isEqualTo("Updated problem statement");
     }
 
     @Test
@@ -142,12 +155,12 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void reEvaluateAndUpdateMathExercise_asInstructor_returnsOk() throws Exception {
-        exercise.setDescription("Re-evaluated description");
+        exercise.setProblemStatement("Re-evaluated problem statement");
         MathExerciseDTO updateDTO = MathExerciseDTO.of(exercise);
 
         MathExerciseDTO result = request.putWithResponseBody("/api/math/math-exercises/" + exercise.getId() + "/re-evaluate", updateDTO, MathExerciseDTO.class, HttpStatus.OK);
 
-        assertThat(result.description()).isEqualTo("Re-evaluated description");
+        assertThat(result.problemStatement()).isEqualTo("Re-evaluated problem statement");
     }
 
     @Test
@@ -169,7 +182,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isNotEqualTo(exercise.getId());
-        assertThat(result.description()).isEqualTo(exercise.getDescription());
+        assertThat(result.problemStatement()).isEqualTo(importTarget.problemStatement());
         // the imported exercise must preserve the problem configuration sent in the import payload
         assertThat(result.problems()).hasSize(1);
         assertThat(result.problems().getFirst().sourceExpression()).isNotNull();
@@ -179,11 +192,11 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_preservesManualDerivation() throws Exception {
-        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, false,
-                false, false, true, true, null);
-        MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null,
-                null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null,
-                ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), List.of(problemDTO));
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, null,
+                false, false, false, true, true, null, null);
+        MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0,
+                IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
+                ZonedDateTime.now().plusDays(2), null, course.getId(), List.of(problemDTO), null);
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);
@@ -216,7 +229,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         MathSubmission reloadedCopy = mathSubmissionRepository.findByIdWithAnswersAndResults(copiedSubmission.getId()).orElseThrow();
         assertThat(reloadedCopy.getAnswers()).hasSize(1);
         assertThat(reloadedCopy.getAnswers().getFirst().getSteps()).hasSize(1);
-        assertThat(reloadedCopy.getAnswers().getFirst().getSteps().getFirst().getAppliedRuleId()).isEqualTo("example work");
+        assertThat(reloadedCopy.getAnswers().getFirst().getSteps().iterator().next().getAppliedRuleId()).isEqualTo("example work");
     }
 
     @Test

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Phase 2b: a problem may configure a second, slower formal certifier that upgrades the fast preliminary
+         verdict; each answer tracks whether that certification is still pending. Unreleased feature, no data
+         migration required. -->
+    <changeSet id="20260706000000-1" author="kiliansen">
+        <addColumn tableName="math_problem">
+            <column name="certifying_grader_type" type="varchar(32)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260706000000-2" author="kiliansen">
+        <addColumn tableName="math_problem_answer">
+            <column name="certification_pending" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

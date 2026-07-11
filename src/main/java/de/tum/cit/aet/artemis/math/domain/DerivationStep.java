@@ -61,8 +61,54 @@ public class DerivationStep {
     @Column(name = "direction", length = 8, nullable = false)
     private StepDirection direction = StepDirection.FORWARD;
 
+    /**
+     * Which derivation of the answer this step belongs to: {@link DerivationRole#MAIN} for a
+     * transformation/equation answer, or {@link DerivationRole#BASE}/{@link DerivationRole#STEP} for the two
+     * obligations of an induction proof.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "derivation_role", length = 8, nullable = false)
+    private DerivationRole derivationRole = DerivationRole.MAIN;
+
+    /**
+     * How this step is justified: {@link StepKind#A} (rule application) or {@link StepKind#B} (Leibniz
+     * substitution using {@link #substitutionEquation}, e.g. the induction hypothesis).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "step_kind", length = 4, nullable = false)
+    private StepKind kind = StepKind.A;
+
+    /** The equality substituted in a {@link StepKind#B} step (e.g. the induction hypothesis {@code P(n)}); else {@code null}. */
+    @Convert(converter = MathNodeConverter.class)
+    @Column(name = "substitution_equation", columnDefinition = "longtext")
+    private MathNode substitutionEquation;
+
     public void setDirection(StepDirection direction) {
         this.direction = direction == null ? StepDirection.FORWARD : direction;
+    }
+
+    public DerivationRole getDerivationRole() {
+        return derivationRole;
+    }
+
+    public void setDerivationRole(DerivationRole derivationRole) {
+        this.derivationRole = derivationRole == null ? DerivationRole.MAIN : derivationRole;
+    }
+
+    public StepKind getKind() {
+        return kind;
+    }
+
+    public void setKind(StepKind kind) {
+        this.kind = kind == null ? StepKind.A : kind;
+    }
+
+    public MathNode getSubstitutionEquation() {
+        return substitutionEquation;
+    }
+
+    public void setSubstitutionEquation(MathNode substitutionEquation) {
+        this.substitutionEquation = substitutionEquation;
     }
 
     public Long getId() {

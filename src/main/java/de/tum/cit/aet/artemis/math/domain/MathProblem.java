@@ -68,6 +68,15 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     @Column(name = "grader_type", length = 32, nullable = false)
     private GraderType graderType = GraderType.REWRITE_CHAIN;
 
+    /**
+     * Optional second, slower formal certifier (Phase 2b). After the primary {@link #graderType} returns a fast
+     * preliminary verdict, this backend re-grades to certify (and, being the formal prover, is authoritative if
+     * it disagrees). {@code null} means single-backend grading.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "certifying_grader_type", length = 32)
+    private GraderType certifyingGraderType;
+
     @Column(name = "partial_credit_enabled")
     private boolean partialCreditEnabled = false;
 
@@ -87,6 +96,9 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(name = "example_derivations")
     private List<DerivationStepDTO> exampleDerivations = Collections.emptyList();
+
+    @Column(name = "induction_variable", length = 64)
+    private String inductionVariable;
 
     public MathExercise getExercise() {
         return exercise;
@@ -158,6 +170,15 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     }
 
     @Override
+    public GraderType getCertifyingGraderType() {
+        return certifyingGraderType;
+    }
+
+    public void setCertifyingGraderType(GraderType certifyingGraderType) {
+        this.certifyingGraderType = certifyingGraderType;
+    }
+
+    @Override
     public boolean isPartialCreditEnabled() {
         return partialCreditEnabled;
     }
@@ -205,6 +226,15 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
 
     public void setExampleDerivations(List<DerivationStepDTO> exampleDerivations) {
         this.exampleDerivations = exampleDerivations != null ? new ArrayList<>(exampleDerivations) : Collections.emptyList();
+    }
+
+    @Override
+    public String getInductionVariable() {
+        return inductionVariable;
+    }
+
+    public void setInductionVariable(String inductionVariable) {
+        this.inductionVariable = inductionVariable;
     }
 
     @Override

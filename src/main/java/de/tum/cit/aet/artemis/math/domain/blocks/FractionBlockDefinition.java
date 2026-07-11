@@ -21,7 +21,7 @@ public class FractionBlockDefinition implements BlockDefinition {
 
     @Override
     public String getType() {
-        return "fraction";
+        return "frac";
     }
 
     @Override

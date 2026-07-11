@@ -25,8 +25,6 @@ import de.tum.cit.aet.artemis.math.domain.MathProblem;
  * @param title                                  the exercise title
  * @param shortName                              the short name used for identification
  * @param problemStatement                       the problem description shown to students
- * @param description                            internal description / math instructions (math-specific)
- * @param exampleSolution                        example solution text
  * @param categories                             exercise categories as JSON-encoded strings
  * @param difficulty                             the difficulty level
  * @param maxPoints                              maximum achievable points (computed as the sum of the problems' points)
@@ -45,13 +43,14 @@ import de.tum.cit.aet.artemis.math.domain.MathProblem;
  * @param exampleSolutionPublicationDate         when the example solution becomes visible
  * @param courseId                               the course ID (math exercises are course-only)
  * @param problems                               the ordered list of math problems (questions) this exercise holds
+ * @param channelName                            the name of the exercise's linked communication channel (like every other exercise type)
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record MathExerciseDTO(Long id, String title, String shortName, String problemStatement, String description, String exampleSolution, Set<String> categories,
-        DifficultyLevel difficulty, Double maxPoints, Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments,
-        Boolean allowFeedbackRequests, Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions,
-        ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId,
-        List<MathProblemDTO> problems) {
+public record MathExerciseDTO(Long id, String title, String shortName, String problemStatement, Set<String> categories, DifficultyLevel difficulty, Double maxPoints,
+        Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments, Boolean allowFeedbackRequests,
+        Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions, ZonedDateTime releaseDate,
+        ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId, List<MathProblemDTO> problems,
+        String channelName) {
 
     /**
      * @param exercise the entity to project
@@ -63,11 +62,11 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
         boolean problemsLoaded = Hibernate.isInitialized(exercise.getProblems()) && exercise.getProblems() != null;
         List<MathProblemDTO> problemDTOs = problemsLoaded ? exercise.getProblems().stream().map(MathProblemDTO::of).toList() : List.of();
         double maxPoints = problemsLoaded ? computeMaxPoints(exercise) : (exercise.getMaxPoints() == null ? 0.0 : exercise.getMaxPoints());
-        return new MathExerciseDTO(exercise.getId(), exercise.getTitle(), exercise.getShortName(), exercise.getProblemStatement(), exercise.getDescription(),
-                exercise.getExampleSolution(), exercise.getCategories(), exercise.getDifficulty(), maxPoints, exercise.getBonusPoints(), exercise.getIncludedInOverallScore(),
-                exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getAllowFeedbackRequests(), exercise.getPresentationScoreEnabled(),
-                exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(), exercise.getReleaseDate(),
-                exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId, problemDTOs);
+        return new MathExerciseDTO(exercise.getId(), exercise.getTitle(), exercise.getShortName(), exercise.getProblemStatement(), exercise.getCategories(),
+                exercise.getDifficulty(), maxPoints, exercise.getBonusPoints(), exercise.getIncludedInOverallScore(), exercise.getAllowComplaintsForAutomaticAssessments(),
+                exercise.getAllowFeedbackRequests(), exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(),
+                exercise.getGradingInstructions(), exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(),
+                exercise.getExampleSolutionPublicationDate(), courseId, problemDTOs, exercise.getChannelName());
     }
 
     /** Sum of the exercise's problem points; falls back to the entity's own maxPoints if it has no problems yet. */
@@ -87,9 +86,8 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
     public void applyToEntity(MathExercise exercise) {
         exercise.setTitle(title);
         exercise.setShortName(shortName);
+        exercise.setChannelName(channelName);
         exercise.setProblemStatement(problemStatement);
-        exercise.setDescription(description);
-        exercise.setExampleSolution(exampleSolution);
         exercise.setCategories(categories);
         exercise.setDifficulty(difficulty);
         exercise.setBonusPoints(bonusPoints);

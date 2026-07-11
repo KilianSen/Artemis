@@ -6,7 +6,7 @@ import java.util.List;
  * A single rewrite rule belonging to a {@link BlockDefinition}.
  * Rules are code-only — they are never stored in the database.
  * <p>
- * Wildcards in {@code pattern} (nodes with {@code type="wildcard"}) capture arbitrary subtrees during matching.
+ * Wildcards in {@code pattern} (nodes with {@code type="wild"}) capture arbitrary subtrees during matching.
  * The same variable name in {@code template} is replaced by the captured subtree during instantiation.
  * <p>
  * {@code constraints} are side conditions checked after a successful match but before instantiation —

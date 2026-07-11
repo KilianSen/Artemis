@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
@@ -33,31 +32,9 @@ import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class MathExercise extends Exercise {
 
-    @Column(table = "math_exercise_details", name = "description")
-    private String description;
-
-    @Column(table = "math_exercise_details", name = "example_solution")
-    private String exampleSolution;
-
     @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderColumn(name = "math_problems_order")
     private List<MathProblem> problems = new ArrayList<>();
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getExampleSolution() {
-        return exampleSolution;
-    }
-
-    public void setExampleSolution(String exampleSolution) {
-        this.exampleSolution = exampleSolution;
-    }
 
     public List<MathProblem> getProblems() {
         return problems;
@@ -97,7 +74,6 @@ public class MathExercise extends Exercise {
     @Override
     public void filterSensitiveInformation() {
         if (!isExampleSolutionPublished()) {
-            setExampleSolution(null);
             // The per-problem example derivations are the instructor's worked solution; never expose them to students before the example solution is published.
             // Only touch the collection when it is loaded — an unloaded lazy collection is not serialized either, so there is nothing to filter.
             if (Hibernate.isInitialized(problems)) {

@@ -74,6 +74,16 @@ public class BlockRegistry {
     }
 
     /**
+     * Returns every block's normalised recursive definitions (the INDUCTION-mode trusted rules), across all
+     * blocks. Contributed in code via {@link BlockDefinition#getDefinitions()}.
+     *
+     * @return the code-contributed definitions with canonical literals
+     */
+    public List<RewriteRule> getAllDefinitions() {
+        return blocks.stream().flatMap(block -> block.getDefinitions().stream()).map(BlockRegistry::normalize).toList();
+    }
+
+    /**
      * Returns the normalised rule list for the given block (used by {@link #getAllBlocks()} consumers).
      *
      * @param block the block whose rules should be returned
@@ -81,6 +91,18 @@ public class BlockRegistry {
      */
     public List<RewriteRule> getNormalizedRulesFor(BlockDefinition block) {
         return normalizedRulesByBlockType.getOrDefault(block.getType(), List.of());
+    }
+
+    /**
+     * Returns the normalised recursive definitions contributed by the given block (e.g. {@code pow_zero} /
+     * {@code pow_succ} from the power block). Serialised alongside the rules so the induction workspace can
+     * offer them in its palette.
+     *
+     * @param block the block whose definitions should be returned
+     * @return the definitions with canonical literals, or an empty list if the block contributes none
+     */
+    public List<RewriteRule> getNormalizedDefinitionsFor(BlockDefinition block) {
+        return block.getDefinitions().stream().map(BlockRegistry::normalize).toList();
     }
 
     public Optional<RewriteRule> findRuleById(String ruleId) {

@@ -120,7 +120,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         // apply add_zero_left at root: 0 + x → x (problem source=0+x, target=x)
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
-        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
         MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
@@ -138,7 +138,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     void updateMathSubmission_persistsSteps() throws Exception {
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
-        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
         MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.putWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
@@ -155,7 +155,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         // wrong rule applied: result doesn't match target
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_right", List.of(), MathNodes.var("x"));
-        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
         MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
@@ -213,9 +213,10 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
         assertThat(result.participation()).isNotNull();
         assertThat(result.participation().exercise()).isNotNull();
-        assertThat(result.participation().exercise().exampleSolution()).isNull();
-        // student-facing problem instructions (description) must still be present
-        assertThat(result.participation().exercise().description()).isEqualTo("Prove that 0 + x = x");
+        // The instructor's worked solution (per-problem example derivations) must not leak before publication.
+        assertThat(result.participation().exercise().problems().getFirst().exampleDerivations()).isNullOrEmpty();
+        // student-facing problem instructions must still be present
+        assertThat(result.participation().exercise().problemStatement()).isNotNull();
     }
 
     @Test
@@ -228,7 +229,8 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
         assertThat(result.participation()).isNotNull();
         assertThat(result.participation().exercise()).isNotNull();
-        assertThat(result.participation().exercise().exampleSolution()).isNull();
+        // The instructor's worked solution (per-problem example derivations) must not leak before publication.
+        assertThat(result.participation().exercise().problems().getFirst().exampleDerivations()).isNullOrEmpty();
     }
 
     @Test

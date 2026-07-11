@@ -20,7 +20,7 @@ public class EqualityBlockDefinition implements BlockDefinition {
 
     @Override
     public String getType() {
-        return "equality";
+        return "eq";
     }
 
     @Override

@@ -27,11 +27,12 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
  * @param allowVerification       whether students may trigger math verification / hints for this problem
  * @param manualDerivation        true if students write the result expression themselves
  * @param exampleDerivations      the instructor-supplied worked derivation (an ordered list of steps)
+ * @param inductionVariable       the ℕ variable inducted over in INDUCTION mode; {@code null} otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathProblemDTO(Long id, String title, Double points, MathNode sourceExpression, MathNode targetExpression, MathNode goalExpression, GoalMode goalMode,
-        GraderType graderType, Boolean partialCreditEnabled, Boolean acNormalization, Boolean onlyShowApplicableRules, Boolean allowVerification, Boolean manualDerivation,
-        List<DerivationStepDTO> exampleDerivations) {
+        GraderType graderType, GraderType certifyingGraderType, Boolean partialCreditEnabled, Boolean acNormalization, Boolean onlyShowApplicableRules, Boolean allowVerification,
+        Boolean manualDerivation, List<DerivationStepDTO> exampleDerivations, String inductionVariable) {
 
     /**
      * @param problem the entity to project
@@ -39,8 +40,9 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
      */
     public static MathProblemDTO of(MathProblem problem) {
         return new MathProblemDTO(problem.getId(), problem.getTitle(), problem.getPoints(), problem.getSourceExpression(), problem.getTargetExpression(),
-                problem.getGoalExpression(), problem.getGoalMode(), problem.getGraderType(), problem.isPartialCreditEnabled(), problem.isAcNormalization(),
-                problem.isOnlyShowApplicableRules(), problem.isAllowVerification(), problem.isManualDerivation(), problem.getExampleDerivations());
+                problem.getGoalExpression(), problem.getGoalMode(), problem.getGraderType(), problem.getCertifyingGraderType(), problem.isPartialCreditEnabled(),
+                problem.isAcNormalization(), problem.isOnlyShowApplicableRules(), problem.isAllowVerification(), problem.isManualDerivation(), problem.getExampleDerivations(),
+                problem.getInductionVariable());
     }
 
     /**
@@ -58,12 +60,14 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
         problem.setGoalExpression(goalExpression);
         problem.setGoalMode(goalMode);
         problem.setGraderType(graderType);
+        problem.setCertifyingGraderType(certifyingGraderType);
         problem.setPartialCreditEnabled(Boolean.TRUE.equals(partialCreditEnabled));
         problem.setAcNormalization(Boolean.TRUE.equals(acNormalization));
         problem.setOnlyShowApplicableRules(Boolean.TRUE.equals(onlyShowApplicableRules));
         problem.setAllowVerification(allowVerification == null || allowVerification);
         problem.setManualDerivation(Boolean.TRUE.equals(manualDerivation));
         problem.setExampleDerivations(exampleDerivations);
+        problem.setInductionVariable(inductionVariable);
         return problem;
     }
 }

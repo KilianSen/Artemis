@@ -39,8 +39,7 @@ public class MathExerciseFactory {
 
     public static MathExercise generateMathExercise(ZonedDateTime releaseDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, Course course) {
         var exercise = (MathExercise) ExerciseFactory.populateExercise(new MathExercise(), releaseDate, dueDate, assessmentDueDate, course);
-        exercise.setDescription("Prove that 0 + x = x");
-        exercise.setExampleSolution("Apply add_zero_left at the root.");
+        exercise.setProblemStatement("Prove that 0 + x = x");
         exercise.addProblem(sampleProblem());
         exercise.setMaxPoints(10.0);
         return exercise;
@@ -55,13 +54,12 @@ public class MathExerciseFactory {
 
     /** A problem DTO carrying the sample {@code 0 + x -> x} configuration, worth 10 points. */
     public static MathProblemDTO sampleProblemDTO() {
-        return new MathProblemDTO(null, "Problem 1", 10.0, sampleSource(), sampleTarget(), null, null, null, false, false, false, true, false, null);
+        return new MathProblemDTO(null, "Problem 1", 10.0, sampleSource(), sampleTarget(), null, null, null, null, false, false, false, true, false, null, null);
     }
 
     public static MathExerciseDTO generateMathExerciseDTO(ZonedDateTime releaseDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, Course course) {
-        return new MathExerciseDTO(null, "Math Exercise", null, "Prove that 0 + x = x.", "Prove that 0 + x = x", "Apply add_zero_left.", null, null, 10.0, 0.0,
-                IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, releaseDate, null, dueDate, assessmentDueDate, null, course.getId(),
-                List.of(sampleProblemDTO()));
+        return new MathExerciseDTO(null, "Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false,
+                false, null, null, releaseDate, null, dueDate, assessmentDueDate, null, course.getId(), List.of(sampleProblemDTO()), null);
     }
 
     public static MathSubmissionDTO generateMathSubmissionDTO(boolean submitted) {

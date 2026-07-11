@@ -24,9 +24,14 @@ public interface MathProblemConfig {
     MathNode getTargetExpression();
 
     /**
-     * @return the equation to prove for EQUATION mode
+     * @return the equation to prove for EQUATION mode, or the property {@code P(n)} to prove for INDUCTION mode
      */
     MathNode getGoalExpression();
+
+    /**
+     * @return the induction variable (the ℕ variable inducted over) for INDUCTION mode, else {@code null}
+     */
+    String getInductionVariable();
 
     /**
      * @return the goal mode selecting how the derivation is graded (TRANSFORMATION vs EQUATION)
@@ -37,6 +42,13 @@ public interface MathProblemConfig {
      * @return the grader backend to dispatch to
      */
     GraderType getGraderType();
+
+    /**
+     * @return the optional slow formal certifier that upgrades the primary grader's preliminary verdict, or {@code null} for single-backend grading
+     */
+    default GraderType getCertifyingGraderType() {
+        return null;
+    }
 
     /**
      * @return whether distance-based partial credit is awarded when the target is not reached

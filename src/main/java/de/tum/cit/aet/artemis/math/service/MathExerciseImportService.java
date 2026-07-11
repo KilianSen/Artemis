@@ -112,8 +112,6 @@ public class MathExerciseImportService extends ExerciseImportService {
         MathExercise newExercise = new MathExercise();
 
         super.copyExerciseBasis(newExercise, importedExercise, gradingInstructionCopyTracker);
-        newExercise.setDescription(importedExercise.getDescription());
-        newExercise.setExampleSolution(importedExercise.getExampleSolution());
         // Deep-copy each problem so the new exercise owns its own problem rows (cascade/orphanRemoval on MathExercise#problems).
         if (importedExercise.getProblems() != null) {
             for (MathProblem originalProblem : importedExercise.getProblems()) {
