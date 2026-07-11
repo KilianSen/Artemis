@@ -17,6 +17,8 @@ import { MathNodeLatexPipe } from 'app/math/shared/math-node-latex.pipe';
 import { ArtemisDatePipe } from 'app/foundation/pipes/artemis-date.pipe';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
+import { UnreferencedFeedbackComponent } from 'app/exercise/unreferenced-feedback/unreferenced-feedback.component';
+import { Feedback } from 'app/assessment/shared/entities/feedback.model';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { InputGroupModule } from 'primeng/inputgroup';
@@ -30,6 +32,7 @@ import { TagModule } from 'primeng/tag';
     styleUrl: './math-submission-assessment.component.scss',
     imports: [
         AssessmentLayoutComponent,
+        UnreferencedFeedbackComponent,
         TranslateDirective,
         HtmlForMarkdownPipe,
         MathNodeLatexPipe,
@@ -58,6 +61,8 @@ export class MathSubmissionAssessmentComponent implements OnInit {
     readonly isLoading = signal<boolean>(true);
     readonly saveBusy = signal<boolean>(false);
     manualScore: number | undefined;
+    /** The tutor's free-text (unreferenced) feedback comments, round-tripped with the manual result. */
+    readonly unreferencedFeedback = signal<Feedback[]>([]);
     readonly saveSuccess = signal<boolean>(false);
     blocks = signal<BlockDefinitionModel[]>([]);
 
@@ -87,6 +92,7 @@ export class MathSubmissionAssessmentComponent implements OnInit {
                 this.submission.set(mathSubmission as MathSubmission);
                 this.mathExercise.set(this.submission().participation?.exercise as MathExercise);
                 this.result.set(this.submission().results?.[this.submission().results!.length - 1]);
+                this.unreferencedFeedback.set(this.result()?.feedbacks ?? []);
                 this.isLoading.set(false);
             }
         });
@@ -110,9 +116,10 @@ export class MathSubmissionAssessmentComponent implements OnInit {
         if (this.manualScore == undefined || this.manualScore < 0 || this.manualScore > 100) return;
         this.saveBusy.set(true);
         this.saveSuccess.set(false);
-        this.mathSubmissionService.saveManualResult(this.submission().id!, this.manualScore).subscribe({
+        this.mathSubmissionService.saveManualResult(this.submission().id!, this.manualScore, this.unreferencedFeedback()).subscribe({
             next: (updated) => {
                 this.result.set(updated.results?.[updated.results.length - 1]);
+                this.unreferencedFeedback.set(this.result()?.feedbacks ?? []);
                 this.saveBusy.set(false);
                 this.saveSuccess.set(true);
             },

@@ -6,6 +6,7 @@ import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { SubmissionService } from 'app/exercise/submission/submission.service';
 import { MathNode } from 'app/math/shared/entities/math-node.model';
 import { HintSuggestion } from 'app/math/shared/entities/hint-suggestion.model';
+import { Feedback } from 'app/assessment/shared/entities/feedback.model';
 
 export type EntityResponseType = HttpResponse<MathSubmission>;
 
@@ -69,9 +70,9 @@ export class MathSubmissionService {
             .pipe(map((res: HttpResponse<MathSubmission[]>) => res.body ?? []));
     }
 
-    saveManualResult(submissionId: number, score: number): Observable<MathSubmission> {
+    saveManualResult(submissionId: number, score: number, feedbacks: Feedback[] = []): Observable<MathSubmission> {
         return this.http
-            .put<MathSubmission>(`api/math/math-submissions/${submissionId}/manual-result`, { score }, { observe: 'response' })
+            .put<MathSubmission>(`api/math/math-submissions/${submissionId}/manual-result`, { score, feedbacks }, { observe: 'response' })
             .pipe(map((res: HttpResponse<MathSubmission>) => res.body!));
     }
 

@@ -290,6 +290,7 @@ public class MathSubmissionResource {
         MathExercise exerciseWithCategories = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exerciseWithCategories, null);
         submission.getParticipation().setExercise(exerciseWithCategories);
+        loadResultFeedbacks(submission);
         return ResponseEntity.ok(MathSubmissionDTO.of(submission));
     }
 
@@ -369,6 +370,9 @@ public class MathSubmissionResource {
         }
         result.setCompletionDate(ZonedDateTime.now());
         result.setScore(request.score(), exercise.getCourseViaExerciseGroupOrCourseMember());
+        // Attach the tutor's unreferenced feedback (cascaded on save). Math's manual score stays authoritative — feedback is
+        // descriptive, not credit-summed (unlike text/file-upload), so we do NOT route through saveManualAssessment.
+        result.updateAllFeedbackItems(request.feedbacks() == null ? List.of() : request.feedbacks(), false);
         resultRepository.save(result);
         submission.addResult(result);
 
@@ -376,6 +380,20 @@ public class MathSubmissionResource {
         if (submission.getParticipation() != null) {
             submission.getParticipation().setExercise(exercise);
         }
+        loadResultFeedbacks(submission);
         return ResponseEntity.ok(MathSubmissionDTO.of(submission));
+    }
+
+    /**
+     * Eagerly loads each result's feedbacks so they serialize into {@link MathSubmissionDTO} — the base submission
+     * query fetches results lazily without feedbacks, which would otherwise be dropped (or fail on a closed session).
+     */
+    private void loadResultFeedbacks(MathSubmission submission) {
+        if (submission.getResults() == null) {
+            return;
+        }
+        for (Result result : submission.getResults()) {
+            resultRepository.findByIdWithEagerFeedbacks(result.getId()).ifPresent(loaded -> result.setFeedbacks(loaded.getFeedbacks()));
+        }
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.account.util.UserUtilService;
+import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
 import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
@@ -302,7 +303,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     void saveManualResult_asTutor_persistsScore() throws Exception {
         MathSubmission saved = mathExerciseUtilService.createAndSaveSubmissionForExercise(exercise, TEST_PREFIX + "student1", true);
 
-        MathSubmissionDTO result = request.putWithResponseBody("/api/math/math-submissions/" + saved.getId() + "/manual-result", new ManualResultRequestDTO(80.0),
+        MathSubmissionDTO result = request.putWithResponseBody("/api/math/math-submissions/" + saved.getId() + "/manual-result", new ManualResultRequestDTO(80.0, List.of()),
                 MathSubmissionDTO.class, HttpStatus.OK);
 
         assertThat(result.results()).isNotEmpty();
@@ -310,11 +311,30 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     }
 
     @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void saveManualResult_asTutor_persistsAndRoundTripsFeedback() throws Exception {
+        MathSubmission saved = mathExerciseUtilService.createAndSaveSubmissionForExercise(exercise, TEST_PREFIX + "student1", true);
+        Feedback feedback = new Feedback();
+        feedback.setDetailText("Good use of the identity rule.");
+        feedback.setCredits(0.0);
+
+        MathSubmissionDTO result = request.putWithResponseBody("/api/math/math-submissions/" + saved.getId() + "/manual-result",
+                new ManualResultRequestDTO(80.0, List.of(feedback)), MathSubmissionDTO.class, HttpStatus.OK);
+
+        // the tutor's unreferenced feedback is persisted and round-trips on the response
+        assertThat(result.results().getFirst().feedbacks()).singleElement().satisfies(f -> assertThat(f.getDetailText()).isEqualTo("Good use of the identity rule."));
+
+        // and it is reloaded by the for-assessment endpoint
+        MathSubmissionDTO reloaded = request.get("/api/math/math-submissions/" + saved.getId() + "/for-assessment", HttpStatus.OK, MathSubmissionDTO.class);
+        assertThat(reloaded.results().getFirst().feedbacks()).singleElement().satisfies(f -> assertThat(f.getDetailText()).isEqualTo("Good use of the identity rule."));
+    }
+
+    @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void saveManualResult_asStudent_returnsForbidden() throws Exception {
         MathSubmission saved = mathExerciseUtilService.createAndSaveSubmissionForExercise(exercise, TEST_PREFIX + "student1", true);
 
-        request.put("/api/math/math-submissions/" + saved.getId() + "/manual-result", new ManualResultRequestDTO(80.0), HttpStatus.FORBIDDEN);
+        request.put("/api/math/math-submissions/" + saved.getId() + "/manual-result", new ManualResultRequestDTO(80.0, List.of()), HttpStatus.FORBIDDEN);
     }
 
     @Test

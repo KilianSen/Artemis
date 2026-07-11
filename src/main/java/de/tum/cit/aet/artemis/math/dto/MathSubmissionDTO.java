@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
+import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.math.domain.DerivationRole;
@@ -85,10 +86,12 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
     }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public record MathResultDTO(Long id, Double score, AssessmentType assessmentType, ZonedDateTime completionDate) {
+    public record MathResultDTO(Long id, Double score, AssessmentType assessmentType, ZonedDateTime completionDate, List<Feedback> feedbacks) {
 
         public static MathResultDTO of(Result result) {
-            return new MathResultDTO(result.getId(), result.getScore(), result.getAssessmentType(), result.getCompletionDate());
+            // Feedbacks are only projected when eagerly loaded (assessment paths); a lazy/uninitialized collection stays null.
+            List<Feedback> feedbacks = Hibernate.isInitialized(result.getFeedbacks()) ? List.copyOf(result.getFeedbacks()) : null;
+            return new MathResultDTO(result.getId(), result.getScore(), result.getAssessmentType(), result.getCompletionDate(), feedbacks);
         }
     }
 

@@ -68,6 +68,19 @@
             </div>
         </p-card>
 
+        <!-- Tutor unreferenced feedback: free-text comments attached to the result, alongside the manual score -->
+        @if (result() && result()!.id) {
+            <p-card styleClass="math-card">
+                <h6 class="math-card-header-title" jhiTranslate="artemisApp.mathExercise.assessment.feedback">Feedback</h6>
+                <jhi-unreferenced-feedback
+                    [feedbacks]="unreferencedFeedback()"
+                    (feedbacksChange)="unreferencedFeedback.set($event)"
+                    [readOnly]="false"
+                    [resultId]="result()!.id!"
+                />
+            </p-card>
+        }
+
         <!-- Problem statement (full width) -->
         <p-card styleClass="math-card">
             <ng-template pTemplate="header">

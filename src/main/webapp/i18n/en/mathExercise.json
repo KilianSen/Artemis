@@ -26,6 +26,7 @@
                 "steps": "Steps",
                 "autoScore": "Auto score",
                 "manualScore": "Manual score",
+                "feedback": "Feedback",
                 "points": "Points"
             },
             "reachability": {

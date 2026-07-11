@@ -105,7 +105,7 @@ describe('MathSubmissionService', () => {
     it('saves a manual result', async () => {
         const promise = firstValueFrom(service.saveManualResult(11, 8.5));
         const req = httpMock.expectOne({ method: 'PUT', url: 'api/math/math-submissions/11/manual-result' });
-        expect(req.request.body).toEqual({ score: 8.5 });
+        expect(req.request.body).toEqual({ score: 8.5, feedbacks: [] });
         const sub = new MathSubmission();
         sub.id = 11;
         req.flush(sub);
