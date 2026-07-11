@@ -22,6 +22,7 @@ import { MathNodeContext } from '../math-math-node/math-math-node.component';
 @Component({
     selector: 'jhi-math-derivation-workspace',
     templateUrl: './math-derivation-workspace.component.html',
+    styleUrl: './math-derivation-workspace.component.scss',
     imports: [
         FormsModule,
         ButtonModule,
@@ -343,7 +344,7 @@ function computeProgressEquation(goal: MathNode, current: MathNode, ac: boolean)
 }
 
 function sideDistance(node: MathNode, ac: boolean): number {
-    if (node.type !== 'equality' || !node.slots) return 0;
+    if (node.type !== 'eq' || !node.slots) return 0;
     const left = node.slots['left']?.[0];
     const right = node.slots['right']?.[0];
     if (!left || !right) return 0;

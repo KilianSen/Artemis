@@ -46,7 +46,7 @@ describe('MathExerciseUpdateComponent', () => {
                     onTranslationChange: of() as any,
                     onDefaultLangChange: of() as any,
                 }),
-                { provide: ActivatedRoute, useValue: { data: of({ mathExercise: exercise }), snapshot: { params: { courseId: 7 } } } },
+                { provide: ActivatedRoute, useValue: { data: of({ mathExercise: exercise }), snapshot: { params: { courseId: 7 }, url: [] } } },
             ],
         }).overrideComponent(MathExerciseUpdateComponent, { set: { imports: [], template: '' } });
 
@@ -108,6 +108,14 @@ describe('MathExerciseUpdateComponent', () => {
         component.mathExercise.problems![0].title = 'only';
         component.moveProblemDown(0);
         expect(component.mathExercise.problems![0].title).toBe('only');
+    });
+
+    it('a fresh exercise has zero total points (Save guard active) that a default problem clears', () => {
+        // The template disables Save and shows the pointsRequired hint while totalPoints <= 0, so an instructor
+        // can no longer trip the backend "max points needs to be greater than 0" error by saving an empty exercise.
+        expect(component.totalPoints).toBe(0);
+        component.addProblem();
+        expect(component.totalPoints).toBe(1); // new MathProblem defaults to 1 point → guard clears
     });
 
     it('totalPoints sums the points of all problems', () => {

@@ -95,22 +95,42 @@
             </span>
         }
 
-        @case ('PARENTHESES') {
+        @case ('POWER') {
             <span class="math-infix">
+                @if (slotChild('base'); as base) {
+                    @if (needsParens(base, 'base')) {
+                        <span class="math-paren">(</span>
+                        <jhi-math-node [node]="base" [path]="slotChildPath('base')" [rootIndex]="rootIndex()" [ctx]="ctx()" />
+                        <span class="math-paren">)</span>
+                    } @else {
+                        <jhi-math-node [node]="base" [path]="slotChildPath('base')" [rootIndex]="rootIndex()" [ctx]="ctx()" />
+                    }
+                }
+                <sup class="math-pow__exp">
+                    @if (slotChild('exponent'); as exp) {
+                        <jhi-math-node [node]="exp" [path]="slotChildPath('exponent')" [rootIndex]="rootIndex()" [ctx]="ctx()" />
+                    }
+                </sup>
+            </span>
+        }
+
+        @case ('SUCCESSOR') {
+            <span class="math-infix">
+                <span class="math-op">S</span>
                 <span class="math-paren">(</span>
-                @if (slotChild('content'); as content) {
-                    <jhi-math-node [node]="content" [path]="slotChildPath('content')" [rootIndex]="rootIndex()" [ctx]="ctx()" />
+                @if (slotChild('inner'); as inner) {
+                    <jhi-math-node [node]="inner" [path]="slotChildPath('inner')" [rootIndex]="rootIndex()" [ctx]="ctx()" />
                 }
                 <span class="math-paren">)</span>
             </span>
         }
 
         @default {
-            @if (node().type === 'wildcard') {
+            @if (node().type === 'wild') {
                 <span class="math-wildcard">{{ node().value ?? '?' }}</span>
             } @else {
                 <span class="math-unknown">
-                    <p-tag severity="secondary" [value]="node().type" styleClass="me-1" />
+                    <p-tag severity="secondary" [value]="node().type" styleClass="math-unknown__tag" />
                     @for (entry of unknownChildren(); track $index) {
                         <jhi-math-node [node]="entry.child" [path]="entry.childPath" [rootIndex]="rootIndex()" [ctx]="ctx()" />
                     }

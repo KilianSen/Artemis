@@ -4,13 +4,12 @@ import { RuleConstraint } from 'app/math/shared/entities/rule-constraint.model';
 
 const num = (v: string): MathNode => ({ type: 'number', value: v });
 const variable = (v: string): MathNode => ({ type: 'variable', value: v });
-const wc = (v: string): MathNode => ({ type: 'wildcard', value: v });
+const wc = (v: string): MathNode => ({ type: 'wild', value: v });
 const add = (l: MathNode, r: MathNode): MathNode => ({ type: 'add', slots: { left: [l], right: [r] } });
 const mul = (l: MathNode, r: MathNode): MathNode => ({ type: 'mul', slots: { left: [l], right: [r] } });
-const frac = (n: MathNode, d: MathNode): MathNode => ({ type: 'fraction', slots: { numerator: [n], denominator: [d] } });
-const paren = (c: MathNode): MathNode => ({ type: 'parentheses', slots: { content: [c] } });
-const neg = (inner: MathNode): MathNode => ({ type: 'negation', slots: { inner: [inner] } });
-const eq = (l: MathNode, r: MathNode): MathNode => ({ type: 'equality', slots: { left: [l], right: [r] } });
+const frac = (n: MathNode, d: MathNode): MathNode => ({ type: 'frac', slots: { numerator: [n], denominator: [d] } });
+const neg = (inner: MathNode): MathNode => ({ type: 'neg', slots: { inner: [inner] } });
+const eq = (l: MathNode, r: MathNode): MathNode => ({ type: 'eq', slots: { left: [l], right: [r] } });
 
 describe('math-node engine — frontend mirror', () => {
     describe('applyRule', () => {
@@ -36,14 +35,6 @@ describe('math-node engine — frontend mirror', () => {
             const template = num('0');
             const tree = mul(num('0'), add(variable('a'), variable('b')));
             expect(applyRule(tree, [], pattern, template)).toEqual(num('0'));
-        });
-
-        it('paren_unwrap applies at a non-root path', () => {
-            // path [0] = left slot of add (alphabetical: left < right)
-            const pattern = paren(wc('x'));
-            const template = wc('x');
-            const tree = add(paren(variable('x')), variable('y'));
-            expect(applyRule(tree, [0], pattern, template)).toEqual(add(variable('x'), variable('y')));
         });
 
         it('returns undefined on pattern mismatch', () => {
@@ -228,7 +219,7 @@ describe('math-node engine — frontend mirror', () => {
         });
 
         it('AC normalisation makes a + b = b + a a tautology', () => {
-            const goal: MathNode = { type: 'equality', slots: { left: [add(variable('a'), variable('b'))], right: [add(variable('b'), variable('a'))] } };
+            const goal: MathNode = { type: 'eq', slots: { left: [add(variable('a'), variable('b'))], right: [add(variable('b'), variable('a'))] } };
             expect(isTautology(normalizeAC(goal)!)).toBe(true);
             expect(isTautology(goal)).toBe(false);
         });
@@ -259,14 +250,6 @@ describe('math-node engine — frontend mirror', () => {
     describe('parity with backend engine', () => {
         const cases: { name: string; tree: MathNode; path: number[]; pattern: MathNode; template: MathNode; expected: MathNode | undefined }[] = [
             { name: 'add_zero_left at root', tree: add(num('0'), variable('x')), path: [], pattern: add(num('0'), wc('a')), template: wc('a'), expected: variable('x') },
-            {
-                name: 'paren_unwrap at [0]',
-                tree: add(paren(variable('x')), variable('y')),
-                path: [0],
-                pattern: paren(wc('x')),
-                template: wc('x'),
-                expected: add(variable('x'), variable('y')),
-            },
             { name: 'add_zero_left mismatch', tree: add(variable('x'), num('0')), path: [], pattern: add(num('0'), wc('a')), template: wc('a'), expected: undefined },
         ];
         for (const c of cases) {

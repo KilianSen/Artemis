@@ -3,8 +3,6 @@ import { Course } from 'app/course/shared/entities/course.model';
 import { MathProblem } from './math-problem.model';
 
 export class MathExercise extends Exercise {
-    public exampleSolution?: string;
-    public description?: string;
     /** The ordered list of math problems (questions) this exercise holds. */
     public problems?: MathProblem[];
 

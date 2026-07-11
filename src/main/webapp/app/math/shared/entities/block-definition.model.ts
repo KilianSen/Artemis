@@ -3,7 +3,7 @@ import { RuleConstraint } from './rule-constraint.model';
 import { RuleDirection } from './rule-direction.model';
 
 export type Associativity = 'LEFT' | 'NONE';
-export type LayoutCategory = 'TERMINAL_NUMBER' | 'TERMINAL_VARIABLE' | 'BINARY_INFIX' | 'FRACTION' | 'PARENTHESES' | 'UNARY_PREFIX';
+export type LayoutCategory = 'TERMINAL_NUMBER' | 'TERMINAL_VARIABLE' | 'BINARY_INFIX' | 'FRACTION' | 'UNARY_PREFIX' | 'POWER' | 'SUCCESSOR';
 
 export interface RewriteRuleModel {
     id: string;
@@ -24,6 +24,8 @@ export interface BlockDefinitionModel {
     paletteLatex: string;
     slots?: string[];
     rules?: RewriteRuleModel[];
+    /** Code-contributed recursive definitions (e.g. pow_zero / pow_succ), offered in the induction workspace palette. */
+    definitions?: RewriteRuleModel[];
     precedence?: number;
     associativity?: Associativity;
     layoutCategory?: LayoutCategory;

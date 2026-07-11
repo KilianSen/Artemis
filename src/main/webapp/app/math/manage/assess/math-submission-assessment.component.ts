@@ -27,6 +27,7 @@ import { TagModule } from 'primeng/tag';
 @Component({
     selector: 'jhi-math-submission-assessment',
     templateUrl: './math-submission-assessment.component.html',
+    styleUrl: './math-submission-assessment.component.scss',
     imports: [
         AssessmentLayoutComponent,
         TranslateDirective,

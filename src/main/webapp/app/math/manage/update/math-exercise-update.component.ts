@@ -18,16 +18,22 @@ import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
-import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 import { MathProblemEditComponent } from './math-problem-edit/math-problem-edit.component';
+import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
+import { ExerciseTitleChannelNamePrimengComponent } from 'app/exercise/exercise-title-channel-name-primeng/exercise-title-channel-name-primeng.component';
+import { FormFooterComponent } from 'app/shared-ui/form/form-footer/form-footer.component';
 
 @Component({
     selector: 'jhi-math-exercise-update',
     templateUrl: './math-exercise-update.component.html',
+    styleUrl: './math-exercise-update.component.scss',
     imports: [
         FormsModule,
         TranslateDirective,
+        DocumentationButtonComponent,
+        ExerciseTitleChannelNamePrimengComponent,
+        FormFooterComponent,
         CategorySelectorPrimengComponent,
         DifficultyPickerComponent,
         IncludedInOverallScorePickerComponent,
@@ -39,7 +45,6 @@ import { MathProblemEditComponent } from './math-problem-edit/math-problem-edit.
         CardModule,
         InputTextModule,
         TagModule,
-        TextareaModule,
         TooltipModule,
     ],
 })
@@ -53,6 +58,10 @@ export class MathExerciseUpdateComponent implements OnInit {
     // eslint-disable-next-line localRules/prefer-signal-template-state -- template-driven form binds exercise sub-fields via [(ngModel)]; a signal cannot back two-way member writes
     mathExercise: MathExercise;
     readonly isSaving = signal(false);
+    /** True on the import route ({@code .../import}); the title-channel component then requires a fresh channel name. */
+    readonly isImport = signal(false);
+    /** The instructor's "what did you change?" note shown on edit by the shared form footer; carried to the update request. */
+    readonly notificationText = signal<string | undefined>(undefined);
     exerciseCategories = signal<ExerciseCategory[]>([]);
     existingCategories = signal<ExerciseCategory[]>([]);
 
@@ -63,6 +72,7 @@ export class MathExerciseUpdateComponent implements OnInit {
 
     ngOnInit() {
         this.isSaving.set(false);
+        this.isImport.set(this.activatedRoute.snapshot.url.some((segment) => segment.path === 'import'));
         this.activatedRoute.data.subscribe(({ mathExercise }) => {
             this.mathExercise = mathExercise;
             this.exerciseCategories.set(this.mathExercise.categories || []);
@@ -167,7 +177,8 @@ export class MathExerciseUpdateComponent implements OnInit {
         this.mathExercise.maxPoints = this.totalPoints;
         this.isSaving.set(true);
         if (this.mathExercise.id !== undefined) {
-            this.mathExerciseService.update(this.mathExercise).subscribe({
+            const req = this.notificationText() ? { notificationText: this.notificationText() } : undefined;
+            this.mathExerciseService.update(this.mathExercise, req).subscribe({
                 next: () => this.onSaveSuccess(),
                 error: () => this.onSaveError(),
             });

@@ -1,0 +1,120 @@
+:host {
+    display: block;
+}
+
+.edit-card {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.mb-block {
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    border-bottom: 1px solid var(--p-content-border-color);
+    padding-bottom: 0.5rem;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--p-content-border-color);
+    padding-bottom: 0.5rem;
+}
+
+.section-header--spaced {
+    margin-bottom: 1rem;
+}
+
+.section-header-title {
+    margin-bottom: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.field-col-8,
+.field-col-4 {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .field-col-8 {
+        flex: 2 1 0;
+    }
+
+    .field-col-4 {
+        flex: 1 1 0;
+    }
+}
+
+.field-group {
+    margin-bottom: 1rem;
+}
+
+.field-group--top {
+    margin-top: 1rem;
+}
+
+.field-label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.w-full {
+    width: 100%;
+}
+
+.field-hint {
+    display: block;
+    color: var(--text-color-secondary);
+    font-size: 0.875em;
+}
+
+.field-hint--spaced {
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.checkbox-row--lg {
+    margin-top: 1rem;
+}
+
+.error-text {
+    color: var(--artemis-alert-danger-color);
+}
+
+.expressions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.expression-divider {
+    border-top: 1px solid var(--p-content-border-color);
+    padding-top: 1rem;
+}
+
+.arrow {
+    text-align: center;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.5rem;
+}

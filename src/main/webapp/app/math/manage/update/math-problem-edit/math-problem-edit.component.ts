@@ -14,7 +14,7 @@ import { MathExerciseService } from '../../service/math-exercise.service';
 import { MathProblem } from '../../../shared/entities/math-problem.model';
 import { MathNode } from '../../../shared/entities/math-node.model';
 import { DerivationStep } from '../../../shared/entities/derivation-step.model';
-import { GRADER_TYPES_AVAILABLE, GRADER_TYPE_LABELS, GraderType } from '../../../shared/entities/grader-type.model';
+import { GRADER_TYPE_LABELS, GraderType, defaultGraderForMode, graderSupportsMode } from '../../../shared/entities/grader-type.model';
 import { GOAL_MODE_LABELS, GoalMode } from '../../../shared/entities/goal-mode.model';
 import { ReachabilityReport } from '../../../shared/entities/hint-suggestion.model';
 import { MathBuilderComponent } from '../math-builder/math-builder.component';
@@ -27,6 +27,7 @@ import { MathDerivationWorkspaceComponent } from '../math-derivation-workspace/m
 @Component({
     selector: 'jhi-math-problem-edit',
     templateUrl: './math-problem-edit.component.html',
+    styleUrl: './math-problem-edit.component.scss',
     imports: [
         FormsModule,
         TranslateDirective,
@@ -57,11 +58,21 @@ export class MathProblemEditComponent {
     readonly reachabilityChecking = signal(false);
     readonly reachabilityError = signal<string | undefined>(undefined);
 
-    readonly graderTypeOptions: { value: GraderType; label: string; disabled: boolean }[] = (Object.keys(GRADER_TYPE_LABELS) as GraderType[]).map((value) => ({
-        value,
-        label: GRADER_TYPE_LABELS[value],
-        disabled: !GRADER_TYPES_AVAILABLE.includes(value),
-    }));
+    /** Grader options for a given goal mode; graders that can't grade the mode are disabled (mirrors the server matrix). */
+    graderOptionsFor(mode: GoalMode): { value: GraderType; label: string; disabled: boolean }[] {
+        return (Object.keys(GRADER_TYPE_LABELS) as GraderType[]).map((value) => ({
+            value,
+            label: GRADER_TYPE_LABELS[value],
+            disabled: !graderSupportsMode(value, mode),
+        }));
+    }
+
+    /** Certifier candidates: the remote formal backends (everything but the in-process REWRITE_CHAIN) that support this mode. */
+    certifierOptionsFor(mode: GoalMode): { value: GraderType; label: string }[] {
+        return (Object.keys(GRADER_TYPE_LABELS) as GraderType[])
+            .filter((value) => value !== 'REWRITE_CHAIN' && graderSupportsMode(value, mode))
+            .map((value) => ({ value, label: GRADER_TYPE_LABELS[value] }));
+    }
 
     readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({
         value,
@@ -89,6 +100,16 @@ export class MathProblemEditComponent {
 
     onGoalModeChange(mode: GoalMode): void {
         this.problem().goalMode = mode;
+        // If the selected grader can't grade the new mode, fall back to a compatible default (avoids a save-time 400).
+        const grader = this.problem().graderType;
+        if (!grader || !graderSupportsMode(grader, mode)) {
+            this.problem().graderType = defaultGraderForMode(mode);
+        }
+        // Clear the certifier if it no longer supports the new mode.
+        const certifier = this.problem().certifyingGraderType;
+        if (certifier && !graderSupportsMode(certifier, mode)) {
+            this.problem().certifyingGraderType = undefined;
+        }
         // Reset the example derivation — it's tied to the previous start expression.
         this.problem().exampleDerivations = [];
         this.reachability.set(undefined);

@@ -24,6 +24,7 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
 @Component({
     selector: 'jhi-math-exercise',
     templateUrl: './math-exercise.component.html',
+    styleUrl: './math-exercise.component.scss',
     imports: [
         SortDirective,
         FormsModule,

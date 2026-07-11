@@ -16,6 +16,7 @@ import { MathExpressionCanvasComponent } from '../../../shared/expression-canvas
 @Component({
     selector: 'jhi-math-builder',
     templateUrl: './math-builder.component.html',
+    styleUrl: './math-builder.component.scss',
     imports: [FormsModule, ButtonModule, InputTextModule, MessageModule, TranslateDirective, ArtemisTranslatePipe, MathExpressionCanvasComponent, MathNodeLatexPipe],
 })
 export class MathBuilderComponent implements OnInit {

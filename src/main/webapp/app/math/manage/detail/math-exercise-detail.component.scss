@@ -1,0 +1,95 @@
+.math-detail {
+    display: flex;
+    justify-content: center;
+}
+
+.math-detail__col {
+    width: 100%;
+}
+
+.math-detail__header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.math-detail__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.math-detail__col-third,
+.math-detail__col-twothirds {
+    flex: 1 1 100%;
+}
+
+@media (min-width: 768px) {
+    .math-detail__col-third {
+        flex: 0 0 calc(33.3333% - 0.6667rem);
+    }
+
+    .math-detail__col-twothirds {
+        flex: 0 0 calc(66.6667% - 0.3333rem);
+    }
+}
+
+.math-detail__card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0;
+}
+
+.math-detail__card-title {
+    margin-bottom: 0;
+}
+
+.math-detail__muted {
+    color: var(--text-color-secondary);
+}
+
+.math-detail__cell-end {
+    text-align: right;
+}
+
+.math-detail__problems {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.math-detail__problem--divided {
+    border-top: 1px solid var(--p-content-border-color);
+    padding-top: 1rem;
+}
+
+.math-detail__problem-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.math-detail__field-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color-secondary);
+}
+
+.math-detail__expr {
+    font-size: 1.25rem;
+}
+
+.math-detail__transform {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.math-detail__arrow {
+    font-size: 1.75rem;
+    color: var(--text-color-secondary);
+}

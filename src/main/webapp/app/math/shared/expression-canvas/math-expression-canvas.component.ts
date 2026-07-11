@@ -6,6 +6,7 @@ import { MathNodeComponent, MathNodeContext } from '../../manage/update/math-mat
 @Component({
     selector: 'jhi-math-expression-canvas',
     templateUrl: './math-expression-canvas.component.html',
+    styleUrl: './math-expression-canvas.component.scss',
     imports: [MathNodeComponent],
 })
 export class MathExpressionCanvasComponent {

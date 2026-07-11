@@ -1,0 +1,45 @@
+<p-card styleClass="induction-card">
+    <ng-template pTemplate="header">
+        <h5 class="induction-card-title">
+            <span jhiTranslate="artemisApp.mathExercise.problem">Problem</span> {{ problemIndex() + 1 }}
+            <span class="induction-muted" jhiTranslate="artemisApp.mathExercise.inductionProof"> — Induction proof</span>
+            @if (problem().title) {
+                <span class="induction-muted"> — {{ problem().title }}</span>
+            }
+        </h5>
+    </ng-template>
+
+    <p-message severity="info" styleClass="induction-message">
+        <span jhiTranslate="artemisApp.mathExercise.inductionIntro">Prove the base case P(0) and the inductive step P(S n), assuming the induction hypothesis P(n).</span>
+    </p-message>
+
+    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionBase">Base case: P(0)</h6>
+    <jhi-math-problem-participation
+        [problem]="baseProblem()"
+        [exerciseId]="exerciseId()"
+        [initialSteps]="initialBaseSteps()"
+        [submitted]="submitted()"
+        [problemIndex]="problemIndex()"
+        [blocks]="baseBlocks()"
+        (stepsChange)="onBaseSteps($event)"
+    />
+
+    <hr class="induction-divider" />
+
+    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionStep">Inductive step: P(S n)</h6>
+    @if (hypothesis(); as ih) {
+        <p-message severity="secondary" styleClass="induction-hypothesis-message">
+            <span jhiTranslate="artemisApp.mathExercise.inductionHypothesis">You may assume the induction hypothesis:</span>
+            <span class="induction-hypothesis-expression" [innerHTML]="ih | mathNodeLatex"></span>
+        </p-message>
+    }
+    <jhi-math-problem-participation
+        [problem]="stepProblem()"
+        [exerciseId]="exerciseId()"
+        [initialSteps]="initialStepSteps()"
+        [submitted]="submitted()"
+        [problemIndex]="problemIndex()"
+        [blocks]="stepBlocks()"
+        (stepsChange)="onStepSteps($event)"
+    />
+</p-card>

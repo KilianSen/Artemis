@@ -1,0 +1,446 @@
+:host {
+    display: block;
+}
+
+// ── Shared helpers ──────────────────────────────────────────────────────────
+.muted {
+    color: var(--text-color-secondary);
+}
+
+.italic {
+    font-style: italic;
+}
+
+.semibold {
+    font-weight: 600;
+}
+
+.success {
+    color: var(--artemis-alert-success-color);
+}
+
+.push-end {
+    margin-left: auto;
+}
+
+// ── Root layout ─────────────────────────────────────────────────────────────
+.problem-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+// ── Math complete banner ────────────────────────────────────────────────────
+.complete-banner {
+    margin-bottom: 0.25rem;
+    width: 100%;
+}
+
+.complete-banner__row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.complete-banner__emoji {
+    font-size: 1.5rem;
+}
+
+.complete-banner__hint {
+    margin-left: 0.5rem;
+    color: var(--artemis-alert-success-color);
+}
+
+// ── Card headers ────────────────────────────────────────────────────────────
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0;
+}
+
+.panel-header--gap {
+    gap: 0.5rem;
+}
+
+.panel-header__title {
+    margin-bottom: 0;
+}
+
+.panel-header__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.button-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+// ── State panel ─────────────────────────────────────────────────────────────
+.state-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    font-size: 0.9em;
+}
+
+.state-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+}
+
+.state-panel__row--bordered {
+    border-top: 1px solid var(--p-content-border-color);
+}
+
+.state-panel__row--start {
+    border-left: 3px solid var(--text-color-secondary);
+}
+
+.state-panel__row--now {
+    border-top: 1px solid var(--p-content-border-color);
+    border-left: 3px solid var(--p-primary-color);
+}
+
+.state-panel__connector {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 3px 1rem 3px calc(0.75rem + 3px);
+    border-top: 1px solid var(--p-content-border-color);
+    font-size: 0.72em;
+}
+
+.state-panel__label {
+    min-width: 38px;
+    color: var(--text-color-secondary);
+    font-weight: 600;
+    font-size: 0.68em;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.state-panel__label--primary {
+    color: var(--p-primary-color);
+}
+
+.state-panel__label--success {
+    color: var(--artemis-alert-success-color);
+}
+
+// ── Hints panel ─────────────────────────────────────────────────────────────
+.hints-panel {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+    background: var(--p-highlight-background);
+    font-size: 0.875em;
+}
+
+.hints-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.hints-panel__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.hint-btn__preview {
+    margin-left: 0.5rem;
+    color: var(--text-color-secondary);
+    font-size: 0.85em;
+}
+
+.hints-error {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+    color: var(--text-color-secondary);
+    font-size: 0.875em;
+}
+
+:host ::ng-deep .hint-dismiss {
+    padding: 0;
+}
+
+:host ::ng-deep .hint-btn {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+// ── Progress row ────────────────────────────────────────────────────────────
+.progress-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+    color: var(--text-color-secondary);
+    font-size: 0.875em;
+}
+
+.progress-row__bar {
+    flex-grow: 1;
+}
+
+.progress-row__pct {
+    min-width: 3em;
+    text-align: right;
+}
+
+// ── Workspace ───────────────────────────────────────────────────────────────
+.workspace {
+    display: flex;
+    gap: 1rem;
+}
+
+// ── Rule palette ────────────────────────────────────────────────────────────
+.palette {
+    display: flex;
+    flex-direction: column;
+    width: 180px;
+    flex-shrink: 0;
+}
+
+.palette__heading {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color-secondary);
+    font-weight: 600;
+    font-size: 0.875em;
+}
+
+.palette__chip {
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    font-size: 0.875em;
+    cursor: grab;
+    user-select: none;
+}
+
+.palette__divider {
+    margin: 0.5rem 0;
+}
+
+.palette__search {
+    margin-bottom: 0.5rem;
+}
+
+.palette__rules {
+    flex-grow: 1;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.palette__group {
+    margin-bottom: 0.5rem;
+}
+
+.palette__group-label {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.rule-chip {
+    margin-bottom: 0.25rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    font-size: 0.875em;
+    cursor: grab;
+    user-select: none;
+}
+
+.rule-chip--selected {
+    border-color: var(--p-primary-color);
+    background: var(--p-primary-color);
+    color: var(--p-primary-contrast-color, #fff);
+}
+
+.rule-chip--applicable {
+    border-color: var(--artemis-alert-success-color);
+}
+
+.rule-chip--dimmed {
+    opacity: 0.5;
+}
+
+.rule-chip__name {
+    padding: 0.25rem 0.5rem 0;
+}
+
+.rule-chip__latex {
+    padding: 0 0.5rem 0.25rem;
+    text-align: center;
+    font-size: 0.8em;
+}
+
+// ── Editor column ───────────────────────────────────────────────────────────
+.editor-column {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+// ── Step history ────────────────────────────────────────────────────────────
+.step-history {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 1rem;
+}
+
+.step-history__start {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    background: var(--p-highlight-background);
+    font-size: 0.875em;
+}
+
+.step-history__start-label {
+    margin-right: 0.5rem;
+    color: var(--text-color-secondary);
+    font-size: 0.75em;
+}
+
+.step-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 1rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    font-size: 0.78em;
+    user-select: none;
+}
+
+.step-rule--pending {
+    border-color: var(--text-color-secondary);
+    background: var(--p-highlight-background);
+    color: var(--text-color-secondary);
+}
+
+.step-rule--valid {
+    border-color: var(--artemis-alert-success-color);
+    background: var(--artemis-alert-success-background);
+}
+
+.step-rule--invalid {
+    border-color: var(--artemis-alert-danger-color);
+    background: var(--artemis-alert-danger-background);
+}
+
+.step-rule__by {
+    font-style: italic;
+    opacity: 0.75;
+}
+
+.step-rule__name {
+    font-weight: 600;
+}
+
+.step-rule__name--pending {
+    color: var(--text-color-secondary);
+}
+
+.step-rule__name--valid {
+    color: var(--artemis-alert-success-color);
+}
+
+.step-rule__name--invalid {
+    color: var(--artemis-alert-danger-color);
+}
+
+.step-rule__dir {
+    color: var(--text-color-secondary);
+    font-size: 0.875em;
+}
+
+.step-rule__edit {
+    margin-left: auto;
+    opacity: 0.5;
+}
+
+.step-result {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    font-size: 0.875em;
+}
+
+.step-result--valid {
+    border-color: var(--artemis-alert-success-color);
+    background: var(--artemis-alert-success-background);
+}
+
+.step-result--invalid {
+    border-color: var(--artemis-alert-danger-color);
+    background: var(--artemis-alert-danger-background);
+}
+
+.step-result__error {
+    color: var(--artemis-alert-danger-color);
+    font-size: 0.75em;
+}
+
+// ── Expression canvas ───────────────────────────────────────────────────────
+.canvas-block {
+    margin-bottom: 1rem;
+}
+
+.canvas-hint {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color-secondary);
+}
+
+// ── Manual step panel ───────────────────────────────────────────────────────
+.manual-panel {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--p-primary-color);
+    border-radius: var(--p-border-radius);
+}
+
+.manual-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.manual-panel__label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-color-secondary);
+}
+
+.manual-panel__actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+.controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+}
+
+:host ::ng-deep .msg-mt {
+    margin-top: 0.5rem;
+}

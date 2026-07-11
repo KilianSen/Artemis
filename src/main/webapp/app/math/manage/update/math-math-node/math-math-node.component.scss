@@ -10,23 +10,23 @@
         background-color 0.1s;
 
     &:focus-visible {
-        outline: 2px solid var(--bs-primary);
+        outline: 2px solid var(--p-primary-color);
         outline-offset: 1px;
     }
 
     &--selected {
-        border-color: var(--bs-primary) !important;
-        background-color: rgba(var(--bs-primary-rgb), 0.15);
+        border-color: var(--p-primary-color) !important;
+        background-color: var(--p-highlight-background);
     }
 
     &--drop-target {
-        border-color: var(--bs-success) !important;
-        background-color: rgba(var(--bs-success-rgb), 0.15);
+        border-color: var(--artemis-alert-success-color) !important;
+        background-color: color-mix(in srgb, var(--artemis-alert-success-color) 15%, transparent);
     }
 }
 
 .math-node:hover:not(.math-node--selected) {
-    border-color: var(--bs-border-color);
+    border-color: var(--p-content-border-color);
 }
 
 .math-infix {
@@ -37,7 +37,7 @@
 
 .math-op {
     font-weight: 600;
-    color: var(--bs-body-color);
+    color: var(--p-text-color);
     font-size: 1em;
     padding: 0 2px;
     user-select: none;
@@ -46,7 +46,7 @@
 .math-paren {
     font-size: 1.4em;
     line-height: 1;
-    color: var(--bs-secondary-color);
+    color: var(--text-color-secondary);
     user-select: none;
 }
 
@@ -68,13 +68,13 @@
         width: 100%;
         min-width: 20px;
         height: 1.5px;
-        background: var(--bs-body-color);
+        background: var(--p-text-color);
     }
 }
 
 .math-terminal {
     border: none;
-    border-bottom: 1.5px solid var(--bs-border-color);
+    border-bottom: 1.5px solid var(--p-content-border-color);
     background: transparent;
     color: inherit;
     text-align: center;
@@ -85,7 +85,7 @@
     min-width: 20px;
 
     &:focus {
-        border-bottom-color: var(--bs-primary);
+        border-bottom-color: var(--p-primary-color);
     }
 
     &--number {
@@ -100,7 +100,7 @@
 
 .math-wildcard {
     font-style: italic;
-    color: var(--bs-secondary-color);
+    color: var(--text-color-secondary);
     padding: 0 2px;
 }
 
@@ -108,6 +108,10 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+}
+
+.math-unknown__tag {
+    margin-right: 0.25rem;
 }
 
 .math-node__remove {
@@ -121,7 +125,7 @@
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--bs-secondary-color);
+    color: var(--text-color-secondary);
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
@@ -133,8 +137,8 @@
     flex-shrink: 0;
 
     &:hover {
-        color: var(--bs-danger);
-        background-color: rgba(var(--bs-danger-rgb), 0.15);
+        color: var(--artemis-alert-danger-color);
+        background-color: color-mix(in srgb, var(--artemis-alert-danger-color) 15%, transparent);
         opacity: 1 !important;
     }
 }

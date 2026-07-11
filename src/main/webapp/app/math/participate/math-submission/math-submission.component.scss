@@ -1,4 +1,84 @@
-#math-content {
-    font-family: monospace;
-    resize: vertical;
+:host {
+    display: block;
+}
+
+.math-participation {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.math-header {
+    display: block;
+    margin-bottom: 1.5rem;
+}
+
+.math-banner {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.math-body {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 1rem;
+}
+
+// Quiz-style problem navigation column
+.math-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: sticky;
+    top: 1rem;
+    align-self: flex-start;
+}
+
+.math-problems {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.math-problem-anchor {
+    scroll-margin-top: 1rem;
+}
+
+// Sticky bottom status / submit bar
+.math-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    background: var(--module-bg);
+}
+
+.math-bottom-bar__divider {
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    margin: 0;
+}
+
+.math-bottom-bar__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.math-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-color-secondary);
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.math-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }

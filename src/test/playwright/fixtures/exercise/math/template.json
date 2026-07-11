@@ -12,5 +12,15 @@
     "secondCorrectionEnabled": false,
     "allowFeedbackRequests": false,
     "allowComplaintsForAutomaticAssessments": false,
-    "manualDerivation": false
+    "manualDerivation": false,
+    "problems": [
+        {
+            "title": "Problem 1",
+            "points": 10,
+            "goalMode": "TRANSFORMATION",
+            "graderType": "REWRITE_CHAIN",
+            "sourceExpression": { "type": "number", "value": "1" },
+            "targetExpression": { "type": "number", "value": "1" }
+        }
+    ]
 }

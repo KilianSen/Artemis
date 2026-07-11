@@ -2,7 +2,7 @@
  * Mirror of the backend {@code GoalMode} enum.
  * Controls how the math goal is encoded: source-to-target derivation or single goal tree closed by tautology.
  */
-export type GoalMode = 'TRANSFORMATION' | 'EQUATION';
+export type GoalMode = 'TRANSFORMATION' | 'EQUATION' | 'INDUCTION';
 
 export const DEFAULT_GOAL_MODE: GoalMode = 'TRANSFORMATION';
 
@@ -10,4 +10,5 @@ export const DEFAULT_GOAL_MODE: GoalMode = 'TRANSFORMATION';
 export const GOAL_MODE_LABELS: Record<GoalMode, string> = {
     TRANSFORMATION: 'Transformation (source → target)',
     EQUATION: 'Equation (single goal, closed by tautology)',
+    INDUCTION: 'Induction over ℕ (base + step)',
 };

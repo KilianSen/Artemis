@@ -15,14 +15,8 @@ import { StatisticsService } from 'app/exercise/statistics-graph/service/statist
 import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Course } from 'app/course/shared/entities/course.model';
 import { EventManager } from 'app/foundation/service/event-manager.service';
-import { DetailOverviewSection, DetailType } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
-import {
-    getExerciseGeneralDetailsSection,
-    getExerciseGradingDefaultDetails,
-    getExerciseMarkdownSolution,
-    getExerciseModeDetailSection,
-    getExerciseProblemDetailSection,
-} from 'app/exercise/util/utils';
+import { DetailOverviewSection } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
+import { getExerciseGeneralDetailsSection, getExerciseGradingDefaultDetails, getExerciseModeDetailSection, getExerciseProblemDetailSection } from 'app/exercise/util/utils';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 import { DetailOverviewListComponent } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
@@ -37,6 +31,7 @@ import { TagModule } from 'primeng/tag';
 @Component({
     selector: 'jhi-math-exercise-detail',
     templateUrl: './math-exercise-detail.component.html',
+    styleUrl: './math-exercise-detail.component.scss',
     imports: [
         TranslateDirective,
         DocumentationButtonComponent,
@@ -66,7 +61,6 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
     readonly mathExercise = signal<MathExercise>(undefined!);
     readonly course = signal<Course | undefined>(undefined);
     formattedProblemStatement: SafeHtml | null;
-    formattedExampleSolution: SafeHtml | null;
     readonly submissions = signal<MathSubmission[]>([]);
 
     readonly doughnutStats = signal<ExerciseManagementStatisticsDto>(undefined!);
@@ -87,7 +81,6 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
         this.course.set(this.mathExercise().course);
 
         this.formattedProblemStatement = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise().problemStatement);
-        this.formattedExampleSolution = this.artemisMarkdownService.safeHtmlForMarkdown(this.mathExercise().exampleSolution);
         this.detailOverviewSections.set(this.getExerciseDetailSections());
 
         this.statisticsService.getExerciseStatistics(this.mathExercise().id!).subscribe((statistics: ExerciseManagementStatisticsDto) => {
@@ -111,27 +104,15 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
         const generalSection = getExerciseGeneralDetailsSection(exercise);
         const modeSection = getExerciseModeDetailSection(exercise);
         const problemSection = getExerciseProblemDetailSection(this.formattedProblemStatement, exercise);
-        const solutionSection = getExerciseMarkdownSolution(exercise, this.formattedExampleSolution);
         const defaultGradingDetails = getExerciseGradingDefaultDetails(exercise);
 
         return [
             generalSection,
             modeSection,
             problemSection,
-            solutionSection,
             {
                 headline: 'artemisApp.exercise.sections.grading',
                 details: [...defaultGradingDetails],
-            },
-            {
-                headline: 'artemisApp.mathExercise.description',
-                details: [
-                    {
-                        type: DetailType.Markdown,
-                        title: 'artemisApp.mathExercise.description',
-                        data: { innerHtml: this.artemisMarkdownService.safeHtmlForMarkdown(exercise.description) },
-                    },
-                ],
             },
         ];
     }

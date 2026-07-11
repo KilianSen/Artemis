@@ -14,41 +14,41 @@
 >
     @if (!isLoading()) {
         <!-- Submission info + score action — full width at the top -->
-        <p-card styleClass="mb-3">
-            <div class="d-flex align-items-center gap-4 flex-wrap">
+        <p-card styleClass="math-card">
+            <div class="math-summary-row">
                 <!-- Student + date + aggregate score -->
-                <div class="d-flex gap-4 flex-grow-1 flex-wrap">
+                <div class="math-summary-fields">
                     @if (submission()?.participation?.studentName || submission()?.participation?.studentLogin) {
                         <div>
-                            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.assessment.student">Student</small>
+                            <small class="math-field-label" jhiTranslate="artemisApp.mathExercise.assessment.student">Student</small>
                             <strong>{{ submission().participation!.studentName ?? submission().participation!.studentLogin }}</strong>
                         </div>
                     }
                     @if (submission()?.submissionDate) {
                         <div>
-                            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.assessment.submitted">Submitted</small>
+                            <small class="math-field-label" jhiTranslate="artemisApp.mathExercise.assessment.submitted">Submitted</small>
                             <span>{{ submission().submissionDate | artemisDate }}</span>
                         </div>
                     }
                     <div>
-                        <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.problems">Problems</small>
+                        <small class="math-field-label" jhiTranslate="artemisApp.mathExercise.problems">Problems</small>
                         <strong>{{ problems().length }}</strong>
                     </div>
                     <div>
-                        <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.assessment.points">Points</small>
+                        <small class="math-field-label" jhiTranslate="artemisApp.mathExercise.assessment.points">Points</small>
                         <strong>{{ earnedPoints() | number: '1.0-2' }} / {{ maxPoints() | number: '1.0-2' }}</strong>
                     </div>
                     @if (result()) {
                         <div>
-                            <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.assessment.autoScore">Auto score</small>
-                            <strong [ngClass]="(result()!.score ?? 0) >= 50 ? 'text-success' : 'text-danger'">{{ result()!.score }}%</strong>
+                            <small class="math-field-label" jhiTranslate="artemisApp.mathExercise.assessment.autoScore">Auto score</small>
+                            <strong [ngClass]="(result()!.score ?? 0) >= 50 ? 'math-score-pass' : 'math-score-fail'">{{ result()!.score }}%</strong>
                         </div>
                     }
                 </div>
 
                 <!-- Manual score input -->
-                <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                    <label class="small text-muted mb-0 text-nowrap" for="manualScore" jhiTranslate="artemisApp.mathExercise.assessment.manualScore">Manual score</label>
+                <div class="math-score-input">
+                    <label class="math-score-label" for="manualScore" jhiTranslate="artemisApp.mathExercise.assessment.manualScore">Manual score</label>
                     <p-inputgroup styleClass="p-inputgroup-sm" style="width: 120px">
                         <input type="number" id="manualScore" pInputText pSize="small" min="0" max="100" [(ngModel)]="manualScore" placeholder="0–100" />
                         <p-inputgroup-addon>%</p-inputgroup-addon>
@@ -56,22 +56,22 @@
                     <p-button
                         size="small"
                         severity="warn"
-                        class="text-nowrap"
+                        class="math-nowrap"
                         [disabled]="saveBusy() || manualScore === undefined"
                         (onClick)="saveManualScore()"
                         [label]="saveBusy() ? 'Saving…' : 'Save Score'"
                     />
                     @if (saveSuccess()) {
-                        <span class="text-success small">✓ Saved</span>
+                        <span class="math-saved">✓ Saved</span>
                     }
                 </div>
             </div>
         </p-card>
 
         <!-- Problem statement (full width) -->
-        <p-card styleClass="mb-3">
+        <p-card styleClass="math-card">
             <ng-template pTemplate="header">
-                <h6 class="px-3 pt-3 mb-0" jhiTranslate="artemisApp.exercise.problemStatement">Problem Statement</h6>
+                <h6 class="math-card-header-title" jhiTranslate="artemisApp.exercise.problemStatement">Problem Statement</h6>
             </ng-template>
             @if (mathExercise().problemStatement) {
                 <div [innerHTML]="mathExercise().problemStatement | htmlForMarkdown"></div>
@@ -83,12 +83,15 @@
             @let answer = answerForProblem(problem);
             @let studentSteps = answer?.steps ?? [];
             @let studentComplete = isDerivationComplete(problem, studentSteps);
-            <p-card [styleClass]="'mb-3 ' + (studentComplete ? 'border-success' : studentSteps.length > 0 ? 'border-warning' : '')">
+            <p-card [styleClass]="'math-card ' + (studentComplete ? 'math-card--complete' : studentSteps.length > 0 ? 'math-card--incomplete' : '')">
                 <ng-template pTemplate="header">
-                    <div class="d-flex align-items-center justify-content-between px-3 pt-3">
-                        <h6 class="mb-0">{{ problem.title || 'Problem ' + (i + 1) }}</h6>
-                        <div class="d-flex align-items-center gap-2">
+                    <div class="math-problem-header">
+                        <h6 class="math-problem-title">{{ problem.title || 'Problem ' + (i + 1) }}</h6>
+                        <div class="math-tag-row">
                             <p-tag severity="secondary" [value]="(answer?.scoreInPoints ?? 0 | number: '1.0-2') + ' / ' + (problem.points ?? 0) + ' pts'" />
+                            @if (answer?.gradingOutcome) {
+                                <p-tag [severity]="answer?.certified ? 'success' : 'info'" [value]="answer?.certified ? answer!.gradingOutcome! + ' ✓' : answer!.gradingOutcome!" />
+                            }
                             @if (studentComplete) {
                                 <p-tag severity="success" value="✓ Complete" />
                             } @else if (studentSteps.length > 0) {
@@ -98,23 +101,30 @@
                     </div>
                 </ng-template>
 
-                <div class="row g-3">
+                @if (answer?.gradingFeedback) {
+                    <small class="math-feedback">{{ answer!.gradingFeedback }}</small>
+                }
+                @if (answer?.witness) {
+                    <small class="math-witness">Counterexample: {{ answer!.witness }}</small>
+                }
+
+                <div class="math-review-grid">
                     @if (hasExpressions(problem)) {
                         <!-- Goal panel -->
-                        <div class="col-12 col-lg-3">
-                            <div class="p-2 rounded border bg-light small">
+                        <div>
+                            <div class="math-goal-panel">
                                 @if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
-                                    <div class="d-flex align-items-center gap-2">
+                                    <div class="math-tag-row">
                                         <p-tag severity="secondary" value="Goal" />
                                         <span [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
                                     </div>
                                 } @else {
-                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                    <div class="math-expr-row">
                                         <p-tag severity="secondary" value="Start" />
                                         <span [innerHTML]="problem.sourceExpression | mathNodeLatex"></span>
                                     </div>
-                                    <div class="text-center text-muted">↓ prove ↓</div>
-                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                    <div class="math-prove-label">↓ prove ↓</div>
+                                    <div class="math-goal-row">
                                         <p-tag severity="success" value="Goal" />
                                         <span [innerHTML]="problem.targetExpression | mathNodeLatex"></span>
                                     </div>
@@ -123,24 +133,24 @@
                         </div>
 
                         <!-- Student's derivation -->
-                        <div class="col-12 col-lg-5">
-                            <h6 class="mb-2">Student's Math</h6>
+                        <div>
+                            <h6 class="math-subheading">Student's Math</h6>
                             @if (studentSteps.length === 0) {
-                                <p class="text-muted fst-italic mb-0 small">No derivation steps submitted.</p>
+                                <p class="math-empty-note">No derivation steps submitted.</p>
                             } @else {
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <p-tag severity="secondary" value="Start" styleClass="flex-shrink-0" />
+                                <div class="math-expr-row">
+                                    <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
                                     <span [innerHTML]="startExpression(problem) | mathNodeLatex"></span>
                                 </div>
                                 @for (step of studentSteps; track step.stepIndex; let last = $last) {
-                                    <div class="d-flex align-items-center gap-2 py-1 ps-1 text-muted">
+                                    <div class="math-step-rule">
                                         <span style="font-size: 1.1rem; line-height: 1">↓</span>
                                         <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
                                     </div>
-                                    <div class="d-flex align-items-center gap-2 mb-1 ps-3" [ngClass]="{ 'text-success fw-semibold': last && studentComplete }">
+                                    <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && studentComplete }">
                                         <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
                                         @if (last && studentComplete) {
-                                            <p-tag severity="success" value="✓ Goal" styleClass="ms-1" />
+                                            <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
                                         }
                                     </div>
                                 }
@@ -148,41 +158,38 @@
                         </div>
 
                         <!-- Sample solution -->
-                        <div class="col-12 col-lg-4">
+                        <div>
                             @if ((problem.exampleDerivations ?? []).length > 0) {
-                                <h6 class="mb-2">Sample Solution</h6>
-                                <div class="d-flex align-items-center gap-2 mb-1">
+                                <h6 class="math-subheading">Sample Solution</h6>
+                                <div class="math-expr-row">
                                     <p-tag
                                         [severity]="isDerivationComplete(problem, problem.exampleDerivations) ? 'success' : 'warn'"
                                         [value]="problem.exampleDerivations!.length + ' step' + (problem.exampleDerivations!.length !== 1 ? 's' : '')"
                                     />
                                 </div>
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <p-tag severity="secondary" value="Start" styleClass="flex-shrink-0" />
+                                <div class="math-expr-row">
+                                    <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
                                     <span [innerHTML]="startExpression(problem) | mathNodeLatex"></span>
                                 </div>
                                 @for (step of problem.exampleDerivations; track step.stepIndex; let last = $last) {
-                                    <div class="d-flex align-items-center gap-2 py-1 ps-1 text-muted">
+                                    <div class="math-step-rule">
                                         <span style="font-size: 1.1rem; line-height: 1">↓</span>
                                         <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
                                     </div>
-                                    <div
-                                        class="d-flex align-items-center gap-2 mb-1 ps-3"
-                                        [ngClass]="{ 'text-success fw-semibold': last && isDerivationComplete(problem, problem.exampleDerivations) }"
-                                    >
+                                    <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && isDerivationComplete(problem, problem.exampleDerivations) }">
                                         <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
                                         @if (last && isDerivationComplete(problem, problem.exampleDerivations)) {
-                                            <p-tag severity="success" value="✓ Goal" styleClass="ms-1" />
+                                            <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
                                         }
                                     </div>
                                 }
                             } @else {
-                                <div class="text-muted small fst-italic">No sample solution configured.</div>
+                                <div class="math-empty-note">No sample solution configured.</div>
                             }
                         </div>
                     } @else {
-                        <div class="col-12">
-                            <p class="text-muted fst-italic mb-0 small">This problem has no configured expressions.</p>
+                        <div class="math-review-full">
+                            <p class="math-empty-note">This problem has no configured expressions.</p>
                         </div>
                     }
                 </div>

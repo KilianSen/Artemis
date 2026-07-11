@@ -1,0 +1,53 @@
+.math-list__scroll {
+    overflow-x: auto;
+}
+
+.math-list__table {
+    width: 100%;
+    margin-bottom: 1rem;
+    vertical-align: top;
+    border-collapse: collapse;
+
+    th,
+    td {
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--p-content-border-color);
+        text-align: left;
+    }
+
+    tbody tr:nth-of-type(odd) > * {
+        background-color: color-mix(in srgb, var(--p-text-color) 5%, transparent);
+    }
+}
+
+.math-list__dates {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875em;
+}
+
+.math-list__label {
+    color: var(--text-color-secondary);
+}
+
+.math-list__actions-cell {
+    text-align: right;
+}
+
+.math-list__actions {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+}
+
+.math-list__btn-label {
+    display: none;
+    margin-left: 0.25rem;
+}
+
+@media (min-width: 768px) {
+    .math-list__btn-label {
+        display: inline;
+    }
+}

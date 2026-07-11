@@ -1,0 +1,197 @@
+:host {
+    display: block;
+}
+
+// Cards are stacked with a consistent gap (replaces Bootstrap mb-3).
+.math-card {
+    margin-bottom: 1rem;
+}
+
+// Tinted card borders for graded state.
+.math-card--complete {
+    border-color: var(--artemis-alert-success-color);
+}
+
+.math-card--incomplete {
+    border-color: var(--artemis-alert-warning-color);
+}
+
+// Top summary card layout.
+.math-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.math-summary-fields {
+    display: flex;
+    gap: 1.5rem;
+    flex-grow: 1;
+    flex-wrap: wrap;
+}
+
+.math-field-label {
+    display: block;
+    color: var(--text-color-secondary);
+}
+
+.math-score-pass {
+    color: var(--artemis-alert-success-color);
+}
+
+.math-score-fail {
+    color: var(--artemis-alert-danger-color);
+}
+
+// Manual score input group.
+.math-score-input {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.math-score-label {
+    margin-bottom: 0;
+    font-size: 0.875rem;
+    color: var(--text-color-secondary);
+    white-space: nowrap;
+}
+
+.math-nowrap {
+    white-space: nowrap;
+}
+
+.math-saved {
+    color: var(--artemis-alert-success-color);
+    font-size: 0.875rem;
+}
+
+// Card header title (problem statement).
+.math-card-header-title {
+    padding: 1rem 1rem 0;
+    margin-bottom: 0;
+}
+
+// Per-problem card header row.
+.math-problem-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1rem 0;
+}
+
+.math-problem-title {
+    margin-bottom: 0;
+}
+
+// Feedback / witness notes.
+.math-feedback {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-color-secondary);
+    font-style: italic;
+}
+
+.math-witness {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--artemis-alert-danger-color);
+}
+
+// Three-column review grid (goal / student / sample). Stacks on narrow viewports.
+.math-review-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 992px) {
+    .math-review-grid {
+        grid-template-columns: 3fr 5fr 4fr;
+    }
+}
+
+.math-review-full {
+    grid-column: 1 / -1;
+}
+
+// Goal panel — subtle bordered surface.
+.math-goal-panel {
+    padding: 0.5rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    background: var(--p-content-background);
+    font-size: 0.875rem;
+}
+
+// Inline tag rows.
+.math-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.math-expr-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.math-goal-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.math-prove-label {
+    text-align: center;
+    color: var(--text-color-secondary);
+}
+
+// Derivation step rows.
+.math-step-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0 0.25rem 0.25rem;
+    color: var(--text-color-secondary);
+}
+
+.math-step-result {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1rem;
+}
+
+.math-goal-reached {
+    color: var(--artemis-alert-success-color);
+    font-weight: 600;
+}
+
+// Section subheadings.
+.math-subheading {
+    margin-bottom: 0.5rem;
+}
+
+// Placeholder note for empty states.
+.math-empty-note {
+    margin: 0;
+    color: var(--text-color-secondary);
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+// PrimeNG styleClass helpers.
+.math-shrink-0 {
+    flex-shrink: 0;
+}
+
+.math-ms1 {
+    margin-left: 0.25rem;
+}

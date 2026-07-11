@@ -1,0 +1,22 @@
+.math-canvas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    min-height: 64px;
+    padding: 1rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    background: var(--p-content-background);
+}
+
+.math-canvas__gap-hint {
+    font-size: 9px;
+    user-select: none;
+}
+
+.math-canvas__empty {
+    color: var(--text-color-secondary);
+    font-style: italic;
+    font-size: 0.875em;
+}

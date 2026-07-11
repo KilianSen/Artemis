@@ -10,6 +10,9 @@ import { TranslateService } from '@ngx-translate/core';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MathSubmissionComponent } from 'app/math/participate/math-submission/math-submission.component';
 import { MathProblemParticipationComponent } from 'app/math/participate/math-problem-participation/math-problem-participation.component';
+import { RatingComponent } from 'app/exercise/rating/rating.component';
+import { ComplaintsStudentViewComponent } from 'app/assessment/overview/complaints-for-students/complaints-student-view.component';
+import { AccountService } from 'app/core/auth/account.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
@@ -62,6 +65,7 @@ describe('MathSubmissionComponent', () => {
                 provideHttpClient(),
                 provideHttpClientTesting(),
                 MockProvider(AlertService),
+                MockProvider(AccountService, { isOwnerOfParticipation: () => false }),
                 MockProvider(MathSubmissionService),
                 MockProvider(MathBlockRegistryService, { getBlockRegistry: () => of([]) as any }),
                 MockProvider(TranslateService, {
@@ -80,12 +84,22 @@ describe('MathSubmissionComponent', () => {
             ],
             declarations: [],
         }).overrideComponent(MathSubmissionComponent, {
-            remove: { imports: [HeaderExercisePageWithDetailsComponent, ExerciseSubmitButtonComponent, MathProblemParticipationComponent] },
+            remove: {
+                imports: [
+                    HeaderExercisePageWithDetailsComponent,
+                    ExerciseSubmitButtonComponent,
+                    MathProblemParticipationComponent,
+                    RatingComponent,
+                    ComplaintsStudentViewComponent,
+                ],
+            },
             add: {
                 imports: [
                     MockComponent(HeaderExercisePageWithDetailsComponent),
                     MockComponent(ExerciseSubmitButtonComponent),
                     MockComponent(MathProblemParticipationComponent),
+                    MockComponent(RatingComponent),
+                    MockComponent(ComplaintsStudentViewComponent),
                     MockDirective(TranslateDirective),
                     MockPipe(ArtemisTranslatePipe),
                     MockPipe(HtmlForMarkdownPipe),

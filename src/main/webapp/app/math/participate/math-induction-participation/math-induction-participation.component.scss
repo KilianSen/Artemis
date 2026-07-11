@@ -1,0 +1,39 @@
+:host {
+    display: block;
+}
+
+.induction-card {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.induction-card-title {
+    padding: 1rem 1rem 0;
+    margin-bottom: 0;
+}
+
+.induction-muted {
+    color: var(--text-color-secondary);
+}
+
+.induction-message {
+    margin-bottom: 1rem;
+}
+
+.induction-hypothesis-message {
+    margin-bottom: 0.5rem;
+}
+
+.induction-section-title {
+    margin-bottom: 0.5rem;
+}
+
+.induction-divider {
+    border: 0;
+    border-top: 1px solid var(--p-content-border-color);
+    margin: 1.5rem 0;
+}
+
+.induction-hypothesis-expression {
+    margin-left: 0.25rem;
+}

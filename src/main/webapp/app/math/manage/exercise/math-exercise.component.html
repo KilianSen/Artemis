@@ -1,12 +1,12 @@
 @if (internalMathExercises() && filteredMathExercises().length > 0) {
-    <div class="table-responsive">
-        <table class="table table-striped">
+    <div class="math-list__scroll">
+        <table class="math-list__table">
             <thead>
                 <tr jhiSort [(predicate)]="predicate" [(ascending)]="reverse" (sortChange)="sortRows()">
                     <th jhiSortBy="title"><span jhiTranslate="artemisApp.exercise.title"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
                     <th jhiSortBy="dueDate"><span jhiTranslate="artemisApp.exercise.dates"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
                     <th jhiSortBy="maxPoints"><span jhiTranslate="artemisApp.exercise.points"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
-                    <th class="d-md-table-cell"><span jhiTranslate="artemisApp.exercise.categories"></span></th>
+                    <th><span jhiTranslate="artemisApp.exercise.categories"></span></th>
                     <th style="width: 1%"></th>
                 </tr>
             </thead>
@@ -21,16 +21,16 @@
                             }
                         </td>
                         <td style="white-space: nowrap">
-                            <div class="d-flex flex-column small">
+                            <div class="math-list__dates">
                                 @if (mathExercise.releaseDate) {
                                     <div>
-                                        <span class="text-secondary" jhiTranslate="artemisApp.exercise.release"></span>:
+                                        <span class="math-list__label" jhiTranslate="artemisApp.exercise.release"></span>:
                                         {{ mathExercise.releaseDate | artemisDate }}
                                     </div>
                                 }
                                 @if (mathExercise.dueDate) {
                                     <div>
-                                        <span class="text-secondary" jhiTranslate="artemisApp.exercise.due"></span>:
+                                        <span class="math-list__label" jhiTranslate="artemisApp.exercise.due"></span>:
                                         {{ mathExercise.dueDate | artemisDate }}
                                     </div>
                                 }
@@ -41,13 +41,13 @@
                                 {{ mathExercise.maxPoints }}
                             </div>
                         </td>
-                        <td class="d-md-table-cell"><jhi-exercise-categories [exercise]="mathExercise" /></td>
-                        <td class="text-end" style="white-space: nowrap">
-                            <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                        <td><jhi-exercise-categories [exercise]="mathExercise" /></td>
+                        <td class="math-list__actions-cell" style="white-space: nowrap">
+                            <div class="math-list__actions">
                                 @if (mathExercise.isAtLeastTutor) {
                                     <a pButton size="small" severity="info" [routerLink]="['/course-management', courseContext()?.id, 'math-exercises', mathExercise.id, 'scores']">
                                         <fa-icon [icon]="faTable" />
-                                        <span class="d-none d-md-inline ms-1" jhiTranslate="entity.action.scores">Scores</span>
+                                        <span class="math-list__btn-label" jhiTranslate="entity.action.scores">Scores</span>
                                     </a>
                                 }
                                 @if (mathExercise.isAtLeastTutor) {
@@ -58,12 +58,12 @@
                                         [routerLink]="['/course-management', courseContext()?.id, 'math-exercises', mathExercise.id, 'participations']"
                                     >
                                         <fa-icon [icon]="faListAlt" />
-                                        <span class="d-none d-md-inline ms-1" jhiTranslate="artemisApp.exercise.participations">Participations</span>
+                                        <span class="math-list__btn-label" jhiTranslate="artemisApp.exercise.participations">Participations</span>
                                     </a>
                                 }
                                 <a pButton size="small" severity="warn" [routerLink]="['/course-management', courseContext()?.id, 'math-exercises', mathExercise.id, 'edit']">
                                     <fa-icon [icon]="faWrench" />
-                                    <span class="d-none d-md-inline ms-1" jhiTranslate="entity.action.edit">Edit</span>
+                                    <span class="math-list__btn-label" jhiTranslate="entity.action.edit">Edit</span>
                                 </a>
                                 <button
                                     pButton
@@ -85,7 +85,7 @@
                                     [dialogError]="dialogError$"
                                 >
                                     <fa-icon [icon]="faTrash" />
-                                    <span class="d-none d-md-inline ms-1" jhiTranslate="entity.action.delete">Delete</span>
+                                    <span class="math-list__btn-label" jhiTranslate="entity.action.delete">Delete</span>
                                 </button>
                             </div>
                         </td>

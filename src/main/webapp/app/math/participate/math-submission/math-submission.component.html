@@ -1,98 +1,116 @@
 @if (mathExercise()) {
-    <div [id]="'exercise-' + mathExercise()?.id">
-        <jhi-header-exercise-page-with-details class="d-block mb-4" [exercise]="mathExercise()" [studentParticipation]="participation()" [title]="mathExercise()?.title" />
+    <div [id]="'exercise-' + mathExercise()?.id" class="math-participation">
+        <jhi-header-exercise-page-with-details class="math-header" [exercise]="mathExercise()" [studentParticipation]="participation()" [title]="mathExercise()?.title" />
 
-        <!-- Autosave indicator -->
-        @if (hasUnsavedChanges() || lastSavedAt()) {
-            <div class="d-flex justify-content-end mb-2">
-                @if (isSaving()) {
-                    <small class="text-muted fst-italic" jhiTranslate="artemisApp.mathExercise.autoSaving">Saving…</small>
-                } @else if (hasUnsavedChanges()) {
-                    <small class="text-warning fst-italic" jhiTranslate="artemisApp.mathExercise.unsavedChanges">Unsaved changes</small>
-                } @else if (lastSavedAt()) {
-                    <small class="text-muted fst-italic">{{ 'artemisApp.mathExercise.lastSaved' | artemisTranslate }} {{ lastSavedAt()!.toLocaleTimeString() }}</small>
-                }
-            </div>
+        <!-- Submitted confirmation banner -->
+        @if (submission()?.submitted && !gradingPending()) {
+            <p-message severity="success" styleClass="math-banner" [text]="'artemisApp.mathExercise.submitSuccessful' | artemisTranslate" />
         }
 
-        <div class="d-flex flex-column gap-3">
-            <!-- Problem statement card (exercise level) -->
-            <p-card>
-                <ng-template pTemplate="header">
-                    <h4 class="px-3 pt-3 mb-0" jhiTranslate="artemisApp.exercise.problemStatement">Problem Statement</h4>
-                </ng-template>
-                @if (mathExercise().problemStatement) {
-                    <span [innerHTML]="mathExercise().problemStatement | htmlForMarkdown"></span>
-                }
-                @if (mathExercise().description) {
-                    <hr />
-                    <span [innerHTML]="mathExercise().description | htmlForMarkdown"></span>
-                }
-            </p-card>
-
-            <!-- Per-problem participation editors, stacked -->
-            @for (problem of problems(); track problem.id; let i = $index) {
-                <jhi-math-problem-participation
-                    [problem]="problem"
-                    [exerciseId]="mathExercise().id!"
-                    [initialSteps]="initialStepsFor(problem.id)"
-                    [submitted]="submission()?.submitted ?? false"
-                    [problemIndex]="i"
-                    [scoreInPoints]="scoreFor(problem.id)"
-                    [blocks]="blocks()"
-                    (stepsChange)="onStepsChange(problem.id, $event)"
-                />
+        <div class="math-body">
+            <!-- Quiz-style problem navigation -->
+            @if (problems().length > 1) {
+                <div class="math-nav">
+                    @for (problem of problems(); track problem.id; let i = $index) {
+                        <p-button
+                            [label]="'' + (i + 1)"
+                            [rounded]="true"
+                            [severity]="navSeverity(problem)"
+                            [outlined]="navOutlined(problem)"
+                            (onClick)="navigateToProblem(i)"
+                            [pTooltip]="
+                                (problem.title ? problem.title + ' — ' : '') +
+                                ((isAnswered(problem.id) ? 'artemisApp.mathExercise.problemAnswered' : 'artemisApp.mathExercise.problemNotAnswered') | artemisTranslate)
+                            "
+                            tooltipPosition="right"
+                        />
+                    }
+                </div>
             }
 
-            <!-- Submission card -->
-            @if (submission()?.submitted) {
-                <p-card styleClass="border-success">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="rounded-circle bg-success d-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px">
-                            <span class="text-white fw-bold fs-5">✓</span>
-                        </div>
-                        <div>
-                            <strong class="text-success d-block" jhiTranslate="artemisApp.mathExercise.submittedTitle">Submitted</strong>
-                            @if (submission()?.submissionDate) {
-                                <small class="text-muted">{{ submission().submissionDate!.toDate().toLocaleString() }}</small>
-                            }
-                        </div>
+            <!-- Problem content, stacked -->
+            <div class="math-problems">
+                @for (problem of problems(); track problem.id; let i = $index) {
+                    <div class="math-problem-anchor" [id]="'math-problem-' + i">
+                        @if ((problem.goalMode ?? 'TRANSFORMATION') === 'INDUCTION') {
+                            <jhi-math-induction-participation
+                                [problem]="problem"
+                                [exerciseId]="mathExercise().id!"
+                                [initialSteps]="initialStepsFor(problem.id)"
+                                [submitted]="submission()?.submitted ?? false"
+                                [problemIndex]="i"
+                                [blocks]="blocks()"
+                                (stepsChange)="onStepsChange(problem.id, $event)"
+                            />
+                        } @else {
+                            <jhi-math-problem-participation
+                                [problem]="problem"
+                                [exerciseId]="mathExercise().id!"
+                                [initialSteps]="initialStepsFor(problem.id)"
+                                [submitted]="submission()?.submitted ?? false"
+                                [problemIndex]="i"
+                                [scoreInPoints]="scoreFor(problem.id)"
+                                [blocks]="blocks()"
+                                (stepsChange)="onStepsChange(problem.id, $event)"
+                            />
+                        }
                     </div>
-                    @if (result()) {
-                        <hr class="my-3" />
-                        <small class="text-muted d-block" jhiTranslate="artemisApp.mathExercise.score">Score</small>
-                        <p class="fs-4 mb-0">{{ result().score }}%</p>
-                    }
-                    @if (problems().length > 1) {
-                        <hr class="my-3" />
-                        <small class="text-muted d-block mb-2" jhiTranslate="artemisApp.mathExercise.problems">Problems</small>
-                        <div class="d-flex flex-column gap-1">
-                            @for (problem of problems(); track problem.id; let i = $index) {
-                                <div class="d-flex align-items-center justify-content-between border rounded px-3 py-1 small">
-                                    <span>
-                                        <span jhiTranslate="artemisApp.mathExercise.problem">Problem</span> {{ i + 1 }}
-                                        @if (problem.title) {
-                                            <span class="text-muted"> — {{ problem.title }}</span>
-                                        }
-                                    </span>
-                                    @if (scoreFor(problem.id) !== undefined) {
-                                        <p-tag
-                                            severity="success"
-                                            [value]="scoreFor(problem.id) + ' / ' + (problem.points ?? 0) + ' ' + ('artemisApp.mathExercise.pts' | artemisTranslate)"
-                                        />
-                                    } @else {
-                                        <p-tag severity="info" [value]="(problem.points ?? 0) + ' ' + ('artemisApp.mathExercise.pts' | artemisTranslate)" />
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </p-card>
-            } @else {
-                <p-card>
-                    <jhi-exercise-submit-button [exercise]="mathExercise()" [isLoading]="isSaving()" [isSubmitted]="false" (onSubmit)="submit()" />
-                </p-card>
-            }
+                }
+            </div>
         </div>
+
+        <!-- Sticky bottom status / submit bar -->
+        <div class="math-bottom-bar">
+            <hr class="math-bottom-bar__divider" />
+            <div class="math-bottom-bar__row">
+                <!-- left: autosave status -->
+                <div class="math-status">
+                    @if (isSaving()) {
+                        <span jhiTranslate="artemisApp.mathExercise.autoSaving">Saving…</span>
+                    } @else if (hasUnsavedChanges()) {
+                        <p-tag severity="warn" [value]="'artemisApp.mathExercise.unsavedChanges' | artemisTranslate" />
+                    } @else if (lastSavedAt()) {
+                        <span>{{ 'artemisApp.mathExercise.lastSaved' | artemisTranslate }} {{ lastSavedAt()!.toLocaleTimeString() }}</span>
+                    }
+                </div>
+
+                <!-- right: submit / submitted / pending -->
+                <div class="math-actions">
+                    @if (submission()?.submitted) {
+                        @if (result()) {
+                            <!-- A (possibly preliminary) result exists: show the score, plus a certifying badge while the slow prover runs. -->
+                            <p-tag
+                                severity="success"
+                                icon="pi pi-check-circle"
+                                [value]="
+                                    ('artemisApp.mathExercise.submittedTitle' | artemisTranslate) +
+                                    ' · ' +
+                                    result()!.score +
+                                    '%' +
+                                    (certifying() ? ' (' + ('artemisApp.mathExercise.preliminary' | artemisTranslate) + ')' : '')
+                                "
+                            />
+                            @if (certifying()) {
+                                <p-tag severity="secondary" icon="pi pi-spin pi-spinner" [value]="'artemisApp.mathExercise.certifying' | artemisTranslate" />
+                            }
+                        } @else if (gradingPending()) {
+                            <p-tag severity="secondary" icon="pi pi-spin pi-spinner" [value]="'artemisApp.mathExercise.gradingInProgress' | artemisTranslate" />
+                        } @else {
+                            <p-tag severity="success" icon="pi pi-check-circle" [value]="'artemisApp.mathExercise.submittedTitle' | artemisTranslate" />
+                        }
+                    } @else {
+                        <jhi-exercise-submit-button [exercise]="mathExercise()" [isLoading]="isSaving()" [isSubmitted]="false" (onSubmit)="submit()" />
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Rate the exercise + file a complaint about the assessment, like other exercise types. Both self-gate on a completed result. -->
+        @if (isOwnerOfParticipation() && result()) {
+            <jhi-rating class="math-rating alert alert-info" [result]="result()" [participation]="participation()" />
+        }
+        @if (mathExercise() && result() && participation()) {
+            <jhi-complaint-student-view [exercise]="mathExercise()" [participation]="participation()" [result]="result()" />
+        }
     </div>
 }

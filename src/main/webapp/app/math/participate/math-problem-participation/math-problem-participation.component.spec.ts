@@ -55,7 +55,8 @@ describe('MathProblemParticipationComponent', () => {
                 }),
             ],
         }).overrideComponent(MathProblemParticipationComponent, {
-            remove: { imports: [MathExpressionCanvasComponent, MathBuilderComponent] },
+            // Remove the real pipes/directive before adding mock versions, else two pipes share a name (NG0313).
+            remove: { imports: [MathExpressionCanvasComponent, MathBuilderComponent, TranslateDirective, ArtemisTranslatePipe, MathNodeLatexPipe, KatexStringPipe] },
             add: {
                 imports: [
                     MockComponent(MathExpressionCanvasComponent),

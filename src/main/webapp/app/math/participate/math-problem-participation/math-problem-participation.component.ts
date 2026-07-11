@@ -33,6 +33,7 @@ type StepStatus = 'pending' | 'valid' | 'invalid';
 @Component({
     selector: 'jhi-math-problem-participation',
     templateUrl: './math-problem-participation.component.html',
+    styleUrl: './math-problem-participation.component.scss',
     imports: [
         TranslateDirective,
         ArtemisTranslatePipe,
@@ -500,12 +501,15 @@ export class MathProblemParticipationComponent implements OnInit {
         this.mathSubmissionService.getHints(exerciseId, problemId, current).subscribe({
             next: (suggestions) => {
                 this.hints.set(suggestions);
+                // Empty is a valid answer (e.g. the backend already proves the goal, or has no single-step hint):
+                // surface it explicitly so the button does not appear to do nothing.
+                this.hintsError.set(suggestions.length === 0 ? 'artemisApp.mathExercise.hintsNone' : undefined);
                 this.hintsLoading.set(false);
             },
             error: () => {
                 this.hints.set([]);
                 this.hintsLoading.set(false);
-                this.hintsError.set('Hints are not available for this exercise.');
+                this.hintsError.set('artemisApp.mathExercise.hintsUnavailable');
             },
         });
     }
@@ -589,7 +593,7 @@ function computeProgressEquation(goal: MathNode, current: MathNode, ac: boolean)
 }
 
 function sideDistance(node: MathNode, ac: boolean): number {
-    if (node.type !== 'equality' || !node.slots) return 0;
+    if (node.type !== 'eq' || !node.slots) return 0;
     const left = node.slots['left']?.[0];
     const right = node.slots['right']?.[0];
     if (!left || !right) return 0;

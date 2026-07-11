@@ -19,6 +19,8 @@ export class MathProblem {
     public goalMode?: GoalMode = DEFAULT_GOAL_MODE;
     /** Backend grader to dispatch to. Defaults to REWRITE_CHAIN. */
     public graderType?: GraderType = DEFAULT_GRADER_TYPE;
+    /** Optional slow formal certifier that upgrades the primary grader's fast preliminary verdict (Phase 2b). */
+    public certifyingGraderType?: GraderType;
     public partialCreditEnabled?: boolean;
     /** When true the grader treats {@code +} and {@code ·} as commutative/associative for equality comparisons. */
     public acNormalization?: boolean;
@@ -27,6 +29,8 @@ export class MathProblem {
     public manualDerivation?: boolean;
     /** The instructor-supplied worked derivation for this problem (an ordered list of steps). */
     public exampleDerivations?: DerivationStep[];
+    /** The ℕ variable inducted over in INDUCTION mode. */
+    public inductionVariable?: string;
 
     constructor() {
         this.points = 1;

@@ -1,0 +1,200 @@
+:host {
+    display: block;
+}
+
+// ── Page layout (replaces Bootstrap row / col responsive grid) ──────────────
+.math-update__layout {
+    display: flex;
+    justify-content: center;
+}
+
+.math-update__column {
+    width: 100%;
+
+    @media (min-width: 768px) {
+        width: 83.3333%;
+    }
+
+    @media (min-width: 992px) {
+        width: 66.6667%;
+    }
+}
+
+// ── Cards (applied via p-card styleClass) ───────────────────────────────────
+.math-update__card {
+    margin-bottom: 1rem;
+}
+
+.math-update__card--top {
+    margin-top: 1rem;
+}
+
+.math-update__card--bordered {
+    border: 1px solid var(--p-content-border-color);
+}
+
+.math-update__card--dev {
+    border: 1px solid var(--artemis-alert-warning-color);
+}
+
+// ── Form fields (replaces .form-group and spacing utilities) ────────────────
+.math-update__field {
+    margin-bottom: 1rem;
+}
+
+.math-update__field--top {
+    margin-top: 1rem;
+}
+
+.math-update__field--divider {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.math-update__field--grow {
+    flex-grow: 1;
+}
+
+.math-update__field--indent {
+    margin-left: 1rem;
+}
+
+.math-update__label {
+    display: block;
+}
+
+.math-update__input {
+    width: 100%;
+}
+
+// ── Responsive two-column rows (replaces row / col-12 col-md-6) ─────────────
+.math-update__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.math-update__row--top {
+    margin-top: 1rem;
+}
+
+.math-update__row-half {
+    flex: 1 1 100%;
+    min-width: 0;
+
+    @media (min-width: 768px) {
+        flex: 1 1 calc(50% - 0.5rem);
+    }
+}
+
+// Simple inline field row (replaces d-flex with two grow children) ───────────
+.math-update__field-row {
+    display: flex;
+}
+
+// ── Section headers and dividers ────────────────────────────────────────────
+.math-update__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.math-update__heading {
+    margin-bottom: 0;
+}
+
+.math-update__heading-divider {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+}
+
+// ── Inline groups (replaces d-flex align-items-center gap-2) ─────────────────
+.math-update__inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.math-update__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+// ── Text helpers ────────────────────────────────────────────────────────────
+.math-update__strong {
+    font-weight: 600;
+}
+
+.math-update__hint {
+    display: block;
+    color: var(--text-color-secondary);
+}
+
+.math-update__block {
+    display: block;
+}
+
+.math-update__empty {
+    margin-bottom: 0;
+    color: var(--text-color-secondary);
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+.math-update__points-hint {
+    margin: 0 0 0.5rem;
+    color: var(--artemis-alert-warning-color);
+    font-size: 0.875rem;
+}
+
+// ── Dev-only JSON import/export tools ───────────────────────────────────────
+.math-update__dev-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.math-update__dev-title {
+    color: var(--text-color-secondary);
+    font-weight: 600;
+}
+
+.math-update__dev-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.math-update__hidden {
+    display: none;
+}
+
+.math-update__dropzone {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    border: 2px dashed var(--p-content-border-color);
+    border-radius: var(--p-border-radius);
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+    cursor: default;
+}
+
+.math-update__dropzone--active {
+    border-color: var(--artemis-alert-warning-color);
+    background: color-mix(in srgb, var(--artemis-alert-warning-color) 8%, transparent);
+}
+
+.math-update__dropzone-text {
+    color: var(--text-color-secondary);
+    font-size: 0.875rem;
+}
+
+.math-update__dropzone-active-text {
+    font-weight: 600;
+    color: var(--artemis-alert-warning-color);
+}

@@ -37,22 +37,25 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
     switch (node.type) {
         case 'number':
         case 'variable':
-        case 'wildcard':
+        case 'wild':
             inner = node.value ?? '{?}';
             break;
-        case 'fraction': {
+        case 'frac': {
             const num = mathNodeToLatex(node.slots?.['numerator']?.[0], lookup, -1);
             const den = mathNodeToLatex(node.slots?.['denominator']?.[0], lookup, -1);
             inner = `\\frac{${num}}{${den}}`;
             break;
         }
-        case 'parentheses':
-            inner = `\\left(${mathNodeToLatex(node.slots?.['content']?.[0], lookup, -1)}\\right)`;
+        case 'pow':
+            inner = `${renderChild(node.slots?.['base']?.[0], 'base')}^{${mathNodeToLatex(node.slots?.['exponent']?.[0], lookup, -1)}}`;
+            break;
+        case 'succ':
+            inner = `S\\left(${mathNodeToLatex(node.slots?.['inner']?.[0], lookup, -1)}\\right)`;
             break;
         case 'add':
         case 'sub':
         case 'mul':
-        case 'equality': {
+        case 'eq': {
             if (desc?.layoutCategory === 'BINARY_INFIX' && desc.latexSymbol) {
                 // Registry-driven: uses latexSymbol with precedence-based parens on children
                 inner = `${renderChild(node.slots?.['left']?.[0], 'left')} ${desc.latexSymbol} ${renderChild(node.slots?.['right']?.[0], 'right')}`;
@@ -63,7 +66,7 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
             }
             break;
         }
-        case 'negation': {
+        case 'neg': {
             const sym = desc?.latexSymbol ?? '-';
             inner = `${sym}${renderChild(node.slots?.['inner']?.[0], 'inner')}`;
             break;
@@ -103,6 +106,20 @@ export function nodeAtPath(root: MathNode, path: number[]): MathNode {
     return current;
 }
 
+/**
+ * Substitutes every `variable` node named `name` with `replacement`. Used to instantiate an induction goal
+ * P(n) at 0 (base case) and at S(n) (inductive step). Mirrors the backend `MathNodes.subst_var`.
+ */
+export function substituteVariable(node: MathNode, name: string, replacement: MathNode): MathNode {
+    if (node.type === 'variable' && node.value === name) return replacement;
+    if (!node.slots) return node;
+    const slots: Record<string, MathNode[]> = {};
+    for (const [key, children] of Object.entries(node.slots)) {
+        slots[key] = children.map((child) => substituteVariable(child, name, replacement));
+    }
+    return node.value === undefined ? { type: node.type, slots } : { type: node.type, value: node.value, slots };
+}
+
 /** Deep structural equality for MathNode trees. */
 export function mathNodesEqual(a: MathNode, b: MathNode): boolean {
     if (a.type !== b.type || a.value !== b.value) return false;
@@ -127,7 +144,7 @@ export function mathNodesEqual(a: MathNode, b: MathNode): boolean {
  * Returns true on success.
  */
 function matchPattern(pattern: MathNode, node: MathNode, bindings: Map<string, MathNode>): boolean {
-    if (pattern.type === 'wildcard') {
+    if (pattern.type === 'wild') {
         const varName = pattern.value!;
         const existing = bindings.get(varName);
         if (existing !== undefined) {
@@ -156,7 +173,7 @@ function matchPattern(pattern: MathNode, node: MathNode, bindings: Map<string, M
 
 /** Substitutes wildcards in `template` with their bound subtrees. */
 function instantiate(template: MathNode, bindings: Map<string, MathNode>): MathNode {
-    if (template.type === 'wildcard') {
+    if (template.type === 'wild') {
         return bindings.get(template.value!)!;
     }
     const result: MathNode = { type: template.type };
@@ -232,7 +249,7 @@ export function normalize(node: MathNode | undefined): MathNode | undefined {
         const v = normalizeNumberLiteral(node.value);
         return v === undefined ? { type: node.type } : { type: node.type, value: v };
     }
-    if (node.type === 'variable' || node.type === 'wildcard') {
+    if (node.type === 'variable' || node.type === 'wild') {
         const v = node.value?.trim();
         return v === undefined ? { type: node.type } : { type: node.type, value: v };
     }
@@ -247,14 +264,14 @@ export function normalize(node: MathNode | undefined): MathNode | undefined {
 }
 
 /**
- * Throws if any node in the tree has type `'wildcard'`.
+ * Throws if any node in the tree has type `'wild'`.
  * Wildcards are valid only inside rule definitions; an instructor-authored or
  * student-submitted tree containing one would let the matcher bind a metavariable
  * to a metavariable, which is nonsense.
  */
 export function assertWildcardFree(node: MathNode | undefined): void {
     if (!node) return;
-    if (node.type === 'wildcard') {
+    if (node.type === 'wild') {
         throw new Error('Wildcard nodes are not allowed in submissions or exercise definitions');
     }
     if (node.slots) {
@@ -308,7 +325,7 @@ export function verifyTransformation(prev: MathNode, current: MathNode, pattern:
 }
 
 export function isTautology(tree: MathNode): boolean {
-    if (tree.type !== 'equality') return false;
+    if (tree.type !== 'eq') return false;
     const left = tree.slots?.['left']?.[0];
     const right = tree.slots?.['right']?.[0];
     return !!left && !!right && mathNodesEqual(left, right);

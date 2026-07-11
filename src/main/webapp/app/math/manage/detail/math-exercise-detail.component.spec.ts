@@ -24,7 +24,6 @@ describe('MathExerciseDetailComponent', () => {
         const exercise = new MathExercise(undefined);
         exercise.id = 1;
         exercise.title = 'Test';
-        exercise.description = 'desc';
 
         TestBed.configureTestingModule({
             imports: [MathExerciseDetailComponent],

@@ -1,28 +1,27 @@
 @if (mathExercise() && course()) {
-    <div class="row justify-content-center">
-        <div class="col-12">
-            <div class="d-flex align-items-center mb-2">
+    <div class="math-detail">
+        <div class="math-detail__col">
+            <div class="math-detail__header">
                 <h2 jhiTranslate="artemisApp.mathExercise.detail.title">Math Exercise Detail</h2>
-                <jhi-documentation-button [type]="'Text'" />
-                <!-- TODO: Update to Math when documentation exists -->
+                <jhi-documentation-button [type]="'Exercise'" />
             </div>
             <jhi-non-programming-exercise-detail-common-actions [exercise]="mathExercise()" [course]="course()!" (onExerciseRefresh)="load(mathExercise().id!)" />
-            <div class="row mt-3">
-                <div class="col-12 col-md-4">
+            <div class="math-detail__row">
+                <div class="math-detail__col-third">
                     <jhi-exercise-detail-statistics [exercise]="mathExercise()" [doughnutStats]="doughnutStats()" />
                 </div>
-                <div class="col-12 col-md-8">
+                <div class="math-detail__col-twothirds">
                     <jhi-detail-overview-list [sections]="detailOverviewSections()" />
                 </div>
             </div>
 
             @if (submissions().length > 0) {
-                <div class="row mt-3">
-                    <div class="col-12">
+                <div class="math-detail__row">
+                    <div class="math-detail__col">
                         <p-card>
                             <ng-template #header>
-                                <div class="d-flex align-items-center justify-content-between px-3 pt-3">
-                                    <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.detail.submittedMaths">Submitted Maths</h4>
+                                <div class="math-detail__card-header">
+                                    <h4 class="math-detail__card-title" jhiTranslate="artemisApp.mathExercise.detail.submittedMaths">Submitted Maths</h4>
                                     <p-tag severity="secondary" [value]="submissions().length.toString()" />
                                 </div>
                             </ng-template>
@@ -45,10 +44,10 @@
                                             @if (sub.results && sub.results.length > 0) {
                                                 {{ sub.results[sub.results.length - 1].score | number: '1.0-1' }}%
                                             } @else {
-                                                <span class="text-muted">—</span>
+                                                <span class="math-detail__muted">—</span>
                                             }
                                         </td>
-                                        <td class="text-end">
+                                        <td class="math-detail__cell-end">
                                             <a
                                                 pButton
                                                 size="small"
@@ -68,39 +67,39 @@
             }
 
             @if ((mathExercise().problems ?? []).length > 0) {
-                <div class="row mt-3">
-                    <div class="col-12">
+                <div class="math-detail__row">
+                    <div class="math-detail__col">
                         <p-card>
                             <ng-template pTemplate="header">
-                                <div class="d-flex align-items-center justify-content-between px-3 pt-3">
-                                    <h4 class="mb-0" jhiTranslate="artemisApp.mathExercise.problems">Problems</h4>
+                                <div class="math-detail__card-header">
+                                    <h4 class="math-detail__card-title" jhiTranslate="artemisApp.mathExercise.problems">Problems</h4>
                                     <p-tag severity="secondary" [value]="mathExercise().problems!.length.toString()" />
                                 </div>
                             </ng-template>
-                            <div class="d-flex flex-column gap-3">
+                            <div class="math-detail__problems">
                                 @for (problem of mathExercise().problems ?? []; track problem.id ?? $index; let i = $index) {
-                                    <div [class]="i > 0 ? 'border-top pt-3' : ''">
-                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="math-detail__problem" [class.math-detail__problem--divided]="i > 0">
+                                        <div class="math-detail__problem-head">
                                             <strong>{{ problem.title || 'Problem ' + (i + 1) }}</strong>
                                             <p-tag severity="secondary" [value]="(problem.points ?? 0) + ' pts'" />
                                         </div>
                                         @if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
                                             @if (problem.goalExpression) {
                                                 <div>
-                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.goalExpression">Goal</small>
-                                                    <span class="fs-5" [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
+                                                    <small class="math-detail__field-label" jhiTranslate="artemisApp.mathExercise.goalExpression">Goal</small>
+                                                    <span class="math-detail__expr" [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
                                                 </div>
                                             }
                                         } @else if (problem.sourceExpression && problem.targetExpression) {
-                                            <div class="d-flex gap-4 align-items-center flex-wrap">
+                                            <div class="math-detail__transform">
                                                 <div>
-                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.sourceExpression">Source</small>
-                                                    <span class="fs-5" [innerHTML]="problem.sourceExpression | mathNodeLatex"></span>
+                                                    <small class="math-detail__field-label" jhiTranslate="artemisApp.mathExercise.sourceExpression">Source</small>
+                                                    <span class="math-detail__expr" [innerHTML]="problem.sourceExpression | mathNodeLatex"></span>
                                                 </div>
-                                                <div class="fs-3 text-muted">→</div>
+                                                <div class="math-detail__arrow">→</div>
                                                 <div>
-                                                    <small class="text-muted d-block mb-1" jhiTranslate="artemisApp.mathExercise.targetExpression">Target</small>
-                                                    <span class="fs-5" [innerHTML]="problem.targetExpression | mathNodeLatex"></span>
+                                                    <small class="math-detail__field-label" jhiTranslate="artemisApp.mathExercise.targetExpression">Target</small>
+                                                    <span class="math-detail__expr" [innerHTML]="problem.targetExpression | mathNodeLatex"></span>
                                                 </div>
                                             </div>
                                         }
