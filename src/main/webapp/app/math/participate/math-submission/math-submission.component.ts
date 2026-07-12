@@ -65,8 +65,17 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     readonly submission = signal<MathSubmission>(undefined!);
     readonly result = signal<Result | undefined>(undefined);
 
-    /** Whether the current user owns this participation — gates the rating and complaint widgets (like other exercise types). */
-    readonly isOwnerOfParticipation = computed(() => !!this.participation() && this.accountService.isOwnerOfParticipation(this.participation()));
+    /**
+     * Whether the current user owns this participation — gates the rating and complaint widgets (like other exercise types).
+     * The math-editor DTO projects the owner as a flat {@code studentLogin} (not a nested {@code student}), so we compare
+     * logins directly instead of via {@code AccountService.isOwnerOfParticipation}, which expects {@code participation.student}
+     * or {@code team} and throws otherwise — that throw previously crashed the whole editor for a student's own participation.
+     */
+    readonly isOwnerOfParticipation = computed(() => {
+        const currentLogin = this.accountService.userIdentity()?.login;
+        const ownerLogin = (this.participation() as unknown as { studentLogin?: string } | undefined)?.studentLogin;
+        return !!currentLogin && !!ownerLogin && currentLogin === ownerLogin;
+    });
 
     readonly isSaving = signal(false);
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { signal } from '@angular/core';
 import { setupTestBed } from '@analogjs/vitest-angular/setup-testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
@@ -49,8 +50,11 @@ describe('MathSubmissionComponent', () => {
         return ex;
     };
 
+    const OWNER_LOGIN = 'artemis_test_user_1';
+
+    // The math-editor DTO projects the owner as a flat studentLogin (no nested student), mirrored here.
     const mockParticipation = (exercise: MathExercise): StudentParticipation => {
-        return { id: 42, exercise } as StudentParticipation;
+        return { id: 42, exercise, studentLogin: OWNER_LOGIN } as unknown as StudentParticipation;
     };
 
     const mockSubmission = (participation: StudentParticipation): MathSubmission => {
@@ -69,7 +73,7 @@ describe('MathSubmissionComponent', () => {
                 provideHttpClient(),
                 provideHttpClientTesting(),
                 MockProvider(AlertService),
-                MockProvider(AccountService, { isOwnerOfParticipation: () => false }),
+                MockProvider(AccountService, { userIdentity: signal({ login: OWNER_LOGIN } as any) }),
                 MockProvider(MathSubmissionService),
                 MockProvider(ParticipationWebsocketService, {
                     subscribeForLatestResultOfParticipation: () => resultSubject as any,
@@ -133,6 +137,30 @@ describe('MathSubmissionComponent', () => {
         expect(component.mathExercise()).toBe(exercise);
         expect(component.participation()).toBe(participation);
         expect(component.submission()).toBe(submission);
+    });
+
+    it('should derive participation ownership from the flat studentLogin without throwing', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+
+        // Rendering must not throw even though the participation carries no nested student/team (regression: the
+        // previous AccountService.isOwnerOfParticipation call threw "Participation does not have any owners" and
+        // crashed the whole editor for a student's own participation).
+        expect(() => fixture.detectChanges()).not.toThrow();
+        expect(component.isOwnerOfParticipation()).toBe(true);
+    });
+
+    it('should not claim ownership when the studentLogin does not match the current user', () => {
+        const exercise = mockExercise();
+        const participation = { id: 42, exercise, studentLogin: 'someone-else' } as unknown as StudentParticipation;
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+
+        fixture.detectChanges();
+
+        expect(component.isOwnerOfParticipation()).toBe(false);
     });
 
     it('should show error alert when loading fails', () => {

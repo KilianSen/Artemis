@@ -33,6 +33,7 @@ import { StudentAssessmentPage } from './pageobjects/assessment/StudentAssessmen
 import { ModelingEditor } from './pageobjects/exercises/modeling/ModelingEditor';
 import { OnlineEditorPage } from './pageobjects/exercises/programming/OnlineEditorPage';
 import { MultipleChoiceQuiz } from './pageobjects/exercises/quiz/MultipleChoiceQuiz';
+import { MathParticipationPage } from './pageobjects/exercises/math/MathParticipationPage';
 import { TextEditorPage } from './pageobjects/exercises/text/TextEditorPage';
 import { ExamExerciseGroupsPage } from './pageobjects/exam/ExamExerciseGroupsPage';
 import { ProgrammingExerciseCreationPage } from './pageobjects/exercises/programming/ProgrammingExerciseCreationPage';
@@ -146,6 +147,7 @@ export type ArtemisPageObjects = {
     quizExerciseOverview: QuizExerciseOverviewPage;
     quizExerciseParticipation: QuizExerciseParticipationPage;
     quizExerciseShortAnswerQuiz: ShortAnswerQuiz;
+    mathParticipation: MathParticipationPage;
     textExerciseCreation: TextExerciseCreationPage;
     textExerciseEditor: TextEditorPage;
     textExerciseExampleSubmissions: TextExerciseExampleSubmissionsPage;
@@ -432,6 +434,9 @@ export const test = base.extend<ArtemisPageObjects & ArtemisCommands & ArtemisRe
     },
     quizExerciseShortAnswerQuiz: async ({ page }, use) => {
         await use(new ShortAnswerQuiz(page));
+    },
+    mathParticipation: async ({ page }, use) => {
+        await use(new MathParticipationPage(page));
     },
     textExerciseCreation: async ({ page }, use) => {
         await use(new TextExerciseCreationPage(page));

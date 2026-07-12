@@ -172,6 +172,7 @@
                                     @for (rule of block.rules ?? []; track rule.id) {
                                         <div
                                             class="rule-chip"
+                                            [attr.data-testid]="'math-rule-' + rule.id"
                                             [class.rule-chip--selected]="selectedRuleId() === rule.id"
                                             [class.rule-chip--applicable]="selectedRuleId() !== rule.id && selectedNodePath() !== undefined && applicableRuleIds().has(rule.id)"
                                             [class.rule-chip--dimmed]="selectedRuleId() !== rule.id && selectedNodePath() !== undefined && !applicableRuleIds().has(rule.id)"
