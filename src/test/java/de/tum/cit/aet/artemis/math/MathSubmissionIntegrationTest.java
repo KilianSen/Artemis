@@ -175,6 +175,61 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     }
 
     @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void tutorAssessment_lockExcludesFromQueueThenSubmitAndList() throws Exception {
+        MathSubmission unassessed = createSubmittedSubmissionWithoutResult();
+
+        // Lock the next assessable submission (auto-grading produced no result).
+        MathSubmissionDTO locked = request.getNullable("/api/math/exercises/" + exercise.getId() + "/math-submission-without-assessment?lock=true", HttpStatus.OK,
+                MathSubmissionDTO.class);
+        assertThat(locked).isNotNull();
+        assertThat(locked.id()).isEqualTo(unassessed.getId());
+
+        // A locked submission is no longer offered — the queue is now empty.
+        MathSubmissionDTO none = request.getNullable("/api/math/exercises/" + exercise.getId() + "/math-submission-without-assessment?lock=true", HttpStatus.OK,
+                MathSubmissionDTO.class);
+        assertThat(none).isNull();
+
+        // Submit a final manual score.
+        MathSubmissionDTO assessed = request.putWithResponseBody("/api/math/math-submissions/" + unassessed.getId() + "/manual-result?submit=true",
+                new ManualResultRequestDTO(85.0, List.of()), MathSubmissionDTO.class, HttpStatus.OK);
+        assertThat(assessed.results()).isNotEmpty();
+        assertThat(assessed.results().getLast().score()).isEqualTo(85.0);
+
+        // The submission now shows up in the tutor's assessed list.
+        List<MathSubmissionDTO> assessedList = request.getList("/api/math/exercises/" + exercise.getId() + "/math-submissions?assessedByTutor=true", HttpStatus.OK,
+                MathSubmissionDTO.class);
+        assertThat(assessedList).extracting(MathSubmissionDTO::id).contains(unassessed.getId());
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void tutorAssessment_cancelReleasesLock() throws Exception {
+        MathSubmission unassessed = createSubmittedSubmissionWithoutResult();
+
+        MathSubmissionDTO locked = request.getNullable("/api/math/exercises/" + exercise.getId() + "/math-submission-without-assessment?lock=true", HttpStatus.OK,
+                MathSubmissionDTO.class);
+        assertThat(locked).isNotNull();
+
+        // Cancelling releases the soft lock, so the submission becomes assessable again.
+        request.put("/api/math/math-submissions/" + unassessed.getId() + "/cancel-assessment", null, HttpStatus.OK);
+        MathSubmissionDTO reoffered = request.getNullable("/api/math/exercises/" + exercise.getId() + "/math-submission-without-assessment?lock=false", HttpStatus.OK,
+                MathSubmissionDTO.class);
+        assertThat(reoffered).isNotNull();
+        assertThat(reoffered.id()).isEqualTo(unassessed.getId());
+    }
+
+    /** Creates a submitted submission with no result — the state a submission is in after inconclusive/failed automatic grading. */
+    private MathSubmission createSubmittedSubmissionWithoutResult() {
+        MathSubmission submission = new MathSubmission();
+        submission.setSubmitted(true);
+        submission.setSubmissionDate(ZonedDateTime.now());
+        submission.setType(SubmissionType.MANUAL);
+        submission.setParticipation(participation);
+        return mathSubmissionRepository.save(submission);
+    }
+
+    @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void updateMathSubmission_persistsSteps() throws Exception {
         Long problemId = exercise.getProblems().getFirst().getId();

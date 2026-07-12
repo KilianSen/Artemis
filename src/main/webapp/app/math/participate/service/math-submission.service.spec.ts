@@ -102,16 +102,46 @@ describe('MathSubmissionService', () => {
         expect(res?.length).toBe(2);
     });
 
-    it('saves a manual result', async () => {
+    it('saves a manual result as a draft by default', async () => {
         const promise = firstValueFrom(service.saveManualResult(11, 8.5));
-        const req = httpMock.expectOne({ method: 'PUT', url: 'api/math/math-submissions/11/manual-result' });
+        const req = httpMock.expectOne((r) => r.method === 'PUT' && r.url === 'api/math/math-submissions/11/manual-result');
         expect(req.request.body).toEqual({ score: 8.5, feedbacks: [] });
+        expect(req.request.params.get('submit')).toBe('false');
         const sub = new MathSubmission();
         sub.id = 11;
         req.flush(sub);
         const res = await promise;
 
         expect(res?.id).toBe(11);
+    });
+
+    it('submits a final manual result when submit=true', async () => {
+        const promise = firstValueFrom(service.saveManualResult(11, 90, [], true));
+        const req = httpMock.expectOne((r) => r.method === 'PUT' && r.url === 'api/math/math-submissions/11/manual-result');
+        expect(req.request.params.get('submit')).toBe('true');
+        req.flush(new MathSubmission());
+        await promise;
+    });
+
+    it('fetches the next submission without assessment with a lock', async () => {
+        const promise = firstValueFrom(service.getSubmissionWithoutAssessment(3, true));
+        const req = httpMock.expectOne((r) => r.method === 'GET' && r.url === 'api/math/exercises/3/math-submission-without-assessment');
+        expect(req.request.params.get('lock')).toBe('true');
+        const sub = new MathSubmission();
+        sub.id = 7;
+        req.flush(sub);
+        const res = await promise;
+
+        expect(res?.id).toBe(7);
+    });
+
+    it('cancels an assessment', async () => {
+        const promise = firstValueFrom(service.cancelAssessment(11));
+        const req = httpMock.expectOne({ method: 'PUT', url: 'api/math/math-submissions/11/cancel-assessment' });
+        req.flush(null);
+        await promise;
+
+        expect(req.request.method).toBe('PUT');
     });
 
     it('asks the backend for next-step hints', async () => {

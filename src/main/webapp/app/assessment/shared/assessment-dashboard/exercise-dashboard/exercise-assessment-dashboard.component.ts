@@ -28,6 +28,7 @@ import { finalize, map } from 'rxjs/operators';
 import { StatsForDashboard } from 'app/assessment/shared/assessment-dashboard/stats-for-dashboard.model';
 import { TranslateService } from '@ngx-translate/core';
 import { FileUploadSubmissionService } from 'app/fileupload/overview/file-upload-submission.service';
+import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { FileUploadExercise } from 'app/fileupload/shared/entities/file-upload-exercise.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { ProgrammingSubmissionService } from 'app/programming/shared/services/programming-submission.service';
@@ -128,6 +129,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit {
     private textSubmissionService = inject(TextSubmissionService);
     private modelingSubmissionService = inject(ModelingSubmissionService);
     private fileUploadSubmissionService = inject(FileUploadSubmissionService);
+    private mathSubmissionService = inject(MathSubmissionService);
     private artemisMarkdown = inject(ArtemisMarkdownService);
     private router = inject(Router);
     private programmingSubmissionService = inject(ProgrammingSubmissionService);
@@ -547,8 +549,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit {
                     submissionsObservable = this.programmingSubmissionService.getSubmissions(this.exerciseId(), { assessedByTutor: true }, correctionRound);
                     break;
                 case ExerciseType.MATH:
-                    // Use a dummy observable for now, or implement a generic one in SubmissionService
-                    submissionsObservable = of(new HttpResponse({ body: [] }));
+                    submissionsObservable = this.mathSubmissionService.getSubmissions(this.exerciseId(), { assessedByTutor: true }, correctionRound);
                     break;
             }
         }
@@ -633,8 +634,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit {
                 submissionObservable = this.programmingSubmissionService.getSubmissionWithoutAssessment(this.exerciseId(), undefined, correctionRound);
                 break;
             case ExerciseType.MATH:
-                // For now, Math exercises are automatically graded, so there are no submissions without assessment.
-                submissionObservable = of(undefined);
+                submissionObservable = this.mathSubmissionService.getSubmissionWithoutAssessment(this.exerciseId(), undefined, correctionRound);
                 break;
         }
 

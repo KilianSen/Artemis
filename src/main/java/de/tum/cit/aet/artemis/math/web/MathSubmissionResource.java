@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import de.tum.cit.aet.artemis.account.domain.User;
@@ -49,6 +50,7 @@ import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathGradingJobRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
+import de.tum.cit.aet.artemis.math.service.MathAssessmentService;
 import de.tum.cit.aet.artemis.math.service.MathGradingDispatcher;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
 import de.tum.cit.aet.artemis.math.service.MathSubmissionService;
@@ -81,10 +83,12 @@ public class MathSubmissionResource {
 
     private final MathGradingJobRepository mathGradingJobRepository;
 
+    private final MathAssessmentService mathAssessmentService;
+
     public MathSubmissionResource(MathSubmissionRepository mathSubmissionRepository, MathExerciseRepository mathExerciseRepository, ResultRepository resultRepository,
             UserRepository userRepository, StudentParticipationRepository studentParticipationRepository, AuthorizationCheckService authCheckService,
             MathSubmissionService mathSubmissionService, MathGradingService mathGradingService, MathGradingDispatcher mathGradingDispatcher,
-            MathGradingJobRepository mathGradingJobRepository) {
+            MathGradingJobRepository mathGradingJobRepository, MathAssessmentService mathAssessmentService) {
         this.mathSubmissionRepository = mathSubmissionRepository;
         this.mathExerciseRepository = mathExerciseRepository;
         this.resultRepository = resultRepository;
@@ -95,6 +99,7 @@ public class MathSubmissionResource {
         this.mathGradingService = mathGradingService;
         this.mathGradingDispatcher = mathGradingDispatcher;
         this.mathGradingJobRepository = mathGradingJobRepository;
+        this.mathAssessmentService = mathAssessmentService;
     }
 
     /** The current async grading state for a submission (latest job status), or {@code null} when there is no grading job. */
@@ -311,19 +316,60 @@ public class MathSubmissionResource {
     }
 
     /**
-     * GET /exercises/{exerciseId}/math-submissions : list all submitted submissions for an exercise.
+     * GET /exercises/{exerciseId}/math-submissions : list submitted submissions for an exercise. By default returns all
+     * submitted submissions (instructor overview); with {@code assessedByTutor=true} returns only the submissions the
+     * current tutor has a manual assessment on (the assessment dashboard's "assessed by me" list).
      *
-     * @param exerciseId the exercise whose submissions to list
-     * @return submitted submissions for the exercise
+     * @param exerciseId      the exercise whose submissions to list
+     * @param assessedByTutor when true, restrict to submissions this tutor manually assessed
+     * @return the matching submissions
      */
     @GetMapping("exercises/{exerciseId}/math-submissions")
     @EnforceAtLeastTutor
-    public ResponseEntity<List<MathSubmissionDTO>> getSubmittedMathSubmissions(@PathVariable Long exerciseId) {
-        log.debug("REST request to get submitted MathSubmissions for exercise : {}", exerciseId);
+    public ResponseEntity<List<MathSubmissionDTO>> getSubmittedMathSubmissions(@PathVariable Long exerciseId,
+            @RequestParam(value = "assessedByTutor", defaultValue = "false") boolean assessedByTutor) {
+        log.debug("REST request to get submitted MathSubmissions for exercise {} (assessedByTutor={})", exerciseId, assessedByTutor);
         MathExercise exercise = mathExerciseRepository.findByIdWithCategories(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
-        List<MathSubmissionDTO> dtos = mathSubmissionRepository.findSubmittedByExerciseId(exerciseId).stream().map(MathSubmissionDTO::of).toList();
-        return ResponseEntity.ok(dtos);
+        List<MathSubmission> submissions;
+        if (assessedByTutor) {
+            User tutor = userRepository.getUserWithGroupsAndAuthorities();
+            submissions = mathSubmissionRepository.findAssessedByTutor(exerciseId, tutor.getId());
+        }
+        else {
+            submissions = mathSubmissionRepository.findSubmittedByExerciseId(exerciseId);
+        }
+        return ResponseEntity.ok(submissions.stream().map(MathSubmissionDTO::of).toList());
+    }
+
+    /**
+     * GET /exercises/{exerciseId}/math-submission-without-assessment : the next submission eligible for a new manual
+     * assessment (submitted but auto-grading was inconclusive/failed, so it carries no result). With {@code lock=true}
+     * the submission is soft-locked to the current tutor so no one else is offered it.
+     *
+     * @param exerciseId the exercise to pull an assessable submission from
+     * @param lock       whether to lock the returned submission to the current tutor
+     * @return the next assessable submission, or 200 with an empty body if none remain
+     */
+    @GetMapping("exercises/{exerciseId}/math-submission-without-assessment")
+    @EnforceAtLeastTutor
+    public ResponseEntity<MathSubmissionDTO> getMathSubmissionWithoutAssessment(@PathVariable Long exerciseId, @RequestParam(value = "lock", defaultValue = "false") boolean lock) {
+        log.debug("REST request to get a math submission without assessment for exercise {} (lock={})", exerciseId, lock);
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(exerciseId).orElseThrow();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
+
+        User tutor = userRepository.getUserWithGroupsAndAuthorities();
+        Optional<MathSubmission> assessable = lock ? mathAssessmentService.lockAndGetAssessableSubmission(exerciseId, tutor)
+                : mathAssessmentService.getAssessableSubmission(exerciseId);
+        if (assessable.isEmpty()) {
+            return ResponseEntity.ok().build();
+        }
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(assessable.get().getId()).orElseThrow();
+        if (submission.getParticipation() != null) {
+            submission.getParticipation().setExercise(exercise);
+        }
+        loadResultFeedbacks(submission);
+        return ResponseEntity.ok(MathSubmissionDTO.of(submission));
     }
 
     /**
@@ -358,39 +404,29 @@ public class MathSubmissionResource {
     }
 
     /**
-     * PUT /math-submissions/{submissionId}/manual-result : overwrite the latest result with a
-     * tutor-supplied manual score.
+     * PUT /math-submissions/{submissionId}/manual-result : record the tutor's manual score + feedback. With
+     * {@code submit=false} (default) this saves a draft that keeps the submission locked and hidden from the student;
+     * {@code submit=true} finalizes the assessment.
      *
      * @param submissionId the submission to assess
-     * @param request      the manual score in [0, 100]
-     * @return the submission with the new manual result attached
+     * @param submit       whether to finalize the assessment or save a draft
+     * @param request      the manual score in [0, 100] plus optional unreferenced feedback
+     * @return the submission with the manual result attached
      */
     @PutMapping("math-submissions/{submissionId}/manual-result")
     @EnforceAtLeastTutor
-    public ResponseEntity<MathSubmissionDTO> saveManualResult(@PathVariable Long submissionId, @RequestBody ManualResultRequestDTO request) {
-        log.debug("REST request to save manual result for MathSubmission : {}", submissionId);
+    public ResponseEntity<MathSubmissionDTO> saveManualResult(@PathVariable Long submissionId, @RequestParam(value = "submit", defaultValue = "false") boolean submit,
+            @RequestBody ManualResultRequestDTO request) {
+        log.debug("REST request to save manual result for MathSubmission {} (submit={})", submissionId, submit);
         MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (!(submission.getParticipation() != null && submission.getParticipation().getExercise() instanceof MathExercise pe)) {
             throw new AccessForbiddenException("mathSubmission", submissionId);
         }
         MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
+        User tutor = userRepository.getUserWithGroupsAndAuthorities();
 
-        Result result = submission.getLatestResult();
-        if (result == null || result.getAssessmentType() != AssessmentType.MANUAL) {
-            result = new Result();
-            result.setSubmission(submission);
-            result.setAssessmentType(AssessmentType.MANUAL);
-            result.setRated(true);
-            result.setExerciseId(exercise.getId());
-        }
-        result.setCompletionDate(ZonedDateTime.now());
-        result.setScore(request.score(), exercise.getCourseViaExerciseGroupOrCourseMember());
-        // Attach the tutor's unreferenced feedback (cascaded on save). Math's manual score stays authoritative — feedback is
-        // descriptive, not credit-summed (unlike text/file-upload), so we do NOT route through saveManualAssessment.
-        result.updateAllFeedbackItems(request.feedbacks() == null ? List.of() : request.feedbacks(), false);
-        resultRepository.save(result);
-        submission.addResult(result);
+        mathAssessmentService.saveManualAssessment(submission, exercise, request.score(), request.feedbacks(), submit, tutor);
 
         submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (submission.getParticipation() != null) {
@@ -398,6 +434,34 @@ public class MathSubmissionResource {
         }
         loadResultFeedbacks(submission);
         return ResponseEntity.ok(MathSubmissionDTO.of(submission));
+    }
+
+    /**
+     * PUT /math-submissions/{submissionId}/cancel-assessment : cancel an in-progress assessment, releasing the soft lock
+     * (deletes the tutor's draft result). Only the assessor or an instructor may cancel.
+     *
+     * @param submissionId the submission whose assessment to cancel
+     * @return 200 once the lock is released
+     */
+    @PutMapping("math-submissions/{submissionId}/cancel-assessment")
+    @EnforceAtLeastTutor
+    public ResponseEntity<Void> cancelAssessment(@PathVariable Long submissionId) {
+        log.debug("REST request to cancel assessment of MathSubmission {}", submissionId);
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
+        if (!(submission.getParticipation() != null && submission.getParticipation().getExercise() instanceof MathExercise pe)) {
+            throw new AccessForbiddenException("mathSubmission", submissionId);
+        }
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
+        // Only the assessor who holds the lock (or an instructor) may cancel it.
+        User user = userRepository.getUserWithGroupsAndAuthorities();
+        Result latest = submission.getLatestResult();
+        boolean isAssessor = latest != null && latest.getAssessor() != null && latest.getAssessor().getId().equals(user.getId());
+        if (!isAssessor && !authCheckService.isAtLeastInstructorForExercise(exercise, user)) {
+            throw new AccessForbiddenException("You are not allowed to cancel this assessment.");
+        }
+        mathAssessmentService.cancelAssessment(submission);
+        return ResponseEntity.ok().build();
     }
 
     /**

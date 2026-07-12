@@ -28,7 +28,12 @@
                 "autoScore": "Automatische Bewertung",
                 "manualScore": "Manuelle Bewertung",
                 "feedback": "Feedback",
-                "points": "Punkte"
+                "points": "Punkte",
+                "invalidScore": "Gib eine Bewertung zwischen 0 und 100 ein, bevor du speicherst.",
+                "cancelConfirm": "Diese Bewertung abbrechen und die Abgabe für andere Tutor:innen freigeben?",
+                "noSubmissions": "Es gibt keine Abgaben, die auf eine Bewertung warten.",
+                "noMoreSubmissions": "Keine weiteren Abgaben zu bewerten.",
+                "loadFailed": "Die Abgabe konnte nicht zur Bewertung geladen werden."
             },
             "reachability": {
                 "saveFirst": "Speichere die Aufgabe zuerst, um die Erreichbarkeitsprüfung auszuführen.",

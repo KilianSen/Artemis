@@ -2,15 +2,21 @@
     [isLoading]="isLoading()"
     [isTeamMode]="false"
     [isAssessor]="true"
-    [canOverride]="true"
+    [canOverride]="canOverride()"
     [assessmentsAreValid]="manualScore !== undefined"
     [saveBusy]="saveBusy()"
+    [submitBusy]="submitBusy()"
+    [cancelBusy]="cancelBusy()"
+    [nextSubmissionBusy]="nextSubmissionBusy()"
     [exercise]="mathExercise()"
     [submission]="submission()"
     [result]="result()"
-    [hasAssessmentDueDatePassed]="true"
+    [hasAssessmentDueDatePassed]="hasAssessmentDueDatePassed()"
     [exerciseDashboardLink]="['/course-management', courseId().toString(), 'assessment-dashboard', (mathExercise()?.id || -1).toString()]"
-    (save)="saveManualScore()"
+    (save)="saveAssessment()"
+    (onSubmit)="submitAssessment()"
+    (onCancel)="cancelAssessment()"
+    (nextSubmission)="assessNext()"
 >
     @if (!isLoading()) {
         <!-- Submission info + score action — full width at the top -->
@@ -46,21 +52,13 @@
                     }
                 </div>
 
-                <!-- Manual score input -->
+                <!-- Manual score input (the Save / Submit / Cancel / Next actions live in the assessment layout footer) -->
                 <div class="math-score-input">
                     <label class="math-score-label" for="manualScore" jhiTranslate="artemisApp.mathExercise.assessment.manualScore">Manual score</label>
                     <p-inputgroup styleClass="p-inputgroup-sm" style="width: 120px">
-                        <input type="number" id="manualScore" pInputText pSize="small" min="0" max="100" [(ngModel)]="manualScore" placeholder="0–100" />
+                        <input type="number" id="manualScore" pInputText pSize="small" min="0" max="100" [disabled]="readOnly()" [(ngModel)]="manualScore" placeholder="0–100" />
                         <p-inputgroup-addon>%</p-inputgroup-addon>
                     </p-inputgroup>
-                    <p-button
-                        size="small"
-                        severity="warn"
-                        class="math-nowrap"
-                        [disabled]="saveBusy() || manualScore === undefined"
-                        (onClick)="saveManualScore()"
-                        [label]="saveBusy() ? 'Saving…' : 'Save Score'"
-                    />
                     @if (saveSuccess()) {
                         <span class="math-saved">✓ Saved</span>
                     }

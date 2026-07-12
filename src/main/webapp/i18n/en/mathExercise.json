@@ -28,7 +28,12 @@
                 "autoScore": "Auto score",
                 "manualScore": "Manual score",
                 "feedback": "Feedback",
-                "points": "Points"
+                "points": "Points",
+                "invalidScore": "Enter a score between 0 and 100 before saving.",
+                "cancelConfirm": "Cancel this assessment and release the submission for other tutors?",
+                "noSubmissions": "There are no submissions awaiting assessment.",
+                "noMoreSubmissions": "No more submissions to assess.",
+                "loadFailed": "Could not load the submission for assessment."
             },
             "reachability": {
                 "saveFirst": "Save the exercise first to run the reachability check.",

@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { SubmissionService } from 'app/exercise/submission/submission.service';
+import { createRequestOption } from 'app/foundation/util/request.util';
 import { MathNode } from 'app/math/shared/entities/math-node.model';
 import { HintSuggestion } from 'app/math/shared/entities/hint-suggestion.model';
 import { Feedback } from 'app/assessment/shared/entities/feedback.model';
@@ -70,10 +71,48 @@ export class MathSubmissionService {
             .pipe(map((res: HttpResponse<MathSubmission[]>) => res.body ?? []));
     }
 
-    saveManualResult(submissionId: number, score: number, feedbacks: Feedback[] = []): Observable<MathSubmission> {
+    /**
+     * Submissions for the assessment dashboard. With {@code assessedByTutor} returns the current tutor's assessed
+     * submissions; otherwise all submitted submissions. Returns the full response (the dashboard reads its body).
+     */
+    getSubmissions(exerciseId: number, req: { submittedOnly?: boolean; assessedByTutor?: boolean }, correctionRound = 0): Observable<HttpResponse<MathSubmission[]>> {
+        let params = createRequestOption(req);
+        if (correctionRound !== 0) {
+            params = params.set('correction-round', correctionRound.toString());
+        }
         return this.http
-            .put<MathSubmission>(`api/math/math-submissions/${submissionId}/manual-result`, { score, feedbacks }, { observe: 'response' })
+            .get<MathSubmission[]>(`api/math/exercises/${exerciseId}/math-submissions`, { params, observe: 'response' })
+            .pipe(map((res: HttpResponse<MathSubmission[]>) => this.submissionService.convertArrayResponse(res)));
+    }
+
+    /** The next submission eligible for manual assessment (auto-grading was inconclusive), optionally locked to the current tutor. */
+    getSubmissionWithoutAssessment(exerciseId: number, lock?: boolean, correctionRound = 0): Observable<MathSubmission | undefined> {
+        let params = new HttpParams();
+        if (correctionRound !== 0) {
+            params = params.set('correction-round', correctionRound.toString());
+        }
+        if (lock) {
+            params = params.set('lock', 'true');
+        }
+        return this.http
+            .get<MathSubmission | undefined>(`api/math/exercises/${exerciseId}/math-submission-without-assessment`, { params })
+            .pipe(map((res?: MathSubmission) => res ?? undefined));
+    }
+
+    /**
+     * Records the tutor's manual score + feedback. Pass {@code submit=true} to finalize the assessment, or
+     * {@code false} (default) to save a draft that keeps the submission locked and hidden from the student.
+     */
+    saveManualResult(submissionId: number, score: number, feedbacks: Feedback[] = [], submit = false): Observable<MathSubmission> {
+        const params = new HttpParams().set('submit', submit.toString());
+        return this.http
+            .put<MathSubmission>(`api/math/math-submissions/${submissionId}/manual-result`, { score, feedbacks }, { params, observe: 'response' })
             .pipe(map((res: HttpResponse<MathSubmission>) => res.body!));
+    }
+
+    /** Cancels an in-progress assessment, releasing the tutor's soft lock on the submission. */
+    cancelAssessment(submissionId: number): Observable<void> {
+        return this.http.put<void>(`api/math/math-submissions/${submissionId}/cancel-assessment`, undefined);
     }
 
     /** Asks the backend for ranked next-step suggestions for a specific problem at the current math state. */
