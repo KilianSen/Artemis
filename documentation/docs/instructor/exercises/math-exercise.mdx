@@ -1,0 +1,113 @@
+import Image, {ImageSize} from "../../../src/components/Image/Image";
+
+import createExercise from './assets/math/create-exercise.png';
+import authoringForm from './assets/math/authoring-form.png';
+import problemEditor from './assets/math/problem-editor.png';
+import exerciseDetail from './assets/math/exercise-detail.png';
+import studentEditor from './assets/math/student-editor.png';
+import studentHints from './assets/math/student-hints.png';
+import studentGoalReached from './assets/math/student-goal-reached.png';
+import studentGraded from './assets/math/student-graded.png';
+import studentInduction from './assets/math/student-induction.png';
+import studentMultiProblem from './assets/math/student-multi-problem.png';
+import studentManual from './assets/math/student-manual.png';
+import studentUnderReview from './assets/math/student-under-review.png';
+import assessmentDashboard from './assets/math/assessment-dashboard.png';
+import assessmentView from './assets/math/assessment-view.png';
+import complaintResponse from './assets/math/complaint-response.png';
+
+# Math Exercise
+
+## Overview
+
+Math exercises train **equational reasoning**: a student transforms a starting expression into a goal, or proves an equation, by applying rewrite rules step by step in an interactive block editor. Artemis grades most submissions automatically and only escalates to a tutor when automatic grading is inconclusive.
+
+A math exercise consists of one or more **problems**. Each problem defines:
+
+- a **goal mode** — *Transformation* (rewrite a start expression into a target), *Equation* (prove both sides equal), or *Induction* (prove a statement by induction over a variable);
+- the **expressions** — a source and target (transformation), a goal equation (equation), or a goal statement and an induction variable (induction);
+- a **grader** — the in-process rewrite-chain engine, or one of the remote Regate backends (see [Grading and Review](#grading-and-review));
+- the **rules** the student may apply, drawn from the shared block registry.
+
+Conducting a math exercise follows the same three steps as other exercise types:
+
+1. Setup of the exercise in Artemis
+2. Participation by a student
+3. Assessment by tutors — only when a submission needs manual review
+
+## Setup
+
+Open **Course Management**, navigate into **Exercises** of your course, and create a new math exercise.
+
+<Image src={createExercise} alt="Create a math exercise" size={ImageSize.large} caption="Creating a new math exercise" />
+
+Fill out the general exercise settings (title, points, dates) and configure each problem in the authoring form.
+
+<Image src={authoringForm} alt="Math exercise authoring form" size={ImageSize.large} caption="The math exercise authoring form" />
+
+For each problem you set the goal mode, the expressions, the grader, and the allowed rules. The per-problem block editor lets you build the expressions from the same blocks the student uses.
+
+<Image src={problemEditor} alt="Per-problem block editor" size={ImageSize.large} caption="Configuring a problem in the block editor" />
+
+Created math exercises appear in the exercise list. Opening one shows its detail view with statistics and the list of submissions; submissions awaiting manual review are flagged here as well.
+
+<Image src={exerciseDetail} alt="Math exercise detail" size={ImageSize.large} caption="Math exercise detail view with statistics" />
+
+## Participation
+
+Students work in an interactive block editor. Starting from the problem's start expression, they select a rule from the palette and apply it to a node, building a derivation toward the goal.
+
+<Image src={studentEditor} alt="Student math editor" size={ImageSize.large} caption="The student block editor" />
+
+Students can request **hints** — Artemis suggests applicable rules and previews the resulting expression.
+
+<Image src={studentHints} alt="Hints" size={ImageSize.large} caption="Suggested next rules (hints)" />
+
+When the derivation reaches the goal, the editor confirms it.
+
+<Image src={studentGoalReached} alt="Goal reached" size={ImageSize.large} caption="The derivation reaches the goal" />
+
+On submit, the submission is graded (see [Grading and Review](#grading-and-review)). For in-process grading the score appears immediately.
+
+<Image src={studentGraded} alt="Graded submission" size={ImageSize.large} caption="A graded submission" />
+
+### Problem types
+
+*Induction* problems ask the student to prove the base case P(0) and the inductive step P(S n) under the induction hypothesis P(n).
+
+<Image src={studentInduction} alt="Induction problem" size={ImageSize.large} caption="An induction problem: base case and inductive step" />
+
+An exercise with multiple problems offers quiz-style navigation between them.
+
+<Image src={studentMultiProblem} alt="Multi-problem navigation" size={ImageSize.large} caption="Navigation across multiple problems" />
+
+In *manual step* mode, instead of Artemis applying the rule for the student, the student claims a rule and constructs the result expression themselves.
+
+<Image src={studentManual} alt="Manual step" size={ImageSize.large} caption="Manual step: the student builds the result" />
+
+## Grading and Review
+
+Math exercises are graded automatically:
+
+- **In-process rewrite-chain grader** — validates the derivation against the rule library on the server and grades synchronously.
+- **Remote Regate backends** (eggregate, leanregate, coqregate, cvc5regate) — equational-reasoning provers reached over HTTP. These grade asynchronously, and the result is pushed to the student over a websocket when it lands.
+
+When automatic grading is **inconclusive** (an undecided prover verdict) or **fails** (a backend is unavailable), the submission is never scored zero — it is escalated to **manual tutor review**, and the student sees an "awaiting tutor review" state.
+
+<Image src={studentUnderReview} alt="Awaiting tutor review" size={ImageSize.large} caption="A submission escalated to manual review" />
+
+## Assessment
+
+Submissions awaiting review appear in the standard **assessment dashboard**. A tutor starts a new assessment, which locks the next submission so that no two tutors grade the same one.
+
+<Image src={assessmentDashboard} alt="Assessment dashboard" size={ImageSize.large} caption="The assessment dashboard with the review queue" />
+
+In the assessment view the tutor sees the student's full derivation, the automatic verdict, and any configured sample solution, and assigns a manual score with optional feedback. The assessment can be saved as a draft or submitted as final.
+
+<Image src={assessmentView} alt="Math assessment view" size={ImageSize.large} caption="Assessing a locked submission" />
+
+### Complaints
+
+If a student complains about an assessment, a tutor or instructor — other than the original assessor — reviews the complaint in the assessment view and accepts or rejects it, adjusting the score if warranted.
+
+<Image src={complaintResponse} alt="Complaint response" size={ImageSize.large} caption="Responding to a student complaint" />

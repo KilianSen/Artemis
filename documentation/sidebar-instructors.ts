@@ -32,6 +32,7 @@ const sidebars: SidebarsConfig = {
                 'exercises/modeling-exercise',
                 'exercises/text-exercise',
                 'exercises/file-upload-exercise',
+                'exercises/math-exercise',
                 'exercises/team-exercise',
             ],
         },
