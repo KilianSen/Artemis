@@ -66,6 +66,32 @@ test.describe('Math exercise participation', { tag: '@fast' }, () => {
         await mathParticipation.shouldShowScore(exercise.id, 100);
     });
 
+    test('Escalates to tutor review when the remote grader is unavailable', async ({ login, exerciseAPIRequests, courseOverview, mathParticipation }) => {
+        // A problem routed to a remote (Regate) backend that is not running in the fast E2E stack: grading fails fast and
+        // the submission is escalated to manual review, which the student sees as an "awaiting tutor review" state.
+        const remoteTemplate = {
+            ...solvableExerciseTemplate,
+            problems: [{ ...solvableExerciseTemplate.problems[0], graderType: 'EGGREGATE' }],
+        };
+        await login(admin);
+        const remoteExercise = await exerciseAPIRequests.createMathExercise({ course }, 'Math EqReasoning Remote ' + Date.now(), remoteTemplate);
+
+        try {
+            await login(studentOne, `/courses/${course.id}/exercises/${remoteExercise.id}`);
+            await courseOverview.startExercise(remoteExercise.id);
+
+            await mathParticipation.shouldShowWorkspace(remoteExercise.id);
+            await mathParticipation.applyRuleAtRoot(remoteExercise.id, 'add_zero_left');
+            await mathParticipation.submit(remoteExercise.id);
+
+            // The async grade fails (no backend) → REVIEW is pushed over the websocket → the review banner appears.
+            await mathParticipation.shouldShowUnderReview(remoteExercise.id);
+        } finally {
+            await login(admin);
+            await exerciseAPIRequests.deleteMathExercise(remoteExercise.id);
+        }
+    });
+
     test.afterEach('Delete created math exercise', async ({ login, exerciseAPIRequests }) => {
         if (exercise?.id) {
             await login(admin);

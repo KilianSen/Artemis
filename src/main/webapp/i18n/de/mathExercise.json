@@ -14,6 +14,7 @@
             "detail": {
                 "title": "Details der Mathematik-Aufgabe",
                 "submittedMaths": "Abgegebene Mathematik-Aufgaben",
+                "awaitingReview": "warten auf Bewertung",
                 "tableStudent": "Studierende:r",
                 "tableSubmitted": "Abgegeben",
                 "tableSteps": "Schritte",
@@ -85,6 +86,8 @@
             "gradingInProgress": "Bewertung läuft…",
             "certifying": "Zertifiziere…",
             "preliminary": "vorläufig",
+            "underReview": "Wartet auf Tutor-Bewertung",
+            "underReviewHint": "Die automatische Bewertung war nicht eindeutig — ein Tutor wird deine Abgabe bewerten.",
             "unsavedChanges": "Ungespeicherte Änderungen",
             "lastSaved": "Zuletzt gespeichert um",
             "by": "von",

@@ -11,10 +11,12 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.assessment.web.ResultWebsocketService;
+import de.tum.cit.aet.artemis.communication.service.WebsocketMessagingService;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
@@ -24,6 +26,7 @@ import de.tum.cit.aet.artemis.math.domain.MathGradingJobStatus;
 import de.tum.cit.aet.artemis.math.domain.MathGradingPhase;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.dto.MathGradingStatusDTO;
 import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.grader.GradingSpeed;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
@@ -51,6 +54,9 @@ public class MathGradingDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(MathGradingDispatcher.class);
 
+    /** Per-user websocket destination for terminal grading states that have no result (escalated to manual review). */
+    public static final String MATH_GRADING_STATUS_TOPIC = "/topic/math-grading-status";
+
     /** Cap the persisted failure reason so a verbose backend stack trace never overflows the column. */
     private static final int MAX_FAILURE_REASON_LENGTH = 1000;
 
@@ -68,12 +74,14 @@ public class MathGradingDispatcher {
 
     private final ResultWebsocketService resultWebsocketService;
 
+    private final WebsocketMessagingService websocketMessagingService;
+
     // Self-proxy so an enqueue can invoke the @Async method through Spring's proxy (a direct this.call would run inline).
     private final MathGradingDispatcher self;
 
     public MathGradingDispatcher(MathGradingService mathGradingService, MathExerciseRepository mathExerciseRepository, MathSubmissionRepository mathSubmissionRepository,
             MathGradingJobRepository mathGradingJobRepository, ResultRepository resultRepository, StudentParticipationRepository studentParticipationRepository,
-            ResultWebsocketService resultWebsocketService, @Lazy MathGradingDispatcher self) {
+            ResultWebsocketService resultWebsocketService, WebsocketMessagingService websocketMessagingService, @Lazy MathGradingDispatcher self) {
         this.mathGradingService = mathGradingService;
         this.mathExerciseRepository = mathExerciseRepository;
         this.mathSubmissionRepository = mathSubmissionRepository;
@@ -81,6 +89,7 @@ public class MathGradingDispatcher {
         this.resultRepository = resultRepository;
         this.studentParticipationRepository = studentParticipationRepository;
         this.resultWebsocketService = resultWebsocketService;
+        this.websocketMessagingService = websocketMessagingService;
         this.self = self;
     }
 
@@ -187,14 +196,20 @@ public class MathGradingDispatcher {
             }
             completeJob(job, grading);
 
-            if (!certify && hasCertifier(exercise)) {
+            boolean willCertify = !certify && hasCertifier(exercise);
+            if (willCertify) {
                 MathGradingJob certJob = enqueue(exerciseId, submissionId, MathGradingPhase.CERTIFICATION, GradingSpeed.SLOW);
                 self.certifyAsync(exerciseId, submissionId, certJob.getId());
+            }
+            else if (!grading.conclusive()) {
+                // Terminal inconclusive verdict with no further certification pass — escalate to manual tutor review and tell the student.
+                broadcastGradingStatus(exercise, submission, MathGradingJobStatus.REVIEW);
             }
         }
         catch (Exception e) {
             log.error("Async math grading of submission {} failed", submissionId, e);
             failJob(job, e.getMessage());
+            broadcastGradingStatus(exercise, submission, MathGradingJobStatus.FAILED);
         }
     }
 
@@ -225,22 +240,48 @@ public class MathGradingDispatcher {
 
     /** Pushes the recorded result to the participant over the standard result websocket (replacing client polling). */
     private void broadcastResult(MathExercise exercise, MathSubmission submission, Result result) {
-        if (!(submission.getParticipation() instanceof StudentParticipation participationRef) || participationRef.getId() == null) {
-            return;
-        }
-        StudentParticipation participation = studentParticipationRepository.findWithStudentAndExerciseById(participationRef.getId()).orElse(null);
+        StudentParticipation participation = loadParticipationForBroadcast(exercise, submission);
         if (participation == null) {
             return;
         }
         // Reload the result with its feedbacks eagerly initialized: the websocket payload iterates them, which would
         // otherwise trip a LazyInitializationException on this detached async thread.
         Result toBroadcast = resultRepository.findByIdWithEagerFeedbacks(result.getId()).orElse(result);
-        // The websocket payload projects the participation's exercise (incl. its course) — attach the fully-loaded
-        // exercise so serialization does not hit a LazyInitializationException here.
-        participation.setExercise(exercise);
         submission.setParticipation(participation);
         toBroadcast.setSubmission(submission);
         resultWebsocketService.broadcastNewResult(participation, toBroadcast);
+    }
+
+    /**
+     * Pushes a terminal grading status that has no automatic result (the submission was escalated to manual review) to
+     * the participant, so the editor can show an "awaiting tutor review" state without polling. {@code COMPLETED} is
+     * conveyed by the result push instead, so only {@code REVIEW}/{@code FAILED} are sent here.
+     */
+    private void broadcastGradingStatus(MathExercise exercise, MathSubmission submission, MathGradingJobStatus status) {
+        StudentParticipation participation = loadParticipationForBroadcast(exercise, submission);
+        if (participation == null) {
+            return;
+        }
+        String login = participation.getStudent().map(User::getLogin).orElse(null);
+        if (login == null) {
+            return;
+        }
+        websocketMessagingService.sendMessageToUser(login, MATH_GRADING_STATUS_TOPIC, new MathGradingStatusDTO(submission.getId(), participation.getId(), status));
+    }
+
+    /** Loads the submission's participation with its student + the fully-loaded (course-bearing) exercise, for a websocket broadcast on this detached async thread. */
+    private StudentParticipation loadParticipationForBroadcast(MathExercise exercise, MathSubmission submission) {
+        if (!(submission.getParticipation() instanceof StudentParticipation participationRef) || participationRef.getId() == null) {
+            return null;
+        }
+        StudentParticipation participation = studentParticipationRepository.findWithStudentAndExerciseById(participationRef.getId()).orElse(null);
+        if (participation == null) {
+            return null;
+        }
+        // The websocket payload projects the participation's exercise (incl. its course) — attach the fully-loaded
+        // exercise so serialization does not hit a LazyInitializationException here.
+        participation.setExercise(exercise);
+        return participation;
     }
 
     private boolean hasCertifier(MathExercise exercise) {

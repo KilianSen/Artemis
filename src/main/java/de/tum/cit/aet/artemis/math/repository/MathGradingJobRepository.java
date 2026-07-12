@@ -26,6 +26,9 @@ public interface MathGradingJobRepository extends ArtemisJpaRepository<MathGradi
 
     Optional<MathGradingJob> findBySubmissionIdAndPhase(Long submissionId, MathGradingPhase phase);
 
+    /** The most recent job for a submission (latest phase/attempt), used to surface the current grading state to the student. */
+    Optional<MathGradingJob> findFirstBySubmissionIdOrderByIdDesc(Long submissionId);
+
     /**
      * Finds jobs still {@code PENDING} that are stuck: either never picked up (no {@code startedDate}) since before
      * {@code pickupCutoff}, or in flight (a {@code startedDate}) since before {@code inFlightCutoff} — the grading node

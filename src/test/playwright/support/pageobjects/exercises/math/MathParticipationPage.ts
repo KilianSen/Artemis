@@ -50,4 +50,9 @@ export class MathParticipationPage {
     async shouldShowScore(exerciseId: number, score: number): Promise<void> {
         await expect(getExercise(this.page, exerciseId).getByText(`${score}%`)).toBeVisible({ timeout: 30_000 });
     }
+
+    /** Asserts the "awaiting tutor review" banner is shown (automatic grading was inconclusive/failed). */
+    async shouldShowUnderReview(exerciseId: number): Promise<void> {
+        await expect(getExercise(this.page, exerciseId).locator('.math-review-banner')).toBeVisible({ timeout: 30_000 });
+    }
 }

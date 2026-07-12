@@ -23,6 +23,13 @@
                                 <div class="math-detail__card-header">
                                     <h4 class="math-detail__card-title" jhiTranslate="artemisApp.mathExercise.detail.submittedMaths">Submitted Maths</h4>
                                     <p-tag severity="secondary" [value]="submissions().length.toString()" />
+                                    @if (reviewCount() > 0) {
+                                        <p-tag
+                                            severity="warn"
+                                            icon="pi pi-hourglass"
+                                            [value]="reviewCount() + ' ' + ('artemisApp.mathExercise.detail.awaitingReview' | artemisTranslate)"
+                                        />
+                                    }
                                 </div>
                             </ng-template>
                             <p-table [value]="submissions()" styleClass="p-datatable-sm p-datatable-hover">

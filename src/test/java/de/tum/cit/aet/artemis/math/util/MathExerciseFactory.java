@@ -63,7 +63,7 @@ public class MathExerciseFactory {
     }
 
     public static MathSubmissionDTO generateMathSubmissionDTO(boolean submitted) {
-        return new MathSubmissionDTO(null, submitted, null, null, null, null);
+        return new MathSubmissionDTO(null, submitted, null, null, null, null, null);
     }
 
 }

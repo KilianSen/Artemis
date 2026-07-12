@@ -4,11 +4,12 @@ import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
+import { WebsocketService } from 'app/foundation/service/websocket.service';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
-import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
+import { MathGradingStatusMessage, MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 import { MathProblemAnswer } from 'app/math/shared/entities/math-problem-answer.model';
 import { DerivationStep } from 'app/math/shared/entities/derivation-step.model';
@@ -56,7 +57,11 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     private alertService = inject(AlertService);
     private accountService = inject(AccountService);
     private participationWebsocketService = inject(ParticipationWebsocketService);
+    private websocketService = inject(WebsocketService);
     private document = inject(DOCUMENT);
+
+    /** Per-user websocket destination for terminal grading states that have no result (escalated to manual review). */
+    private static readonly GRADING_STATUS_TOPIC = '/user/topic/math-grading-status';
 
     participationId = input<number>();
 
@@ -83,6 +88,9 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
     readonly gradingPending = signal(false);
     /** True while a preliminary result exists but a slow certifier is still to upgrade it (Phase 2b). */
     readonly certifying = signal(false);
+    /** True when automatic grading was inconclusive/failed and the submission was escalated to manual tutor review. */
+    readonly underReview = signal(false);
+    private gradingStatusSubscription?: Subscription;
     /** Whether any problem configures a slow certifier — drives the "certifying…" badge after the preliminary result arrives. */
     readonly willCertify = computed(() => this.problems().some((problem) => !!problem.certifyingGraderType));
     private resultSubscription?: Subscription;
@@ -137,12 +145,19 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
 
                 this.syncAnswerState(submission, true);
 
-                // Subscribe for the asynchronously-produced result (remote grading pushes it over the websocket).
+                // Subscribe for the asynchronously-produced result (remote grading pushes it over the websocket) and for
+                // terminal review/failed states that carry no result.
                 this.subscribeForResult();
-                // If we reloaded while a remote grade is still in flight (submitted, no result yet), show the pending indicator.
+                this.subscribeForGradingStatus();
+                // Reconstruct the grading indicator from the persisted state so a page reload reflects it.
                 if (submission.submitted && !(results && results.length > 0)) {
-                    this.gradingPending.set(true);
-                    this.armGradingFallback();
+                    if (submission.gradingState === 'REVIEW' || submission.gradingState === 'FAILED') {
+                        this.underReview.set(true);
+                    } else {
+                        // Still in flight (PENDING) or unknown — show the pending indicator until a push arrives.
+                        this.gradingPending.set(true);
+                        this.armGradingFallback();
+                    }
                 }
             },
             error: () => this.alertService.error('artemisApp.mathExercise.error'),
@@ -167,6 +182,7 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
         }
         this.clearGradingFallback();
         this.resultSubscription?.unsubscribe();
+        this.gradingStatusSubscription?.unsubscribe();
         const participationId = this.participation()?.id;
         if (participationId !== undefined && this.mathExercise()) {
             this.participationWebsocketService.unsubscribeForLatestResultOfParticipation(participationId, this.mathExercise());
@@ -194,9 +210,32 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
         this.gradingResultsReceived++;
         this.result.set(result);
         this.gradingPending.set(false);
+        this.underReview.set(false);
         this.clearGradingFallback();
         // With a certifier configured, the first push is the fast preliminary verdict; certification arrives as a second push.
         this.certifying.set(this.willCertify() && this.gradingResultsReceived < 2);
+    }
+
+    /**
+     * Subscribes to the per-user grading-status channel. When automatic grading settles to a terminal state with no
+     * result (inconclusive/failed), the server pushes a REVIEW/FAILED status here so we can show an "awaiting tutor
+     * review" state instead of leaving the pending indicator to time out silently.
+     */
+    private subscribeForGradingStatus(): void {
+        this.gradingStatusSubscription?.unsubscribe();
+        this.gradingStatusSubscription = this.websocketService
+            .subscribe<MathGradingStatusMessage>(MathSubmissionComponent.GRADING_STATUS_TOPIC)
+            .pipe(filter((message) => !!message && message.participationId === this.participation()?.id))
+            .subscribe((message) => this.onGradingStatusPushed(message));
+    }
+
+    private onGradingStatusPushed(message: MathGradingStatusMessage): void {
+        if (message.status === 'REVIEW' || message.status === 'FAILED') {
+            this.gradingPending.set(false);
+            this.certifying.set(false);
+            this.underReview.set(true);
+            this.clearGradingFallback();
+        }
     }
 
     /** Starts a fallback timer so the pending/certifying indicators never hang if no websocket push ever arrives. */
@@ -371,11 +410,12 @@ export class MathSubmissionComponent implements OnInit, OnDestroy {
                 if (updated.results && updated.results.length > 0) {
                     this.result.set(updated.results[0]);
                 } else {
-                    // No result yet — a remote grader is grading asynchronously; the authoritative result will be pushed
-                    // over the websocket subscription opened on init.
+                    // No result yet — a remote grader is grading asynchronously; the authoritative result (or a
+                    // review/failed status) will be pushed over the websocket subscriptions opened on init.
                     this.gradingResultsReceived = 0;
                     this.gradingPending.set(true);
                     this.certifying.set(false);
+                    this.underReview.set(false);
                     this.armGradingFallback();
                 }
             },

@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { setupTestBed } from '@analogjs/vitest-angular/setup-testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MockComponent, MockDirective, MockPipe, MockProvider } from 'ng-mocks';
@@ -15,7 +15,9 @@ import { RatingComponent } from 'app/exercise/rating/rating.component';
 import { ComplaintsStudentViewComponent } from 'app/assessment/overview/complaints-for-students/complaints-student-view.component';
 import { AccountService } from 'app/core/auth/account.service';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
+import { WebsocketService } from 'app/foundation/service/websocket.service';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
+import { MathGradingStatusMessage } from 'app/math/shared/entities/math-submission.model';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
@@ -37,6 +39,7 @@ describe('MathSubmissionComponent', () => {
     let mathSubmissionService: MathSubmissionService;
     let alertService: AlertService;
     let resultSubject: BehaviorSubject<Result | undefined>;
+    let gradingStatusSubject: Subject<MathGradingStatusMessage>;
 
     const mockExercise = (): MathExercise => {
         const ex = new MathExercise(undefined);
@@ -67,6 +70,7 @@ describe('MathSubmissionComponent', () => {
 
     beforeEach(() => {
         resultSubject = new BehaviorSubject<Result | undefined>(undefined);
+        gradingStatusSubject = new Subject<MathGradingStatusMessage>();
         TestBed.configureTestingModule({
             imports: [MathSubmissionComponent],
             providers: [
@@ -79,6 +83,7 @@ describe('MathSubmissionComponent', () => {
                     subscribeForLatestResultOfParticipation: () => resultSubject as any,
                     unsubscribeForLatestResultOfParticipation: () => {},
                 }),
+                MockProvider(WebsocketService, { subscribe: () => gradingStatusSubject as any }),
                 MockProvider(MathBlockRegistryService, { getBlockRegistry: () => of([]) as any }),
                 MockProvider(TranslateService, {
                     instant: (key: string) => key,
@@ -296,6 +301,51 @@ describe('MathSubmissionComponent', () => {
         // Certification push: the certifying indicator clears.
         resultSubject.next({ id: 5, score: 100, rated: true } as Result);
         expect(component.certifying()).toBe(false);
+    });
+
+    it('should enter the under-review state on a pushed REVIEW grading status', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        const submittedSub = { ...submission, submitted: true };
+        vi.spyOn(mathSubmissionService, 'update').mockReturnValue(of(new HttpResponse({ body: submittedSub as any })));
+        fixture.detectChanges();
+        component.submit();
+        expect(component.gradingPending()).toBe(true);
+
+        // The server pushes a REVIEW status when automatic grading is inconclusive.
+        gradingStatusSubject.next({ submissionId: 5, participationId: 42, status: 'REVIEW' });
+
+        expect(component.underReview()).toBe(true);
+        expect(component.gradingPending()).toBe(false);
+        expect(component.result()).toBeUndefined();
+    });
+
+    it('should ignore grading-status pushes for a different participation', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+        fixture.detectChanges();
+
+        gradingStatusSubject.next({ submissionId: 99, participationId: 999, status: 'REVIEW' });
+
+        expect(component.underReview()).toBe(false);
+    });
+
+    it('should reconstruct the under-review state from the loaded submission gradingState', () => {
+        const exercise = mockExercise();
+        const participation = mockParticipation(exercise);
+        const submission = mockSubmission(participation);
+        submission.submitted = true;
+        submission.gradingState = 'REVIEW';
+        vi.spyOn(mathSubmissionService, 'getDataForMathEditor').mockReturnValue(of(new HttpResponse({ body: submission })));
+
+        fixture.detectChanges();
+
+        expect(component.underReview()).toBe(true);
+        expect(component.gradingPending()).toBe(false);
     });
 
     it('should revert submitted=false when submit fails', () => {

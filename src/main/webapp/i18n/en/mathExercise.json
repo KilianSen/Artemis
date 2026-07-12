@@ -14,6 +14,7 @@
             "detail": {
                 "title": "Math Exercise Detail",
                 "submittedMaths": "Submitted Maths",
+                "awaitingReview": "awaiting review",
                 "tableStudent": "Student",
                 "tableSubmitted": "Submitted",
                 "tableSteps": "Steps",
@@ -85,6 +86,8 @@
             "gradingInProgress": "Grading in progress…",
             "certifying": "Certifying…",
             "preliminary": "preliminary",
+            "underReview": "Awaiting tutor review",
+            "underReviewHint": "Automatic grading was inconclusive — a tutor will assess your submission.",
             "unsavedChanges": "Unsaved changes",
             "lastSaved": "Last saved at",
             "by": "by",

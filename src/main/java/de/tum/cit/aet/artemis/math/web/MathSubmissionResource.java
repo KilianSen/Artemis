@@ -33,6 +33,8 @@ import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJob;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJobStatus;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
@@ -45,6 +47,7 @@ import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
+import de.tum.cit.aet.artemis.math.repository.MathGradingJobRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.service.MathGradingDispatcher;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
@@ -76,9 +79,12 @@ public class MathSubmissionResource {
 
     private final MathGradingDispatcher mathGradingDispatcher;
 
+    private final MathGradingJobRepository mathGradingJobRepository;
+
     public MathSubmissionResource(MathSubmissionRepository mathSubmissionRepository, MathExerciseRepository mathExerciseRepository, ResultRepository resultRepository,
             UserRepository userRepository, StudentParticipationRepository studentParticipationRepository, AuthorizationCheckService authCheckService,
-            MathSubmissionService mathSubmissionService, MathGradingService mathGradingService, MathGradingDispatcher mathGradingDispatcher) {
+            MathSubmissionService mathSubmissionService, MathGradingService mathGradingService, MathGradingDispatcher mathGradingDispatcher,
+            MathGradingJobRepository mathGradingJobRepository) {
         this.mathSubmissionRepository = mathSubmissionRepository;
         this.mathExerciseRepository = mathExerciseRepository;
         this.resultRepository = resultRepository;
@@ -88,6 +94,15 @@ public class MathSubmissionResource {
         this.mathSubmissionService = mathSubmissionService;
         this.mathGradingService = mathGradingService;
         this.mathGradingDispatcher = mathGradingDispatcher;
+        this.mathGradingJobRepository = mathGradingJobRepository;
+    }
+
+    /** The current async grading state for a submission (latest job status), or {@code null} when there is no grading job. */
+    private MathGradingJobStatus gradingStateFor(MathSubmission submission) {
+        if (submission == null || submission.getId() == null) {
+            return null;
+        }
+        return mathGradingJobRepository.findFirstBySubmissionIdOrderByIdDesc(submission.getId()).map(MathGradingJob::getStatus).orElse(null);
     }
 
     /** Whether any problem of the exercise is graded by a remote (Regate) backend — those are graded asynchronously. */
@@ -195,7 +210,7 @@ public class MathSubmissionResource {
         }
         // Strip solution/grading data before returning the exercise to a student (nulls example solution when unpublished).
         mathExercise.filterSensitiveInformation();
-        return MathSubmissionDTO.of(saved);
+        return MathSubmissionDTO.of(saved, gradingStateFor(saved));
     }
 
     private MathProblem findProblemOrThrow(MathExercise exercise, Long problemId) {
@@ -242,7 +257,7 @@ public class MathSubmissionResource {
         submission.setParticipation(participation);
         // Strip solution/grading data before returning the exercise through the editor DTO (nulls example solution when unpublished).
         mathExercise.filterSensitiveInformation();
-        return ResponseEntity.ok(MathSubmissionDTO.of(submission));
+        return ResponseEntity.ok(MathSubmissionDTO.of(submission, gradingStateFor(submission)));
     }
 
     /**
@@ -270,7 +285,7 @@ public class MathSubmissionResource {
         // Defensive: the current query does not fetch categories (so the DTO omits the exercise), but filter anyway so this
         // student-facing endpoint never leaks solution/grading data if the exercise is ever projected here.
         mathExercise.filterSensitiveInformation();
-        return ResponseEntity.ok(MathSubmissionDTO.of(submission));
+        return ResponseEntity.ok(MathSubmissionDTO.of(submission, gradingStateFor(submission)));
     }
 
     /**

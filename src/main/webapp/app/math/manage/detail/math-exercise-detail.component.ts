@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { HttpResponse } from '@angular/common/http';
@@ -18,6 +18,7 @@ import { EventManager } from 'app/foundation/service/event-manager.service';
 import { DetailOverviewSection } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
 import { getExerciseGeneralDetailsSection, getExerciseGradingDefaultDetails, getExerciseModeDetailSection, getExerciseProblemDetailSection } from 'app/exercise/util/utils';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
+import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 import { DetailOverviewListComponent } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
 import { MathNodeLatexPipe } from 'app/math/shared/math-node-latex.pipe';
@@ -34,6 +35,7 @@ import { TagModule } from 'primeng/tag';
     styleUrl: './math-exercise-detail.component.scss',
     imports: [
         TranslateDirective,
+        ArtemisTranslatePipe,
         DocumentationButtonComponent,
         NonProgrammingExerciseDetailCommonActionsComponent,
         ExerciseDetailStatisticsComponent,
@@ -62,6 +64,9 @@ export class MathExerciseDetailComponent implements OnInit, OnDestroy {
     readonly course = signal<Course | undefined>(undefined);
     formattedProblemStatement: SafeHtml | null;
     readonly submissions = signal<MathSubmission[]>([]);
+
+    /** Submitted submissions with no result yet — inconclusive/failed automatic grading awaiting manual tutor assessment. */
+    readonly reviewCount = computed(() => this.submissions().filter((submission) => !(submission.results && submission.results.length > 0)).length);
 
     readonly doughnutStats = signal<ExerciseManagementStatisticsDto>(undefined!);
     readonly detailOverviewSections = signal<DetailOverviewSection[]>([]);

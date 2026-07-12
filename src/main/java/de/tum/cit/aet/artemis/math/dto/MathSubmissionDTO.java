@@ -16,6 +16,7 @@ import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation
 import de.tum.cit.aet.artemis.math.domain.DerivationRole;
 import de.tum.cit.aet.artemis.math.domain.DerivationStep;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJobStatus;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.domain.MathProblemAnswer;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
@@ -32,10 +33,13 @@ import de.tum.cit.aet.artemis.math.domain.StepKind;
  * @param results        automatic grading results (response only, populated after submit)
  * @param participation  the student's participation including exercise info (response only)
  * @param answers        the student's per-problem answers, each carrying its ordered derivation steps
+ * @param gradingState   the current async grading state ({@code PENDING}/{@code REVIEW}/{@code FAILED}) for a remotely-graded
+ *                           submission, or {@code null} when there is no async grading job (in-process grading or not submitted).
+ *                           Lets the student editor show an "awaiting tutor review" state on reload without a live push.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submissionDate, List<MathResultDTO> results, MathParticipationDTO participation,
-        List<MathProblemAnswerDTO> answers) {
+        List<MathProblemAnswerDTO> answers, MathGradingJobStatus gradingState) {
 
     /**
      * One derivation step in the student's math.
@@ -124,6 +128,18 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
      * @return the DTO carrying the user-facing submission fields (results, participation, answers)
      */
     public static MathSubmissionDTO of(MathSubmission submission) {
+        return of(submission, null);
+    }
+
+    /**
+     * Projects a {@link MathSubmission} into a DTO, additionally carrying the current async grading state so the student
+     * editor can show an "awaiting tutor review" state after a reload (when no live websocket push will arrive).
+     *
+     * @param submission   the entity to project
+     * @param gradingState the current async grading-job status for the submission, or {@code null} if there is none
+     * @return the DTO carrying the user-facing submission fields plus the grading state
+     */
+    public static MathSubmissionDTO of(MathSubmission submission, MathGradingJobStatus gradingState) {
         List<MathResultDTO> resultDTOs = null;
         List<Result> results = submission.getResults();
         if (results != null && !results.isEmpty()) {
@@ -141,7 +157,7 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
             answerDTOs = answers.stream().map(MathProblemAnswerDTO::of).toList();
         }
 
-        return new MathSubmissionDTO(submission.getId(), submission.isSubmitted(), submission.getSubmissionDate(), resultDTOs, participationDTO, answerDTOs);
+        return new MathSubmissionDTO(submission.getId(), submission.isSubmitted(), submission.getSubmissionDate(), resultDTOs, participationDTO, answerDTOs, gradingState);
     }
 
     /**

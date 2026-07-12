@@ -3,8 +3,18 @@
         <jhi-header-exercise-page-with-details class="math-header" [exercise]="mathExercise()" [studentParticipation]="participation()" [title]="mathExercise()?.title" />
 
         <!-- Submitted confirmation banner -->
-        @if (submission()?.submitted && !gradingPending()) {
+        @if (submission()?.submitted && !gradingPending() && !underReview()) {
             <p-message severity="success" styleClass="math-banner" [text]="'artemisApp.mathExercise.submitSuccessful' | artemisTranslate" />
+        }
+
+        <!-- Escalated to manual review: automatic grading was inconclusive or failed. -->
+        @if (submission()?.submitted && underReview()) {
+            <p-message severity="info" styleClass="math-banner">
+                <span class="math-review-banner">
+                    <strong jhiTranslate="artemisApp.mathExercise.underReview">Awaiting tutor review</strong>
+                    <span jhiTranslate="artemisApp.mathExercise.underReviewHint">Automatic grading was inconclusive — a tutor will assess your submission.</span>
+                </span>
+            </p-message>
         }
 
         <div class="math-body">
@@ -95,6 +105,8 @@
                             }
                         } @else if (gradingPending()) {
                             <p-tag severity="secondary" icon="pi pi-spin pi-spinner" [value]="'artemisApp.mathExercise.gradingInProgress' | artemisTranslate" />
+                        } @else if (underReview()) {
+                            <p-tag severity="info" icon="pi pi-hourglass" [value]="'artemisApp.mathExercise.underReview' | artemisTranslate" />
                         } @else {
                             <p-tag severity="success" icon="pi pi-check-circle" [value]="'artemisApp.mathExercise.submittedTitle' | artemisTranslate" />
                         }

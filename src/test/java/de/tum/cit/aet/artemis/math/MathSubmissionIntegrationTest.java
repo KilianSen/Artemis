@@ -1,7 +1,9 @@
 package de.tum.cit.aet.artemis.math;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 
@@ -20,6 +22,8 @@ import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation
 import de.tum.cit.aet.artemis.exercise.participation.util.ParticipationUtilService;
 import de.tum.cit.aet.artemis.exercise.test_repository.StudentParticipationTestRepository;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJob;
+import de.tum.cit.aet.artemis.math.domain.MathGradingJobStatus;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.HintRequestDTO;
@@ -27,6 +31,8 @@ import de.tum.cit.aet.artemis.math.dto.HintSuggestionDTO;
 import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
+import de.tum.cit.aet.artemis.math.repository.MathGradingJobRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.util.MathExerciseFactory;
 import de.tum.cit.aet.artemis.math.util.MathExerciseUtilService;
@@ -50,6 +56,9 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
     @Autowired
     private MathSubmissionRepository mathSubmissionRepository;
+
+    @Autowired
+    private MathGradingJobRepository mathGradingJobRepository;
 
     private Course course;
 
@@ -122,7 +131,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
         var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
@@ -136,11 +145,42 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void submitRemoteGraded_whenBackendUnavailable_escalatesToReviewAndSurfacesState() throws Exception {
+        // Route the problem to a remote backend that is not configured in this test context: grading must fail fast and
+        // escalate the submission to manual review (never a zero), and the state must be surfaced to the student.
+        exercise.getProblems().getFirst().setGraderType(GraderType.EGGREGATE);
+        mathExerciseUtilService.saveExercise(exercise);
+
+        Long problemId = exercise.getProblems().getFirst().getId();
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
+
+        MathSubmissionDTO submitted = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
+                HttpStatus.OK);
+        assertThat(submitted.submitted()).isTrue();
+        // No automatic result is attached — grading runs off-thread and the backend is unavailable.
+        assertThat(submitted.results()).isNullOrEmpty();
+
+        // The async pass settles the durable job to REVIEW (inconclusive verdict, no result).
+        await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
+            MathGradingJob job = mathGradingJobRepository.findFirstBySubmissionIdOrderByIdDesc(submitted.id()).orElseThrow();
+            assertThat(job.getStatus()).isEqualTo(MathGradingJobStatus.REVIEW);
+        });
+
+        // The editor endpoint surfaces the review state so the student sees an "awaiting tutor review" state on reload.
+        MathSubmissionDTO editor = request.get("/api/math/participations/" + participation.getId() + "/math-editor", HttpStatus.OK, MathSubmissionDTO.class);
+        assertThat(editor.gradingState()).isEqualTo(MathGradingJobStatus.REVIEW);
+        assertThat(editor.results()).isNullOrEmpty();
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void updateMathSubmission_persistsSteps() throws Exception {
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
         var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(answerDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, false, null, null, null, List.of(answerDTO), null);
 
         MathSubmissionDTO result = request.putWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
@@ -157,7 +197,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         Long problemId = exercise.getProblems().getFirst().getId();
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_right", List.of(), MathNodes.var("x"));
         var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);
@@ -175,7 +215,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         exercise.getProblems().getFirst().setTargetExpression(MathNodes.var("x"));
         mathExerciseUtilService.saveExercise(exercise);
 
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, null);
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, null, null);
 
         MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
                 HttpStatus.OK);

@@ -92,7 +92,7 @@ class MathRegateAsyncGradingLiveTest extends AbstractSpringIntegrationIndependen
         // Problem source is 0 + x; applying add_zero_left at the root reaches the target x.
         var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
         var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
-        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO));
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
 
         // Submit returns immediately with NO result — grading was handed to the async executor (remote grader).
         MathSubmissionDTO submitted = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,

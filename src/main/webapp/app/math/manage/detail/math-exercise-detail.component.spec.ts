@@ -60,4 +60,11 @@ describe('MathExerciseDetailComponent', () => {
         const sections = component.getExerciseDetailSections();
         expect(sections.length).toBeGreaterThan(0);
     });
+
+    it('counts submitted submissions with no result as awaiting review', () => {
+        component.submissions.set([{ id: 1, results: [{ id: 10, score: 100 }] }, { id: 2, results: [] }, { id: 3 }, { id: 4, results: [{ id: 11, score: 0 }] }] as any);
+
+        // Only the two submissions without a result are awaiting manual review.
+        expect(component.reviewCount()).toBe(2);
+    });
 });
