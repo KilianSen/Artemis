@@ -8,6 +8,14 @@ This file is the entry point for reviewing the submission: a quick setup, how to
 code lives, and a short tour of the feature. For the full narrative walkthrough with screenshots see the
 instructor documentation page: [`documentation/docs/instructor/exercises/math-exercise.mdx`](documentation/docs/instructor/exercises/math-exercise.mdx).
 
+## Contribution at a glance
+
+The card below is generated from the git history (commits, files, and lines authored by KilianSen) by
+[`KilianSen/gitproof`](https://github.com/KilianSen/gitproof) and refreshed on every push to this branch by
+[`.github/workflows/contribution-badge.yml`](.github/workflows/contribution-badge.yml).
+
+![Contribution card for KilianSen](contribution.svg)
+
 ---
 
 ## 1. Quick setup

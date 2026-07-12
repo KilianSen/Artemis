@@ -1,0 +1,39 @@
+name: Contribution Badge
+
+# Renders KilianSen's contribution to this repository as a self-contained SVG card via
+# KilianSen/gitproof (https://github.com/KilianSen/gitproof) and commits it back, so the thesis
+# contribution stays legible at a glance from ABGABE.md.
+on:
+  push:
+    branches: [Abgabe]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  badge:
+    name: Render contribution card
+    # Skip runs triggered by the badge commit itself to avoid a self-trigger loop.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history — gitproof needs the whole commit range
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Render contribution card
+        run: >
+          npx --yes git+https://github.com/KilianSen/gitproof.git
+          --repo . --to HEAD --user KilianSen --out contribution.svg
+      - name: Commit the card if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add contribution.svg
+          git diff --cached --quiet || git commit -m "chore: update contribution card"
+          git push
