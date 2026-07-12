@@ -17,10 +17,12 @@ import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.assessment.service.AssessmentService;
+import de.tum.cit.aet.artemis.assessment.service.ComplaintResponseService;
 import de.tum.cit.aet.artemis.exercise.service.SubmissionService;
 import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.dto.MathAssessmentUpdateDTO;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 
 /**
@@ -49,12 +51,15 @@ public class MathAssessmentService {
 
     private final AssessmentService assessmentService;
 
+    private final ComplaintResponseService complaintResponseService;
+
     public MathAssessmentService(MathSubmissionRepository mathSubmissionRepository, ResultRepository resultRepository, SubmissionService submissionService,
-            AssessmentService assessmentService) {
+            AssessmentService assessmentService, ComplaintResponseService complaintResponseService) {
         this.mathSubmissionRepository = mathSubmissionRepository;
         this.resultRepository = resultRepository;
         this.submissionService = submissionService;
         this.assessmentService = assessmentService;
+        this.complaintResponseService = complaintResponseService;
     }
 
     /**
@@ -160,6 +165,25 @@ public class MathAssessmentService {
      */
     public void cancelAssessment(MathSubmission submission) {
         assessmentService.cancelAssessmentOfSubmission(submission);
+    }
+
+    /**
+     * Resolves a student's complaint and applies the tutor's (possibly revised) manual assessment. The shared
+     * {@link ComplaintResponseService} records the response and enforces the responder rules (a complaint may not be
+     * resolved by the original assessor; instructors always may). The revised score + feedback are then written as the
+     * final assessment, with the responding tutor as assessor.
+     *
+     * @param submission the submission the complaint targets (with its results loaded)
+     * @param exercise   the exercise (for course-aware score rounding)
+     * @param update     the complaint response plus the revised score and feedback
+     * @param tutor      the responding tutor/instructor
+     * @return the updated manual result
+     */
+    public Result updateAfterComplaint(MathSubmission submission, MathExercise exercise, MathAssessmentUpdateDTO update, User tutor) {
+        // Records the ComplaintResponse and marks the complaint accepted/rejected, enforcing the shared responder rules.
+        complaintResponseService.resolveComplaint(update.complaintResponse());
+        // Apply the tutor's revised score + feedback as the authoritative final assessment.
+        return saveManualAssessment(submission, exercise, update.score(), update.feedbacks(), true, tutor);
     }
 
     /** The submission's latest {@code MANUAL} result that is still a draft/lock (no completion date), or {@code null}. */

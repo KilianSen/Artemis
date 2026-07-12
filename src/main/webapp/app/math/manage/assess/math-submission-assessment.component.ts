@@ -24,6 +24,9 @@ import { MathBlockRegistryService } from 'app/math/manage/service/math-block-reg
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { UnreferencedFeedbackComponent } from 'app/exercise/unreferenced-feedback/unreferenced-feedback.component';
 import { Feedback } from 'app/assessment/shared/entities/feedback.model';
+import { Complaint } from 'app/assessment/shared/entities/complaint.model';
+import { ComplaintService } from 'app/assessment/shared/services/complaint.service';
+import { AssessmentAfterComplaint } from 'app/assessment/manage/complaints-for-tutor/complaints-for-tutor.component';
 import { CardModule } from 'primeng/card';
 import { InputGroupModule } from 'primeng/inputgroup';
 import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
@@ -59,10 +62,13 @@ export class MathSubmissionAssessmentComponent implements OnInit {
     private translateService = inject(TranslateService);
     private blockRegistryService = inject(MathBlockRegistryService);
     private mathSubmissionService = inject(MathSubmissionService);
+    private complaintService = inject(ComplaintService);
 
     readonly mathExercise = signal<MathExercise>(undefined!);
     readonly submission = signal<MathSubmission>(undefined!);
     readonly result = signal<Result | undefined>(undefined);
+    /** The student's complaint on this assessment, if any — drives the complaint panel in the assessment layout. */
+    readonly complaint = signal<Complaint | undefined>(undefined);
     readonly courseId = signal<number>(-1);
     private exerciseId = -1;
     private correctionRound = 0;
@@ -151,6 +157,39 @@ export class MathSubmissionAssessmentComponent implements OnInit {
         // Pre-fill the input with an existing draft/submitted score so the tutor can adjust it.
         this.manualScore = latest?.score;
         this.isLoading.set(false);
+        this.loadComplaint(submission.id!);
+    }
+
+    /** Loads any student complaint on this submission so the assessment layout can show the complaint-response panel. */
+    private loadComplaint(submissionId: number): void {
+        this.complaintService.findBySubmissionId(submissionId).subscribe({
+            next: (res) => {
+                if (res.body) {
+                    this.complaint.set(this.complaintService.convertComplaintFromServer(res.body, this.result()));
+                }
+            },
+        });
+    }
+
+    /**
+     * Resolves the student complaint with the tutor's response and the (possibly revised) manual score + feedback.
+     * Delegates the accept/reject bookkeeping to the shared complaint-response service on the server.
+     */
+    onUpdateAfterComplaint(event: AssessmentAfterComplaint): void {
+        if (this.manualScore == undefined) {
+            this.alertService.error('artemisApp.mathExercise.assessment.invalidScore');
+            event.onError();
+            return;
+        }
+        const complaintResponse = this.complaintService.getComplaintResponseForUpdateAfterComplaint(event.complaintResponse);
+        this.mathSubmissionService.updateAssessmentAfterComplaint(this.submission().id!, this.manualScore, this.unreferencedFeedback(), complaintResponse).subscribe({
+            next: (updated) => {
+                this.result.set(updated.results?.[updated.results.length - 1]);
+                this.unreferencedFeedback.set(this.result()?.feedbacks ?? []);
+                event.onSuccess();
+            },
+            error: () => event.onError(),
+        });
     }
 
     /** Fetches and locks the next assessable submission, rewriting the URL to its id (mirrors the other assessment editors). */

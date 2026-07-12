@@ -43,6 +43,7 @@ import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.HintRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.HintSuggestionDTO;
 import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
+import de.tum.cit.aet.artemis.math.dto.MathAssessmentUpdateDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
@@ -427,6 +428,37 @@ public class MathSubmissionResource {
         User tutor = userRepository.getUserWithGroupsAndAuthorities();
 
         mathAssessmentService.saveManualAssessment(submission, exercise, request.score(), request.feedbacks(), submit, tutor);
+
+        submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
+        if (submission.getParticipation() != null) {
+            submission.getParticipation().setExercise(exercise);
+        }
+        loadResultFeedbacks(submission);
+        return ResponseEntity.ok(MathSubmissionDTO.of(submission));
+    }
+
+    /**
+     * PUT /math-submissions/{submissionId}/assessment-after-complaint : resolve a student complaint and apply the
+     * tutor's revised manual assessment. The responder must not be the original assessor (instructors excepted) — the
+     * shared complaint-response service enforces this.
+     *
+     * @param submissionId the submission the complaint targets
+     * @param update       the complaint response plus the revised score and feedback
+     * @return the submission with the updated assessment
+     */
+    @PutMapping("math-submissions/{submissionId}/assessment-after-complaint")
+    @EnforceAtLeastTutor
+    public ResponseEntity<MathSubmissionDTO> updateAssessmentAfterComplaint(@PathVariable Long submissionId, @RequestBody MathAssessmentUpdateDTO update) {
+        log.debug("REST request to update assessment after complaint for MathSubmission {}", submissionId);
+        MathSubmission submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
+        if (!(submission.getParticipation() != null && submission.getParticipation().getExercise() instanceof MathExercise pe)) {
+            throw new AccessForbiddenException("mathSubmission", submissionId);
+        }
+        MathExercise exercise = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(pe.getId()).orElseThrow();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.TEACHING_ASSISTANT, exercise, null);
+        User tutor = userRepository.getUserWithGroupsAndAuthorities();
+
+        mathAssessmentService.updateAfterComplaint(submission, exercise, update, tutor);
 
         submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submissionId).orElseThrow();
         if (submission.getParticipation() != null) {

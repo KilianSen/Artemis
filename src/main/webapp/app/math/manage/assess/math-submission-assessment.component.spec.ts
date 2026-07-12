@@ -12,7 +12,9 @@ import dayjs from 'dayjs/esm';
 import { MathSubmissionAssessmentComponent } from 'app/math/manage/assess/math-submission-assessment.component';
 import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
+import { ComplaintService } from 'app/assessment/shared/services/complaint.service';
 import { AlertService } from 'app/foundation/service/alert.service';
+import { HttpResponse } from '@angular/common/http';
 import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { MathExercise } from 'app/math/shared/entities/math-exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
@@ -34,6 +36,11 @@ describe('MathSubmissionAssessmentComponent', () => {
                     saveManualResult: vi.fn().mockReturnValue(of(submission)),
                     getSubmissionWithoutAssessment: vi.fn().mockReturnValue(of(submission)),
                     cancelAssessment: vi.fn().mockReturnValue(of(undefined)),
+                    updateAssessmentAfterComplaint: vi.fn().mockReturnValue(of(submission)),
+                }),
+                MockProvider(ComplaintService, {
+                    findBySubmissionId: () => of(new HttpResponse({ body: undefined })) as any,
+                    getComplaintResponseForUpdateAfterComplaint: (cr: any) => cr,
                 }),
                 MockProvider(AlertService),
                 MockProvider(Router),
@@ -128,6 +135,20 @@ describe('MathSubmissionAssessmentComponent', () => {
         component.saveAssessment();
 
         expect(mathSubmissionService.saveManualResult).toHaveBeenCalledWith(5, 40, expect.anything(), false);
+    });
+
+    it('resolves a complaint with the tutor response and the revised score', () => {
+        const { exercise, submission } = mockData();
+        buildComponent('5', exercise, submission);
+        component.manualScore = 90;
+        const onSuccess = vi.fn();
+        const onError = vi.fn();
+
+        component.onUpdateAfterComplaint({ complaintResponse: { id: 1 } as any, onSuccess, onError });
+
+        expect(mathSubmissionService.updateAssessmentAfterComplaint).toHaveBeenCalledWith(5, 90, expect.anything(), expect.anything());
+        expect(onSuccess).toHaveBeenCalled();
+        expect(onError).not.toHaveBeenCalled();
     });
 
     it('locks and loads the next submission when opened as "new"', () => {

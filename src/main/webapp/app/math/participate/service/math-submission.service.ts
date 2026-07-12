@@ -8,6 +8,7 @@ import { createRequestOption } from 'app/foundation/util/request.util';
 import { MathNode } from 'app/math/shared/entities/math-node.model';
 import { HintSuggestion } from 'app/math/shared/entities/hint-suggestion.model';
 import { Feedback } from 'app/assessment/shared/entities/feedback.model';
+import { ComplaintResponse } from 'app/assessment/shared/entities/complaint-response.model';
 
 export type EntityResponseType = HttpResponse<MathSubmission>;
 
@@ -113,6 +114,13 @@ export class MathSubmissionService {
     /** Cancels an in-progress assessment, releasing the tutor's soft lock on the submission. */
     cancelAssessment(submissionId: number): Observable<void> {
         return this.http.put<void>(`api/math/math-submissions/${submissionId}/cancel-assessment`, undefined);
+    }
+
+    /** Resolves a student complaint and applies the tutor's revised score + feedback. */
+    updateAssessmentAfterComplaint(submissionId: number, score: number, feedbacks: Feedback[], complaintResponse: ComplaintResponse): Observable<MathSubmission> {
+        return this.http
+            .put<MathSubmission>(`api/math/math-submissions/${submissionId}/assessment-after-complaint`, { score, feedbacks, complaintResponse }, { observe: 'response' })
+            .pipe(map((res: HttpResponse<MathSubmission>) => res.body!));
     }
 
     /** Asks the backend for ranked next-step suggestions for a specific problem at the current math state. */

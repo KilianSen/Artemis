@@ -11,12 +11,14 @@
     [exercise]="mathExercise()"
     [submission]="submission()"
     [result]="result()"
+    [complaint]="complaint()"
     [hasAssessmentDueDatePassed]="hasAssessmentDueDatePassed()"
     [exerciseDashboardLink]="['/course-management', courseId().toString(), 'assessment-dashboard', (mathExercise()?.id || -1).toString()]"
     (save)="saveAssessment()"
     (onSubmit)="submitAssessment()"
     (onCancel)="cancelAssessment()"
     (nextSubmission)="assessNext()"
+    (updateAssessmentAfterComplaint)="onUpdateAfterComplaint($event)"
 >
     @if (!isLoading()) {
         <!-- Submission info + score action — full width at the top -->

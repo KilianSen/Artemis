@@ -13,8 +13,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.account.util.UserUtilService;
+import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
+import de.tum.cit.aet.artemis.assessment.domain.Complaint;
+import de.tum.cit.aet.artemis.assessment.domain.ComplaintResponse;
+import de.tum.cit.aet.artemis.assessment.domain.ComplaintType;
 import de.tum.cit.aet.artemis.assessment.domain.Feedback;
+import de.tum.cit.aet.artemis.assessment.domain.Result;
+import de.tum.cit.aet.artemis.assessment.repository.ComplaintRepository;
+import de.tum.cit.aet.artemis.assessment.util.ComplaintUtilService;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
 import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
@@ -29,6 +37,7 @@ import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.HintRequestDTO;
 import de.tum.cit.aet.artemis.math.dto.HintSuggestionDTO;
 import de.tum.cit.aet.artemis.math.dto.ManualResultRequestDTO;
+import de.tum.cit.aet.artemis.math.dto.MathAssessmentUpdateDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
@@ -59,6 +68,12 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
 
     @Autowired
     private MathGradingJobRepository mathGradingJobRepository;
+
+    @Autowired
+    private ComplaintUtilService complaintUtilService;
+
+    @Autowired
+    private ComplaintRepository complaintRepository;
 
     private Course course;
 
@@ -217,6 +232,38 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
                 MathSubmissionDTO.class);
         assertThat(reoffered).isNotNull();
         assertThat(reoffered.id()).isEqualTo(unassessed.getId());
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void updateAssessmentAfterComplaint_resolvesComplaintAndRevisesScore() throws Exception {
+        // A submitted submission assessed with score 50 by tutor1.
+        MathSubmission submission = createSubmittedSubmissionWithoutResult();
+        User tutor = userUtilService.getUserByLogin(TEST_PREFIX + "tutor1");
+        participationUtilService.addResultToSubmission(submission, AssessmentType.MANUAL, tutor, 50.0, true, ZonedDateTime.now());
+        submission = mathSubmissionRepository.findByIdWithAnswersResultsAndParticipation(submission.getId()).orElseThrow();
+
+        // The student complains about the assessment.
+        complaintUtilService.addComplaintToSubmission(submission, TEST_PREFIX + "student1", ComplaintType.COMPLAINT);
+        Result result = submission.getLatestResult();
+        Complaint complaint = complaintRepository.findByResultId(result.getId()).orElseThrow();
+
+        // The instructor opens (locks) the complaint, then accepts it with a revised score.
+        ComplaintResponse lock = complaintUtilService.createInitialEmptyResponse(TEST_PREFIX + "instructor1", complaint);
+        Complaint accepted = new Complaint();
+        accepted.setId(complaint.getId());
+        accepted.setAccepted(true);
+        ComplaintResponse response = new ComplaintResponse();
+        response.setId(lock.getId());
+        response.setResponseText("Re-checked the derivation; adjusted the score.");
+        response.setComplaint(accepted);
+
+        MathSubmissionDTO updated = request.putWithResponseBody("/api/math/math-submissions/" + submission.getId() + "/assessment-after-complaint",
+                new MathAssessmentUpdateDTO(95.0, List.of(), response), MathSubmissionDTO.class, HttpStatus.OK);
+
+        assertThat(updated.results()).isNotEmpty();
+        assertThat(updated.results().getLast().score()).isEqualTo(95.0);
+        assertThat(complaintRepository.findById(complaint.getId()).orElseThrow().isAccepted()).isTrue();
     }
 
     /** Creates a submitted submission with no result — the state a submission is in after inconclusive/failed automatic grading. */
