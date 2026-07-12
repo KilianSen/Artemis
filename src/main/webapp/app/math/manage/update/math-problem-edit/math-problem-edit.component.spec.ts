@@ -118,4 +118,52 @@ describe('MathProblemEditComponent', () => {
         component.checkReachability();
         expect(mathExerciseService.verifyReachability).toHaveBeenCalledWith(42, 3);
     });
+
+    it('offers the curated starter templates', () => {
+        createComponent(new MathProblem());
+        const options = component.starterTemplateOptions();
+        expect(options).toHaveLength(6);
+        expect(options.map((o) => o.value)).toContain('induction-add-zero');
+    });
+
+    it('applyStarterTemplate pre-fills a transformation problem and emits it', () => {
+        const problem = new MathProblem();
+        problem.exampleDerivations = [{} as any];
+        createComponent(problem);
+        let emitted: MathProblem | undefined;
+        component.problemChange.subscribe((p) => (emitted = p));
+
+        component.applyStarterTemplate('left-identity');
+
+        expect(problem.goalMode).toBe('TRANSFORMATION');
+        expect(problem.graderType).toBe('REWRITE_CHAIN');
+        expect(problem.sourceExpression?.type).toBe('add');
+        expect(problem.targetExpression).toEqual({ type: 'variable', value: 'x' });
+        expect(problem.exampleDerivations).toEqual([]);
+        expect(emitted).toBe(problem);
+    });
+
+    it('applyStarterTemplate configures an induction problem and clears source/target', () => {
+        const problem = new MathProblem();
+        problem.sourceExpression = { type: 'variable', value: 'y' } as MathNode;
+        problem.targetExpression = { type: 'variable', value: 'y' } as MathNode;
+        createComponent(problem);
+
+        component.applyStarterTemplate('induction-add-zero');
+
+        expect(problem.goalMode).toBe('INDUCTION');
+        expect(problem.inductionVariable).toBe('n');
+        expect(problem.graderType).toBe('CVC5REGATE');
+        expect(problem.goalExpression?.type).toBe('eq');
+        expect(problem.sourceExpression).toBeUndefined();
+        expect(problem.targetExpression).toBeUndefined();
+    });
+
+    it('applyStarterTemplate ignores an unknown template id', () => {
+        const problem = new MathProblem();
+        createComponent(problem);
+        const before = problem.goalMode;
+        component.applyStarterTemplate('does-not-exist');
+        expect(problem.goalMode).toBe(before);
+    });
 });

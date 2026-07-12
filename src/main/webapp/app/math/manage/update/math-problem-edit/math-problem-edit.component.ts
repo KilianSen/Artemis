@@ -1,5 +1,6 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslateService } from '@ngx-translate/core';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -19,6 +20,7 @@ import { GOAL_MODE_LABELS, GoalMode } from '../../../shared/entities/goal-mode.m
 import { ReachabilityReport } from '../../../shared/entities/hint-suggestion.model';
 import { MathBuilderComponent } from '../math-builder/math-builder.component';
 import { MathDerivationWorkspaceComponent } from '../math-derivation-workspace/math-derivation-workspace.component';
+import { MATH_STARTER_TEMPLATES } from '../math-starter-templates';
 
 /**
  * Instructor edit UI for a single {@link MathProblem}. The problem is mutated in place — the parent holds the same
@@ -46,6 +48,7 @@ import { MathDerivationWorkspaceComponent } from '../math-derivation-workspace/m
 })
 export class MathProblemEditComponent {
     private mathExerciseService = inject(MathExerciseService);
+    private translateService = inject(TranslateService);
 
     readonly problem = input.required<MathProblem>();
     readonly exerciseId = input<number | undefined>();
@@ -78,6 +81,29 @@ export class MathProblemEditComponent {
         value,
         label: GOAL_MODE_LABELS[value],
     }));
+
+    /** Transient selection for the starter-template picker (acts as an action menu, not persisted on the problem). */
+    selectedTemplateId: string | undefined;
+
+    /** Options for the starter-template picker, with translated names and descriptions. */
+    readonly starterTemplateOptions = computed(() =>
+        MATH_STARTER_TEMPLATES.map((template) => ({
+            value: template.id,
+            label: this.translateService.instant(template.nameKey),
+            description: this.translateService.instant(template.descriptionKey),
+        })),
+    );
+
+    /** Applies the selected starter template to the current problem (pre-fills goal mode, expressions, and grader). */
+    applyStarterTemplate(templateId: string | undefined): void {
+        const template = MATH_STARTER_TEMPLATES.find((candidate) => candidate.id === templateId);
+        if (!template) {
+            return;
+        }
+        template.apply(this.problem());
+        this.reachability.set(undefined);
+        this.problemChange.emit(this.problem());
+    }
 
     onSourceExpressionChange(node: MathNode | undefined): void {
         this.problem().sourceExpression = node;

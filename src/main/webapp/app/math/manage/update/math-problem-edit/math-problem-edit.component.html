@@ -1,5 +1,32 @@
 <p-card styleClass="edit-card">
     <h4 class="section-title" jhiTranslate="artemisApp.mathExercise.configuration">Math Configuration</h4>
+    <!-- Curated starter templates: pre-fill goal mode, expressions, and grader from a basic equational-reasoning problem. -->
+    <div class="field-group">
+        <label class="field-label" for="field_starterTemplate" jhiTranslate="artemisApp.mathExercise.starterTemplates.label">Start from a template</label>
+        <p-select
+            inputId="field_starterTemplate"
+            name="starterTemplate"
+            styleClass="w-full"
+            [options]="starterTemplateOptions()"
+            optionLabel="label"
+            optionValue="value"
+            [showClear]="true"
+            [placeholder]="'artemisApp.mathExercise.starterTemplates.placeholder' | artemisTranslate"
+            [(ngModel)]="selectedTemplateId"
+            [ngModelOptions]="{ standalone: true }"
+            (onChange)="applyStarterTemplate($event.value)"
+        >
+            <ng-template let-option pTemplate="item">
+                <div class="starter-template-option">
+                    <span class="starter-template-option__name">{{ option.label }}</span>
+                    <small class="starter-template-option__desc">{{ option.description }}</small>
+                </div>
+            </ng-template>
+        </p-select>
+        <small class="field-hint" jhiTranslate="artemisApp.mathExercise.starterTemplates.hint"
+            >Pre-fills this problem from a curated example. You can edit everything afterwards.</small
+        >
+    </div>
     <div class="field-row">
         <div class="field-col-8">
             <div class="field-group">

@@ -2,6 +2,7 @@ import Image, {ImageSize} from "../../../src/components/Image/Image";
 
 import createExercise from './assets/math/create-exercise.png';
 import authoringForm from './assets/math/authoring-form.png';
+import starterTemplates from './assets/math/starter-templates.png';
 import problemEditor from './assets/math/problem-editor.png';
 import exerciseDetail from './assets/math/exercise-detail.png';
 import studentEditor from './assets/math/student-editor.png';
@@ -48,6 +49,10 @@ Fill out the general exercise settings (title, points, dates) and configure each
 For each problem you set the goal mode, the expressions, the grader, and the allowed rules. The per-problem block editor lets you build the expressions from the same blocks the student uses.
 
 <Image src={problemEditor} alt="Per-problem block editor" size={ImageSize.large} caption="Configuring a problem in the block editor" />
+
+To get started quickly, use **Start from a template** to pre-fill a problem from a curated set of basic equational-reasoning examples (left/right identity, commutativity, associativity, a fraction identity, and an induction proof). You can edit everything afterwards.
+
+<Image src={starterTemplates} alt="Starter templates" size={ImageSize.large} caption="Pre-filling a problem from a curated starter template" />
 
 Created math exercises appear in the exercise list. Opening one shows its detail view with statistics and the list of submissions; submissions awaiting manual review are flagged here as well.
 

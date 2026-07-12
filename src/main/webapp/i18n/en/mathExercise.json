@@ -57,6 +57,17 @@
             "submission": "Math Submission",
             "submittedTitle": "Submitted",
             "configuration": "Math Configuration",
+            "starterTemplates": {
+                "label": "Start from a template",
+                "placeholder": "Choose a starter template…",
+                "hint": "Pre-fills this problem from a curated example. You can edit everything afterwards.",
+                "leftIdentity": { "name": "Left identity of addition", "description": "Transform 0 + x into x." },
+                "rightIdentity": { "name": "Right identity of addition", "description": "Transform x + 0 into x." },
+                "commutativityAddition": { "name": "Commutativity of addition", "description": "Prove a + b = b + a." },
+                "associativityAddition": { "name": "Associativity of addition", "description": "Prove (a + b) + c = a + (b + c)." },
+                "fractionIdentity": { "name": "Fraction identity", "description": "Transform a / 1 into a." },
+                "inductionAddZero": { "name": "Induction: n + 0 = n", "description": "Prove n + 0 = n by induction on n." }
+            },
             "editor": {
                 "content": "Your solution"
             },

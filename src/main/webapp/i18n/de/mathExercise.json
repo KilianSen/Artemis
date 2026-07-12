@@ -57,6 +57,17 @@
             "submission": "Mathematik-Abgabe",
             "submittedTitle": "Abgegeben",
             "configuration": "Mathematik-Konfiguration",
+            "starterTemplates": {
+                "label": "Aus einer Vorlage starten",
+                "placeholder": "Startvorlage auswählen…",
+                "hint": "Füllt diese Aufgabe aus einem kuratierten Beispiel vor. Du kannst danach alles anpassen.",
+                "leftIdentity": { "name": "Linksneutrales Element der Addition", "description": "Forme 0 + x zu x um." },
+                "rightIdentity": { "name": "Rechtsneutrales Element der Addition", "description": "Forme x + 0 zu x um." },
+                "commutativityAddition": { "name": "Kommutativität der Addition", "description": "Beweise a + b = b + a." },
+                "associativityAddition": { "name": "Assoziativität der Addition", "description": "Beweise (a + b) + c = a + (b + c)." },
+                "fractionIdentity": { "name": "Bruch-Identität", "description": "Forme a / 1 zu a um." },
+                "inductionAddZero": { "name": "Induktion: n + 0 = n", "description": "Beweise n + 0 = n durch Induktion über n." }
+            },
             "editor": {
                 "content": "Deine Lösung"
             },
