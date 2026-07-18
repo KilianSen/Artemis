@@ -17,6 +17,7 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
+import de.tum.cit.aet.artemis.math.domain.LayoutCategory;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.BlockDefinitionDTO;
@@ -114,6 +115,13 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         var blocks = request.getList("/api/math/block-registry", HttpStatus.OK, BlockDefinitionDTO.class);
         assertThat(blocks).isNotEmpty();
         assertThat(blocks).anySatisfy(block -> assertThat(block.rules()).isNotEmpty());
+        // The named function-application term (Regate capability C1) is served with the FUNCTION_APP layout and its
+        // single `args` slot, so the editor can render/round-trip multi-argument functions like fact_aux(x, n).
+        assertThat(blocks).anySatisfy(block -> {
+            assertThat(block.type()).isEqualTo("apply");
+            assertThat(block.layoutCategory()).isEqualTo(LayoutCategory.FUNCTION_APP);
+            assertThat(block.slots()).containsExactly("args");
+        });
     }
 
     @Test
@@ -193,7 +201,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_preservesManualDerivation() throws Exception {
         MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, null,
-                false, false, false, true, true, null, null);
+                false, false, false, true, true, null, null, null);
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0,
                 IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
                 ZonedDateTime.now().plusDays(2), null, course.getId(), List.of(problemDTO), null);

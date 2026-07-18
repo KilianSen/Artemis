@@ -5,6 +5,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.math.domain.GoalMode;
+import de.tum.cit.aet.artemis.math.domain.InductionDatatype;
 import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
@@ -27,12 +28,13 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
  * @param allowVerification       whether students may trigger math verification / hints for this problem
  * @param manualDerivation        true if students write the result expression themselves
  * @param exampleDerivations      the instructor-supplied worked derivation (an ordered list of steps)
- * @param inductionVariable       the ℕ variable inducted over in INDUCTION mode; {@code null} otherwise
+ * @param inductionVariable       the variable inducted over in INDUCTION mode; {@code null} otherwise
+ * @param inductionDatatype       the datatype the induction variable ranges over in INDUCTION mode (defaults to ℕ)
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathProblemDTO(Long id, String title, Double points, MathNode sourceExpression, MathNode targetExpression, MathNode goalExpression, GoalMode goalMode,
         GraderType graderType, GraderType certifyingGraderType, Boolean partialCreditEnabled, Boolean acNormalization, Boolean onlyShowApplicableRules, Boolean allowVerification,
-        Boolean manualDerivation, List<DerivationStepDTO> exampleDerivations, String inductionVariable) {
+        Boolean manualDerivation, List<DerivationStepDTO> exampleDerivations, String inductionVariable, InductionDatatype inductionDatatype) {
 
     /**
      * @param problem the entity to project
@@ -42,7 +44,7 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
         return new MathProblemDTO(problem.getId(), problem.getTitle(), problem.getPoints(), problem.getSourceExpression(), problem.getTargetExpression(),
                 problem.getGoalExpression(), problem.getGoalMode(), problem.getGraderType(), problem.getCertifyingGraderType(), problem.isPartialCreditEnabled(),
                 problem.isAcNormalization(), problem.isOnlyShowApplicableRules(), problem.isAllowVerification(), problem.isManualDerivation(), problem.getExampleDerivations(),
-                problem.getInductionVariable());
+                problem.getInductionVariable(), problem.getInductionDatatype());
     }
 
     /**
@@ -68,6 +70,7 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
         problem.setManualDerivation(Boolean.TRUE.equals(manualDerivation));
         problem.setExampleDerivations(exampleDerivations);
         problem.setInductionVariable(inductionVariable);
+        problem.setInductionDatatype(inductionDatatype);
         return problem;
     }
 }

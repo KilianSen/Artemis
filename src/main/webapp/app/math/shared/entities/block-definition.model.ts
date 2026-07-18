@@ -3,7 +3,7 @@ import { RuleConstraint } from './rule-constraint.model';
 import { RuleDirection } from './rule-direction.model';
 
 export type Associativity = 'LEFT' | 'NONE';
-export type LayoutCategory = 'TERMINAL_NUMBER' | 'TERMINAL_VARIABLE' | 'BINARY_INFIX' | 'FRACTION' | 'UNARY_PREFIX' | 'POWER' | 'SUCCESSOR';
+export type LayoutCategory = 'TERMINAL_NUMBER' | 'TERMINAL_VARIABLE' | 'BINARY_INFIX' | 'FRACTION' | 'UNARY_PREFIX' | 'POWER' | 'SUCCESSOR' | 'FUNCTION_APP';
 
 export interface RewriteRuleModel {
     id: string;

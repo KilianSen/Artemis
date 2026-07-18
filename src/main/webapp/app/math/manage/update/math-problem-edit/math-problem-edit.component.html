@@ -206,22 +206,43 @@
         </div>
     } @else {
         @if ((problem().goalMode ?? 'TRANSFORMATION') === 'INDUCTION') {
-            <div class="field-group">
-                <label for="field_inductionVariable" jhiTranslate="artemisApp.mathExercise.inductionVariable">Induction variable</label>
-                <input
-                    type="text"
-                    pInputText
-                    name="inductionVariable"
-                    id="field_inductionVariable"
-                    class="w-full"
-                    [(ngModel)]="problem().inductionVariable"
-                    [ngModelOptions]="{ standalone: true }"
-                    placeholder="n"
-                />
-                <small class="field-hint" jhiTranslate="artemisApp.mathExercise.inductionVariableHint"
-                    >The ℕ variable inducted over (e.g. n). The goal below is P(n); it is proven for 0 and for S(n).</small
-                >
+            <div class="field-row">
+                <div class="field-col-4">
+                    <div class="field-group">
+                        <label for="field_inductionVariable" jhiTranslate="artemisApp.mathExercise.inductionVariable">Induction variable</label>
+                        <input
+                            type="text"
+                            pInputText
+                            name="inductionVariable"
+                            id="field_inductionVariable"
+                            class="w-full"
+                            [(ngModel)]="problem().inductionVariable"
+                            [ngModelOptions]="{ standalone: true }"
+                            placeholder="n"
+                        />
+                    </div>
+                </div>
+                <div class="field-col-8">
+                    <div class="field-group">
+                        <label for="field_inductionDatatype" jhiTranslate="artemisApp.mathExercise.inductionDatatype">Induction datatype</label>
+                        <p-select
+                            inputId="field_inductionDatatype"
+                            name="inductionDatatype"
+                            styleClass="w-full"
+                            [options]="inductionDatatypeOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            [ngModel]="problem().inductionDatatype ?? 'NAT'"
+                            (ngModelChange)="onInductionDatatypeChange($event)"
+                            [ngModelOptions]="{ standalone: true }"
+                        />
+                    </div>
+                </div>
             </div>
+            <small class="field-hint field-hint--spaced" jhiTranslate="artemisApp.mathExercise.inductionDatatypeHint"
+                >The variable inducted over (e.g. n) and the datatype it ranges over. The goal below is proven for the datatype's base and step constructors, assuming the induction
+                hypothesis at each recursive position.</small
+            >
         }
         @if (!problem().goalExpression) {
             <p-message severity="warn" styleClass="mb-block">

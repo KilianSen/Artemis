@@ -29,9 +29,16 @@ public interface MathProblemConfig {
     MathNode getGoalExpression();
 
     /**
-     * @return the induction variable (the ℕ variable inducted over) for INDUCTION mode, else {@code null}
+     * @return the induction variable (the variable inducted over) for INDUCTION mode, else {@code null}
      */
     String getInductionVariable();
+
+    /**
+     * @return the datatype the induction variable ranges over for INDUCTION mode; defaults to {@link InductionDatatype#NAT ℕ}
+     */
+    default InductionDatatype getInductionDatatype() {
+        return InductionDatatype.NAT;
+    }
 
     /**
      * @return the goal mode selecting how the derivation is graded (TRANSFORMATION vs EQUATION)

@@ -10,5 +10,5 @@ export const DEFAULT_GOAL_MODE: GoalMode = 'TRANSFORMATION';
 export const GOAL_MODE_LABELS: Record<GoalMode, string> = {
     TRANSFORMATION: 'Transformation (source → target)',
     EQUATION: 'Equation (single goal, closed by tautology)',
-    INDUCTION: 'Induction over ℕ (base + step)',
+    INDUCTION: 'Induction (base + step)',
 };

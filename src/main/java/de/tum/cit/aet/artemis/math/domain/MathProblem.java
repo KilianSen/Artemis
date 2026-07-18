@@ -100,6 +100,10 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     @Column(name = "induction_variable", length = 64)
     private String inductionVariable;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "induction_datatype", length = 16, nullable = false)
+    private InductionDatatype inductionDatatype = InductionDatatype.NAT;
+
     public MathExercise getExercise() {
         return exercise;
     }
@@ -235,6 +239,15 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
 
     public void setInductionVariable(String inductionVariable) {
         this.inductionVariable = inductionVariable;
+    }
+
+    @Override
+    public InductionDatatype getInductionDatatype() {
+        return inductionDatatype;
+    }
+
+    public void setInductionDatatype(InductionDatatype inductionDatatype) {
+        this.inductionDatatype = inductionDatatype == null ? InductionDatatype.NAT : inductionDatatype;
     }
 
     @Override

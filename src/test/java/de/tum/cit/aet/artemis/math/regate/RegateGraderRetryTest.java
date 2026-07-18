@@ -14,6 +14,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import de.tum.cit.aet.artemis.math.domain.GoalMode;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.regate.dto.GradeRequest;
@@ -68,6 +70,33 @@ class RegateGraderRetryTest {
         assertThatThrownBy(() -> grader.grade(new MathProblem(), List.of())).isInstanceOf(RegateException.class);
         // exactly the bounded number of attempts, not an unbounded loop
         verify(client, times(2)).grade(anyString(), any(GradeRequest.class), any(Duration.class));
+    }
+
+    @Test
+    void doesNotRetryOnDeterministicClientError() {
+        // A 4xx is a deterministic client error; retrying it cannot help, so the grader stops after one attempt.
+        when(client.grade(anyString(), any(GradeRequest.class), any(Duration.class))).thenThrow(new RegateException("bad request", 400));
+
+        AbstractRegateGrader grader = grader();
+        assertThatThrownBy(() -> grader.grade(new MathProblem(), List.of())).isInstanceOf(RegateException.class);
+        verify(client, times(1)).grade(anyString(), any(GradeRequest.class), any(Duration.class));
+    }
+
+    @Test
+    void translatesAnExtendedVocabulary400IntoAConfigurationError() {
+        // An induction goal that uses `apply` (protocol 1.1) rejected with 400 by an old backend must surface as an
+        // instructor-facing configuration diagnostic (backend too old), not a generic failure — and must not retry.
+        when(client.grade(anyString(), any(GradeRequest.class), any(Duration.class))).thenThrow(new RegateException("unimplemented node type 'apply'", 400));
+
+        MathProblem problem = new MathProblem();
+        problem.setGoalMode(GoalMode.INDUCTION);
+        problem.setInductionVariable("n");
+        problem.setGoalExpression(MathNodes.eq(MathNodes.apply("fact", MathNodes.var("n")), MathNodes.num("1")));
+
+        AbstractRegateGrader grader = grader();
+        assertThatThrownBy(() -> grader.grade(problem, List.of())).isInstanceOf(RegateException.class).hasMessageContaining("does not support features this exercise uses")
+                .hasMessageContaining("protocol 1.1");
+        verify(client, times(1)).grade(anyString(), any(GradeRequest.class), any(Duration.class));
     }
 
     @Test

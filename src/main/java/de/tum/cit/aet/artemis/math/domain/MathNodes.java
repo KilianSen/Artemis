@@ -68,6 +68,18 @@ public final class MathNodes {
         return new MathNode("succ", null, Map.of("inner", List.of(inner)));
     }
 
+    /**
+     * A named, n-ary function application {@code name(args…)} — the protocol {@code apply} term. The function
+     * name is carried in the node's {@code value} and the arguments in the single ordered {@code args} slot.
+     *
+     * @param name the function name
+     * @param args the argument expressions in order
+     * @return the application node
+     */
+    public static MathNode apply(String name, MathNode... args) {
+        return new MathNode("apply", name, Map.of("args", List.of(args)));
+    }
+
     // ----------------------------------------------------------------------
     // Utility operations
     // ----------------------------------------------------------------------

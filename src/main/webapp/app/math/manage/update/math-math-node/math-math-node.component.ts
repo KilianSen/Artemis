@@ -55,6 +55,20 @@ export class MathNodeComponent {
         return this.path();
     }
 
+    /** The function name of an {@code apply} node (rendered read-only in the FUNCTION_APP layout). */
+    functionName = computed(() => this.node().value ?? '?');
+
+    /** The arguments of an {@code apply} node, each with its index-path, for the FUNCTION_APP layout. */
+    applyArgs(): { child: MathNode; childPath: number[] }[] {
+        const args = this.node().slots?.['args'] ?? [];
+        return args.map((child, index) => ({ child, childPath: [...this.path(), index] }));
+    }
+
+    /** A function argument needs surrounding parentheses when it is compound (has slots), so {@code f (g x) y} is unambiguous. */
+    argNeedsParens(child: MathNode): boolean {
+        return !!child.slots && Object.keys(child.slots).length > 0;
+    }
+
     unknownChildren(): { child: MathNode; childPath: number[] }[] {
         const node = this.node();
         if (!node.slots) return [];

@@ -12,7 +12,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { MathExerciseService } from '../../service/math-exercise.service';
-import { MathProblem } from '../../../shared/entities/math-problem.model';
+import { INDUCTION_DATATYPE_LABELS, InductionDatatype, MathProblem } from '../../../shared/entities/math-problem.model';
 import { MathNode } from '../../../shared/entities/math-node.model';
 import { DerivationStep } from '../../../shared/entities/derivation-step.model';
 import { GRADER_TYPE_LABELS, GraderType, defaultGraderForMode, graderSupportsMode } from '../../../shared/entities/grader-type.model';
@@ -82,6 +82,12 @@ export class MathProblemEditComponent {
         label: GOAL_MODE_LABELS[value],
     }));
 
+    /** Options for the induction-datatype picker (ℕ / list / binary tree), shown only in INDUCTION mode. */
+    readonly inductionDatatypeOptions: { value: InductionDatatype; label: string }[] = (Object.keys(INDUCTION_DATATYPE_LABELS) as InductionDatatype[]).map((value) => ({
+        value,
+        label: INDUCTION_DATATYPE_LABELS[value],
+    }));
+
     /** Transient selection for the starter-template picker (acts as an action menu, not persisted on the problem). */
     selectedTemplateId: string | undefined;
 
@@ -137,6 +143,15 @@ export class MathProblemEditComponent {
             this.problem().certifyingGraderType = undefined;
         }
         // Reset the example derivation — it's tied to the previous start expression.
+        this.problem().exampleDerivations = [];
+        this.reachability.set(undefined);
+        this.problemChange.emit(this.problem());
+    }
+
+    onInductionDatatypeChange(datatype: InductionDatatype): void {
+        this.problem().inductionDatatype = datatype;
+        // The base/step constructors (0/S n vs nil/cons vs empty/node) change with the datatype, so any recorded
+        // example derivation no longer matches — reset it.
         this.problem().exampleDerivations = [];
         this.reachability.set(undefined);
         this.problemChange.emit(this.problem());
