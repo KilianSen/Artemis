@@ -4,6 +4,10 @@ import createExercise from './assets/math/create-exercise.png';
 import authoringForm from './assets/math/authoring-form.png';
 import starterTemplates from './assets/math/starter-templates.png';
 import problemEditor from './assets/math/problem-editor.png';
+import graderSelection from './assets/math/grader-selection.png';
+import graderFallbackWarning from './assets/math/grader-fallback-warning.png';
+import graderInduction from './assets/math/grader-induction.png';
+import graderCertifier from './assets/math/grader-certifier.png';
 import exerciseDetail from './assets/math/exercise-detail.png';
 import studentEditor from './assets/math/student-editor.png';
 import studentHints from './assets/math/student-hints.png';
@@ -27,7 +31,7 @@ A math exercise consists of one or more **problems**. Each problem defines:
 
 - a **goal mode** — *Transformation* (rewrite a start expression into a target), *Equation* (prove both sides equal), or *Induction* (prove a statement by induction over a variable);
 - the **expressions** — a source and target (transformation), a goal equation (equation), or a goal statement and an induction variable (induction);
-- a **grader** — the in-process rewrite-chain engine, or one of the remote Regate backends (see [Grading and Review](#grading-and-review));
+- one or more **graders** — the in-process **Path checker**, and/or the remote Regate backends (see [Grading and Review](#grading-and-review));
 - the **rules** the student may apply, drawn from the shared block registry.
 
 Conducting a math exercise follows the same three steps as other exercise types:
@@ -46,9 +50,13 @@ Fill out the general exercise settings (title, points, dates) and configure each
 
 <Image src={authoringForm} alt="Math exercise authoring form" size={ImageSize.large} caption="The math exercise authoring form" />
 
-For each problem you set the goal mode, the expressions, the grader, and the allowed rules. The per-problem block editor lets you build the expressions from the same blocks the student uses.
+For each problem you set the goal mode, the graders, the expressions, and the allowed rules. The per-problem block editor lets you build the expressions from the same blocks the student uses.
 
 <Image src={problemEditor} alt="Per-problem block editor" size={ImageSize.large} caption="Configuring a problem in the block editor" />
+
+Pick one or more grading backends in the **Graders** multi-select. Only backends that support the chosen goal mode are selectable — the rest are greyed out (for example, the induction-only provers cannot grade a transformation problem). The graders run in the listed order and the first conclusive verdict wins (see [Grading and Review](#grading-and-review)).
+
+<Image src={graderSelection} alt="Grader multi-select" size={ImageSize.large} caption="Selecting grading backends; graders that don't support the goal mode are disabled" />
 
 To get started quickly, use **Start from a template** to pre-fill a problem from a curated set of basic equational-reasoning examples (left/right identity, commutativity, associativity, a fraction identity, and an induction proof). You can edit everything afterwards.
 
@@ -92,10 +100,24 @@ In *manual step* mode, instead of Artemis applying the rule for the student, the
 
 ## Grading and Review
 
-Math exercises are graded automatically:
+Math exercises are graded automatically by the backends you selected for the problem:
 
-- **In-process rewrite-chain grader** — validates the derivation against the rule library on the server and grades synchronously.
+- **Path checker** (in-process) — validates the derivation step by step against the rule library on the server and grades synchronously.
 - **Remote Regate backends** (eggregate, leanregate, coqregate, cvc5regate) — equational-reasoning provers reached over HTTP. These grade asynchronously, and the result is pushed to the student over a websocket when it lands.
+
+When several graders are configured, they run in the listed order and the **first conclusive verdict wins**; a grader that abstains or is unavailable falls through to the next. Backends differ in reasoning strength, so the verdicts are weighed by a **capability tier**: a full pass from any backend is trusted, but a *rejection* from a weaker backend never overrides a stronger backend that could not decide — that case is routed to review instead.
+
+Because the Path checker cannot reason beyond its fixed rule library, listing it *after* a stronger backend makes it a fallback: only its full passes count, and any rejection or partial result goes to manual review. The authoring form warns you when this is the case.
+
+<Image src={graderFallbackWarning} alt="Path-checker fallback warning" size={ImageSize.large} caption="The authoring warning shown when the Path checker sits behind a stronger backend" />
+
+Which backends are available depends on the goal mode — the induction-only provers (coqregate, cvc5regate) appear only for induction problems.
+
+<Image src={graderInduction} alt="Grader options for induction" size={ImageSize.large} caption="For induction problems the formal provers become selectable and the transformation-only backends are disabled" />
+
+Optionally, a slower formal **certifier** can double-check the fast preliminary verdict from the grader above.
+
+<Image src={graderCertifier} alt="Optional certifier" size={ImageSize.large} caption="An optional certifier that confirms the preliminary verdict" />
 
 When automatic grading is **inconclusive** (an undecided prover verdict) or **fails** (a backend is unavailable), the submission is never scored zero — it is escalated to **manual tutor review**, and the student sees an "awaiting tutor review" state.
 
