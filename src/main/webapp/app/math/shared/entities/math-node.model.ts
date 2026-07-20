@@ -71,6 +71,18 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
             inner = `${sym}${renderChild(node.slots?.['inner']?.[0], 'inner')}`;
             break;
         }
+        case 'apply': {
+            // Named n-ary function application f(a₁,…,aₖ): the function name is in `value`, arguments in the
+            // single `args` slot. Rendered OCaml/FPV-style as juxtaposition `f a₁ … aₖ`, wrapping any compound
+            // argument (one with slots) in parentheses so `f (g x) y` never collapses to `f g x y`.
+            const name = `\\mathrm{${(node.value ?? '?').replace(/_/g, '\\_')}}`;
+            const args = (node.slots?.['args'] ?? []).map((arg) => {
+                const rendered = mathNodeToLatex(arg, lookup, -1);
+                return arg.slots && Object.keys(arg.slots).length > 0 ? `\\left(${rendered}\\right)` : rendered;
+            });
+            inner = args.length > 0 ? `${name}\\,${args.join('\\,')}` : name;
+            break;
+        }
         default:
             // Registry-driven dispatch for future blocks added without code changes here
             if (desc?.layoutCategory === 'BINARY_INFIX' && desc.latexSymbol) {
@@ -116,6 +128,30 @@ export function substituteVariable(node: MathNode, name: string, replacement: Ma
     const slots: Record<string, MathNode[]> = {};
     for (const [key, children] of Object.entries(node.slots)) {
         slots[key] = children.map((child) => substituteVariable(child, name, replacement));
+    }
+    return node.value === undefined ? { type: node.type, slots } : { type: node.type, value: node.value, slots };
+}
+
+/**
+ * Returns a copy of the tree with every `variable` node renamed to a `wild` node of the same name, EXCEPT
+ * variables named `keep` (the induction variable), which stay literal.
+ *
+ * This turns an exact induction hypothesis `P(x⃗, n)` into the schema `∀x⃗. P(x⃗, n)` — the generalisation over
+ * accumulator parameters that every tail-recursive/accumulator correctness proof needs (Regate capability C2).
+ * The kept variable stays literal so the schematic IH still matches `P(n)` and never `P(S n)`, preserving the
+ * induction protocol's soundness. Function-application names live in `apply` nodes' `value`, not in `variable`
+ * nodes, so they are never wildcarded.
+ */
+export function wildcardizeExcept(node: MathNode, keep: string): MathNode {
+    if (node.type === 'variable' && node.value !== keep) {
+        return { type: 'wild', value: node.value };
+    }
+    if (!node.slots) {
+        return node;
+    }
+    const slots: Record<string, MathNode[]> = {};
+    for (const [key, children] of Object.entries(node.slots)) {
+        slots[key] = children.map((child) => wildcardizeExcept(child, keep));
     }
     return node.value === undefined ? { type: node.type, slots } : { type: node.type, value: node.value, slots };
 }

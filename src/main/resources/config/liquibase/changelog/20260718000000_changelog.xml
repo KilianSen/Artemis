@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- A-M2: an INDUCTION-mode problem may induct over a datatype (list, binary tree), not only ℕ. The datatype
+         drives the base/step obligations and the exercise.datatype descriptor sent to the grading backend. Existing
+         problems default to NAT, preserving current behaviour. Unreleased feature, no data migration required. -->
+    <changeSet id="20260718000000-1" author="kiliansen">
+        <addColumn tableName="math_problem">
+            <column name="induction_datatype" type="varchar(16)" defaultValue="NAT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

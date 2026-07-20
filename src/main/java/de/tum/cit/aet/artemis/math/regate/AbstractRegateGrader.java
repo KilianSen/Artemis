@@ -52,8 +52,22 @@ public abstract class AbstractRegateGrader implements MathGrader {
     @Override
     public GradingResult grade(MathProblemConfig config, List<DerivationStep> steps) {
         GradeRequest request = RegateRequestMapper.toRequest(config, steps, blockRegistry);
-        GradeResponse response = gradeWithRetry(request);
-        return RegateResponseMapper.toGradingResult(response);
+        try {
+            GradeResponse response = gradeWithRetry(request);
+            return RegateResponseMapper.toGradingResult(response);
+        }
+        catch (RegateException exception) {
+            // A 4xx on a request that uses protocol-1.1 vocabulary means the backend is too old for this exercise
+            // (unimplemented vocabulary → 400). Re-throw with an instructor-facing reason so the review queue shows a
+            // configuration diagnostic, not a generic "grading failed". The submission still routes to review — never
+            // a student-facing zero.
+            if (isClientError(exception.getStatusCode()) && RegateVocabulary.usesExtendedVocabulary(request)) {
+                throw new RegateException("The configured grading backend (" + getType()
+                        + ") does not support features this exercise uses (function application / datatype induction). Upgrade the backend to Regate protocol 1.1 or change the exercise's grader. Backend response: "
+                        + exception.getMessage(), exception.getStatusCode());
+            }
+            throw exception;
+        }
     }
 
     /**
@@ -72,9 +86,19 @@ public abstract class AbstractRegateGrader implements MathGrader {
             catch (RegateException exception) {
                 lastFailure = exception;
                 log.warn("Regate grade attempt {}/{} on {} failed: {}", attempt, MAX_ATTEMPTS, getType(), exception.getMessage());
+                // A 4xx is a deterministic client error (malformed request / unimplemented vocabulary); retrying it
+                // cannot change the outcome and only delays escalation to review, so stop immediately.
+                if (isClientError(exception.getStatusCode())) {
+                    break;
+                }
             }
         }
         throw lastFailure;
+    }
+
+    /** @return {@code true} for an HTTP {@code 4xx} status (a deterministic client error, not a transient failure). */
+    private static boolean isClientError(int statusCode) {
+        return statusCode >= 400 && statusCode < 500;
     }
 
     @Override

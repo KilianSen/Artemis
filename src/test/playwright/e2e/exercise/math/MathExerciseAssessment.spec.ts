@@ -29,7 +29,7 @@ const remoteExerciseTemplate = {
             title: 'Problem 1',
             points: 10,
             goalMode: 'TRANSFORMATION',
-            graderType: 'EGGREGATE',
+            graderTypes: ['EGGREGATE'],
             sourceExpression: { type: 'add', slots: { left: [{ type: 'number', value: '0' }], right: [{ type: 'variable', value: 'x' }] } },
             targetExpression: { type: 'variable', value: 'x' },
         },

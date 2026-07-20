@@ -80,7 +80,7 @@ class MathRegateAsyncGradingLiveTest extends AbstractSpringIntegrationIndependen
         Course course = mathExerciseUtilService.addCourseWithMathExercise();
         exercise = (MathExercise) course.getExercises().iterator().next();
         // Route the (transformation) problem to the remote eggregate backend so the submit grades asynchronously.
-        exercise.getProblems().getFirst().setGraderType(GraderType.EGGREGATE);
+        exercise.getProblems().getFirst().setGraderTypes(List.of(GraderType.EGGREGATE));
         mathExerciseUtilService.saveExercise(exercise);
         participation = participationUtilService.createAndSaveParticipationForExercise(exercise, TEST_PREFIX + "student1");
     }

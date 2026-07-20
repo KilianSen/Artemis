@@ -84,6 +84,20 @@ describe('MathProblemEditComponent', () => {
         expect(problem.exampleDerivations).toEqual([]);
     });
 
+    it('offers the three induction datatypes (ℕ / list / tree)', () => {
+        createComponent(new MathProblem());
+        expect(component.inductionDatatypeOptions.map((option) => option.value)).toEqual(['NAT', 'LIST', 'TREE']);
+    });
+
+    it('onInductionDatatypeChange updates the datatype and resets the example derivation', () => {
+        const problem = new MathProblem();
+        problem.exampleDerivations = [{} as any];
+        createComponent(problem);
+        component.onInductionDatatypeChange('LIST');
+        expect(problem.inductionDatatype).toBe('LIST');
+        expect(problem.exampleDerivations).toEqual([]);
+    });
+
     it('onTargetExpressionChange updates the target without clearing the example derivation', () => {
         const problem = new MathProblem();
         problem.exampleDerivations = [{} as any];
@@ -122,8 +136,11 @@ describe('MathProblemEditComponent', () => {
     it('offers the curated starter templates', () => {
         createComponent(new MathProblem());
         const options = component.starterTemplateOptions();
-        expect(options).toHaveLength(6);
+        expect(options).toHaveLength(9);
         expect(options.map((o) => o.value)).toContain('induction-add-zero');
+        expect(options.map((o) => o.value)).toContain('induction-fact-accumulator');
+        expect(options.map((o) => o.value)).toContain('induction-list-sum');
+        expect(options.map((o) => o.value)).toContain('induction-tree-count');
     });
 
     it('applyStarterTemplate pre-fills a transformation problem and emits it', () => {
@@ -136,7 +153,7 @@ describe('MathProblemEditComponent', () => {
         component.applyStarterTemplate('left-identity');
 
         expect(problem.goalMode).toBe('TRANSFORMATION');
-        expect(problem.graderType).toBe('REWRITE_CHAIN');
+        expect(problem.graderTypes).toEqual(['PATH_CHECKER']);
         expect(problem.sourceExpression?.type).toBe('add');
         expect(problem.targetExpression).toEqual({ type: 'variable', value: 'x' });
         expect(problem.exampleDerivations).toEqual([]);
@@ -153,7 +170,7 @@ describe('MathProblemEditComponent', () => {
 
         expect(problem.goalMode).toBe('INDUCTION');
         expect(problem.inductionVariable).toBe('n');
-        expect(problem.graderType).toBe('CVC5REGATE');
+        expect(problem.graderTypes).toEqual(['CVC5REGATE']);
         expect(problem.goalExpression?.type).toBe('eq');
         expect(problem.sourceExpression).toBeUndefined();
         expect(problem.targetExpression).toBeUndefined();

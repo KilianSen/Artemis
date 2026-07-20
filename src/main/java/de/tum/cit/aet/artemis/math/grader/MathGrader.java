@@ -10,7 +10,7 @@ import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 /**
  * Strategy interface implemented by every math-grading backend.
  * <p>
- * The current step-by-step engine is exposed as {@code RewriteChainGrader}.
+ * The current step-by-step engine is exposed as {@code PathCheckerGrader}.
  * Future M3 graders (egg e-graphs) plug in by adding a new Spring bean
  * with the appropriate {@link GraderType}; the dispatcher in
  * {@code MathGradingService} routes per-exercise.
@@ -49,7 +49,7 @@ public interface MathGrader {
 
     /**
      * Run an automated reachability check from the configuration's starting expression toward its target.
-     * Optional — different graders implement this differently (rewrite-chain runs a reduction strategy;
+     * Optional — different graders implement this differently (the path checker runs a reduction strategy;
      * Lean would run {@code simp} / {@code auto}). Empty when the grader cannot answer the question.
      *
      * @param config the problem configuration to analyse

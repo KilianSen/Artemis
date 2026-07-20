@@ -47,6 +47,7 @@ import de.tum.cit.aet.artemis.math.dto.MathAssessmentUpdateDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemAnswerDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathGradingJobRepository;
@@ -113,7 +114,7 @@ public class MathSubmissionResource {
 
     /** Whether any problem of the exercise is graded by a remote (Regate) backend — those are graded asynchronously. */
     private boolean usesRemoteGrader(MathExercise exercise) {
-        return exercise.getProblems() != null && exercise.getProblems().stream().anyMatch(problem -> problem.getGraderType() != null && problem.getGraderType().isRemote());
+        return exercise.getProblems() != null && exercise.getProblems().stream().anyMatch(problem -> problem.getGraderTypes().stream().anyMatch(GraderType::isRemote));
     }
 
     @PostMapping("exercises/{exerciseId}/math-submissions")

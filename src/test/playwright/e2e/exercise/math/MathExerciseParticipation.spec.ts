@@ -10,7 +10,7 @@ const course = { id: SEED_COURSES.exerciseParticipation.id } as any;
  * editor, apply a rewrite rule to transform the start expression into the goal, and submit for grading.
  *
  * The exercise proves {@code 0 + x = x} in a single {@code add_zero_left} step and is graded by the
- * in-process {@code REWRITE_CHAIN} engine, so grading is synchronous and the result appears on submit
+ * in-process {@code PATH_CHECKER} engine, so grading is synchronous and the result appears on submit
  * (no remote backend or websocket needed — that path is covered by the server-side live test).
  */
 const solvableExerciseTemplate = {
@@ -30,7 +30,7 @@ const solvableExerciseTemplate = {
             title: 'Problem 1',
             points: 10,
             goalMode: 'TRANSFORMATION',
-            graderType: 'REWRITE_CHAIN',
+            graderTypes: ['PATH_CHECKER'],
             sourceExpression: { type: 'add', slots: { left: [{ type: 'number', value: '0' }], right: [{ type: 'variable', value: 'x' }] } },
             targetExpression: { type: 'variable', value: 'x' },
         },
@@ -56,7 +56,7 @@ test.describe('Math exercise participation', { tag: '@fast' }, () => {
         await mathParticipation.applyRuleAtRoot(exercise.id, 'add_zero_left');
         await mathParticipation.shouldShowComplete(exercise.id);
 
-        // Submit — REWRITE_CHAIN grades synchronously, so the authoritative result comes back on the response.
+        // Submit — PATH_CHECKER grades synchronously, so the authoritative result comes back on the response.
         const response = await mathParticipation.submit(exercise.id);
         expect(response.status()).toBe(200);
         const submission = await response.json();
@@ -71,7 +71,7 @@ test.describe('Math exercise participation', { tag: '@fast' }, () => {
         // the submission is escalated to manual review, which the student sees as an "awaiting tutor review" state.
         const remoteTemplate = {
             ...solvableExerciseTemplate,
-            problems: [{ ...solvableExerciseTemplate.problems[0], graderType: 'EGGREGATE' }],
+            problems: [{ ...solvableExerciseTemplate.problems[0], graderTypes: ['EGGREGATE'] }],
         };
         await login(admin);
         const remoteExercise = await exerciseAPIRequests.createMathExercise({ course }, 'Math EqReasoning Remote ' + Date.now(), remoteTemplate);

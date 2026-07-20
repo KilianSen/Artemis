@@ -42,17 +42,17 @@ import de.tum.cit.aet.artemis.math.service.ReductionStrategy;
 @Conditional(MathEnabled.class)
 @Lazy
 @Service
-public class RewriteChainGrader implements MathGrader {
+public class PathCheckerGrader implements MathGrader {
 
     private final BlockRegistry blockRegistry;
 
-    public RewriteChainGrader(BlockRegistry blockRegistry) {
+    public PathCheckerGrader(BlockRegistry blockRegistry) {
         this.blockRegistry = blockRegistry;
     }
 
     @Override
     public GraderType getType() {
-        return GraderType.REWRITE_CHAIN;
+        return GraderType.PATH_CHECKER;
     }
 
     /**

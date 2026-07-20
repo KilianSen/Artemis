@@ -4,13 +4,13 @@ import { GoalMode } from './goal-mode.model';
  * Mirror of the backend {@code GraderType} enum.
  * Discriminator used to dispatch a math grader for a given problem.
  */
-export type GraderType = 'REWRITE_CHAIN' | 'EGGREGATE' | 'LEANREGATE' | 'COQREGATE' | 'CVC5REGATE';
+export type GraderType = 'PATH_CHECKER' | 'EGGREGATE' | 'LEANREGATE' | 'COQREGATE' | 'CVC5REGATE';
 
-export const DEFAULT_GRADER_TYPE: GraderType = 'REWRITE_CHAIN';
+export const DEFAULT_GRADER_TYPE: GraderType = 'PATH_CHECKER';
 
 /** Display label for each grader type, used in the editor dropdown. */
 export const GRADER_TYPE_LABELS: Record<GraderType, string> = {
-    REWRITE_CHAIN: 'Step-by-step (rewrite chain)',
+    PATH_CHECKER: 'Path checker (step-by-step, in-process)',
     EGGREGATE: 'Regate · eggregate (e-graph)',
     LEANREGATE: 'Regate · leanregate (Lean formal)',
     COQREGATE: 'Regate · coqregate (Coq, induction)',
@@ -19,7 +19,7 @@ export const GRADER_TYPE_LABELS: Record<GraderType, string> = {
 
 /** Which goal modes each grader can grade conclusively — mirrors the server {@code GraderType.supports(mode)}. */
 export const GRADER_MODE_SUPPORT: Record<GraderType, GoalMode[]> = {
-    REWRITE_CHAIN: ['TRANSFORMATION', 'EQUATION'],
+    PATH_CHECKER: ['TRANSFORMATION', 'EQUATION'],
     EGGREGATE: ['TRANSFORMATION', 'EQUATION'],
     LEANREGATE: ['TRANSFORMATION', 'EQUATION', 'INDUCTION'],
     COQREGATE: ['INDUCTION'],
@@ -34,4 +34,9 @@ export function graderSupportsMode(grader: GraderType, mode: GoalMode): boolean 
 /** A sensible default grader for a goal mode: the in-process engine for transformation/equation, leanregate for induction. */
 export function defaultGraderForMode(mode: GoalMode): GraderType {
     return mode === 'INDUCTION' ? 'LEANREGATE' : DEFAULT_GRADER_TYPE;
+}
+
+/** A sensible default grader selection (a fresh single-element list) for a goal mode. */
+export function defaultGradersForMode(mode: GoalMode): GraderType[] {
+    return [defaultGraderForMode(mode)];
 }

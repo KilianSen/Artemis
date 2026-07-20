@@ -27,7 +27,8 @@ class RegateProtocolSerializationTest {
     @Test
     void serializesRequestWithProtocolFieldNamesAndOmitsNulls() throws Exception {
         var options = new GradeRequest.OptionsSpec(true, 5, false, null, null, null, null);
-        var exercise = new GradeRequest.ExerciseSpec("ex1", "transformation", MathNodes.var("x"), MathNodes.var("y"), null, null, List.of(), null, null, null, null, options);
+        var exercise = new GradeRequest.ExerciseSpec("ex1", "transformation", MathNodes.var("x"), MathNodes.var("y"), null, null, List.of(), null, null, null, null, options, null,
+                null);
         // a root-targeting step: empty path must survive serialization (NON_NULL, not NON_EMPTY)
         var step = new StepSpec("add_comm", List.of(), "forward", "A", null, MathNodes.var("y"));
         var submission = new GradeRequest.SubmissionSpec(null, List.of(step), null, null, null);
@@ -54,7 +55,8 @@ class RegateProtocolSerializationTest {
     @Test
     void serializesVerifyRulesWhenSet() throws Exception {
         var options = new GradeRequest.OptionsSpec(null, null, null, null, null, null, true);
-        var exercise = new GradeRequest.ExerciseSpec("ex1", "transformation", MathNodes.var("x"), MathNodes.var("y"), null, null, List.of(), null, null, null, null, options);
+        var exercise = new GradeRequest.ExerciseSpec("ex1", "transformation", MathNodes.var("x"), MathNodes.var("y"), null, null, List.of(), null, null, null, null, options, null,
+                null);
         var request = new GradeRequest(GradeRequest.PROTOCOL_VERSION, exercise, new GradeRequest.SubmissionSpec(MathNodes.var("y"), null, null, null, null));
 
         JsonNode json = mapper.valueToTree(request);

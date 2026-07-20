@@ -66,7 +66,19 @@
                 "commutativityAddition": { "name": "Commutativity of addition", "description": "Prove a + b = b + a." },
                 "associativityAddition": { "name": "Associativity of addition", "description": "Prove (a + b) + c = a + (b + c)." },
                 "fractionIdentity": { "name": "Fraction identity", "description": "Transform a / 1 into a." },
-                "inductionAddZero": { "name": "Induction: n + 0 = n", "description": "Prove n + 0 = n by induction on n." }
+                "inductionAddZero": { "name": "Induction: n + 0 = n", "description": "Prove n + 0 = n by induction on n." },
+                "inductionFactAccumulator": {
+                    "name": "Induction: fact_aux x n = x · fact n",
+                    "description": "Prove the tail-recursive factorial correct by induction on n, applying the hypothesis at a shifted accumulator."
+                },
+                "inductionListSum": {
+                    "name": "List induction: sum l a = a + summa l",
+                    "description": "Prove the accumulating list sum correct by structural induction over a list (nil/cons)."
+                },
+                "inductionTreeCount": {
+                    "name": "Tree induction: aux t a = a + nodes t",
+                    "description": "Prove the accumulating node count correct by structural induction over a binary tree (empty/node), using two hypotheses."
+                }
             },
             "editor": {
                 "content": "Your solution"
@@ -117,8 +129,9 @@
             "onlyShowApplicableRulesHint": "Hide rules that cannot be applied at the currently selected node.",
             "partialCreditEnabled": "Partial Credit",
             "partialCreditEnabledHint": "Award proportional points for valid steps when the math is incomplete. Requires at least one example derivation to determine the expected step count.",
-            "graderType": "Grader",
-            "graderTypeHint": "Step-by-step is the only grader available today.",
+            "graderType": "Graders",
+            "graderTypeHint": "Pick one or more backends. The first that supports the goal mode grades; the rest add redundancy or mode coverage.",
+            "pathCheckerFallbackWarning": "The path checker is listed after a stronger backend, so it only grades when that backend is unavailable. Because it cannot reason beyond the fixed rule library, only its full-pass verdicts are trusted — any rejection or partial result routes the submission to manual review instead.",
             "certifier": "Certifier (optional)",
             "certifierHint": "Optional slower formal prover that certifies the fast preliminary verdict from the grader above.",
             "direction": {
@@ -130,10 +143,12 @@
             "goalModeHint": "Transformation: students transform a source tree into a target tree. Equation: students reduce a single equation to a tautology (LHS structurally equals RHS).",
             "inductionVariable": "Induction variable",
             "inductionVariableHint": "The ℕ variable inducted over (e.g. n). The goal below is P(n); it is proven for 0 and for S(n).",
+            "inductionDatatype": "Induction datatype",
+            "inductionDatatypeHint": "The variable inducted over (e.g. n) and the datatype it ranges over. The goal below is proven for the datatype's base and step constructors, assuming the induction hypothesis at each recursive position.",
             "inductionProof": " — Induction proof",
-            "inductionIntro": "Prove the base case P(0) and the inductive step P(S n), assuming the induction hypothesis P(n).",
-            "inductionBase": "Base case: P(0)",
-            "inductionStep": "Inductive step: P(S n)",
+            "inductionIntro": "Prove the base case P({{base}}) and the inductive step P({{step}}), assuming the induction hypothesis.",
+            "inductionBase": "Base case: P({{base}})",
+            "inductionStep": "Inductive step: P({{step}})",
             "inductionHypothesis": "You may assume the induction hypothesis:",
             "goalExpression": "Goal Expression",
             "goalExpressionHint": "Math is complete when this reduces to a tautology (e.g. t = t).",

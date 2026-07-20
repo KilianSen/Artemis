@@ -10,10 +10,12 @@
     </ng-template>
 
     <p-message severity="info" styleClass="induction-message">
-        <span jhiTranslate="artemisApp.mathExercise.inductionIntro">Prove the base case P(0) and the inductive step P(S n), assuming the induction hypothesis P(n).</span>
+        <span jhiTranslate="artemisApp.mathExercise.inductionIntro" [translateValues]="{ base: baseTermLabel(), step: stepTermLabel() }"
+            >Prove the base case P({{ baseTermLabel() }}) and the inductive step P({{ stepTermLabel() }}), assuming the induction hypothesis.</span
+        >
     </p-message>
 
-    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionBase">Base case: P(0)</h6>
+    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionBase" [translateValues]="{ base: baseTermLabel() }">Base case: P({{ baseTermLabel() }})</h6>
     <jhi-math-problem-participation
         [problem]="baseProblem()"
         [exerciseId]="exerciseId()"
@@ -26,7 +28,9 @@
 
     <hr class="induction-divider" />
 
-    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionStep">Inductive step: P(S n)</h6>
+    <h6 class="induction-section-title" jhiTranslate="artemisApp.mathExercise.inductionStep" [translateValues]="{ step: stepTermLabel() }">
+        Inductive step: P({{ stepTermLabel() }})
+    </h6>
     @if (hypothesis(); as ih) {
         <p-message severity="secondary" styleClass="induction-hypothesis-message">
             <span jhiTranslate="artemisApp.mathExercise.inductionHypothesis">You may assume the induction hypothesis:</span>

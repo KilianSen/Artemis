@@ -73,7 +73,7 @@ public class RegateClient {
                     .POST(HttpRequest.BodyPublishers.ofString(json)).build();
             HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300) {
-                throw new RegateException("Regate backend call to " + url + " returned HTTP " + httpResponse.statusCode() + ": " + httpResponse.body());
+                throw new RegateException("Regate backend call to " + url + " returned HTTP " + httpResponse.statusCode() + ": " + httpResponse.body(), httpResponse.statusCode());
             }
             GradeResponse response = JsonObjectMapper.get().readValue(httpResponse.body(), GradeResponse.class);
             if (response == null) {

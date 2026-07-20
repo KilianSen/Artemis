@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { MathNode, applyRule, assertWildcardFree, distance, equalsAC, isTautology, mathNodesEqual, normalize, normalizeAC, size } from 'app/math/shared/entities/math-node.model';
+import {
+    MathNode,
+    applyRule,
+    assertWildcardFree,
+    distance,
+    equalsAC,
+    isTautology,
+    mathNodeToLatex,
+    mathNodesEqual,
+    normalize,
+    normalizeAC,
+    size,
+    wildcardizeExcept,
+} from 'app/math/shared/entities/math-node.model';
 import { RuleConstraint } from 'app/math/shared/entities/rule-constraint.model';
 
 const num = (v: string): MathNode => ({ type: 'number', value: v });
@@ -243,6 +256,43 @@ describe('math-node engine — frontend mirror', () => {
             const reduced = applyRule(goal, [0], pattern, template, [], 'FORWARD', 'BIDIRECTIONAL');
             expect(reduced).toBeDefined();
             expect(isTautology(reduced!)).toBe(true);
+        });
+    });
+
+    describe('wildcardizeExcept (schematic induction hypothesis, C2)', () => {
+        const apply = (name: string, ...args: MathNode[]): MathNode => ({ type: 'apply', value: name, slots: { args } });
+
+        it('turns every free variable except the kept one into a wildcard', () => {
+            // fact_aux(x, n) = x · fact(n), keep n
+            const goal = eq(apply('fact_aux', variable('x'), variable('n')), mul(variable('x'), apply('fact', variable('n'))));
+            const schema = wildcardizeExcept(goal, 'n');
+            expect(schema).toEqual(eq(apply('fact_aux', wc('x'), variable('n')), mul(wc('x'), apply('fact', variable('n')))));
+        });
+
+        it('leaves a goal with no accumulator unchanged (no regression for plain ℕ induction)', () => {
+            const goal = eq(apply('f', variable('n')), num('1'));
+            expect(wildcardizeExcept(goal, 'n')).toEqual(goal);
+        });
+
+        it('does not touch function names (they live in apply.value, not variable nodes)', () => {
+            const schema = wildcardizeExcept(apply('g', variable('a')), 'n');
+            expect(schema).toEqual(apply('g', wc('a')));
+        });
+    });
+
+    describe('mathNodeToLatex — apply', () => {
+        const apply = (name: string, ...args: MathNode[]): MathNode => ({ type: 'apply', value: name, slots: { args } });
+
+        it('renders a named application as juxtaposition, escaping underscores', () => {
+            expect(mathNodeToLatex(apply('fact_aux', variable('x'), variable('n')))).toBe('\\mathrm{fact\\_aux}\\,x\\,n');
+        });
+
+        it('parenthesises a compound argument so f (g x) never collapses to f g x', () => {
+            expect(mathNodeToLatex(apply('f', apply('g', variable('x'))))).toBe('\\mathrm{f}\\,\\left(\\mathrm{g}\\,x\\right)');
+        });
+
+        it('renders a nullary application as just the name', () => {
+            expect(mathNodeToLatex(apply('unit'))).toBe('\\mathrm{unit}');
         });
     });
 

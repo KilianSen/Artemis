@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Lets a math problem be graded by more than one backend. The single math_problem.grader_type column becomes an
+         ordered element-collection table math_problem_grader_types (grader backends in preference order). The existing
+         single grader is backfilled at position 0 before the column is dropped. -->
+
+    <!-- 1) Create the ordered grader-types collection table. -->
+    <changeSet id="20260720000000-1" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="math_problem_grader_types"/>
+            </not>
+        </preConditions>
+        <createTable tableName="math_problem_grader_types">
+            <column name="math_problem_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grader_type" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="position" type="integer">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint
+            baseTableName="math_problem_grader_types"
+            baseColumnNames="math_problem_id"
+            constraintName="fk_math_problem_grader_types_math_problem_id"
+            referencedTableName="math_problem"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- 2) Backfill the existing single grader onto the collection at position 0. -->
+    <changeSet id="20260720000000-2" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="math_problem" columnName="grader_type"/>
+        </preConditions>
+        <sql>
+            INSERT INTO math_problem_grader_types (math_problem_id, grader_type, position)
+            SELECT id, grader_type, 0 FROM math_problem
+        </sql>
+    </changeSet>
+
+    <!-- 3) Drop the now-migrated single grader column. -->
+    <changeSet id="20260720000000-3" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="math_problem" columnName="grader_type"/>
+        </preConditions>
+        <dropColumn tableName="math_problem" columnName="grader_type"/>
+    </changeSet>
+
+</databaseChangeLog>

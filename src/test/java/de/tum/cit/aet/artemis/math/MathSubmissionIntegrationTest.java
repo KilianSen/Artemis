@@ -163,7 +163,7 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
     void submitRemoteGraded_whenBackendUnavailable_escalatesToReviewAndSurfacesState() throws Exception {
         // Route the problem to a remote backend that is not configured in this test context: grading must fail fast and
         // escalate the submission to manual review (never a zero), and the state must be surfaced to the student.
-        exercise.getProblems().getFirst().setGraderType(GraderType.EGGREGATE);
+        exercise.getProblems().getFirst().setGraderTypes(List.of(GraderType.EGGREGATE));
         mathExerciseUtilService.saveExercise(exercise);
 
         Long problemId = exercise.getProblems().getFirst().getId();

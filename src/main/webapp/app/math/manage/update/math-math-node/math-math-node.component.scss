@@ -43,6 +43,14 @@
     user-select: none;
 }
 
+.math-fn {
+    font-style: italic;
+    color: var(--p-text-color);
+    font-size: 1em;
+    padding: 0 2px;
+    user-select: none;
+}
+
 .math-paren {
     font-size: 1.4em;
     line-height: 1;

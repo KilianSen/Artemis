@@ -54,7 +54,7 @@ public class MathExerciseFactory {
 
     /** A problem DTO carrying the sample {@code 0 + x -> x} configuration, worth 10 points. */
     public static MathProblemDTO sampleProblemDTO() {
-        return new MathProblemDTO(null, "Problem 1", 10.0, sampleSource(), sampleTarget(), null, null, null, null, false, false, false, true, false, null, null);
+        return new MathProblemDTO(null, "Problem 1", 10.0, sampleSource(), sampleTarget(), null, null, null, null, false, false, false, true, false, null, null, null);
     }
 
     public static MathExerciseDTO generateMathExerciseDTO(ZonedDateTime releaseDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, Course course) {

@@ -6,16 +6,17 @@ import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { MathExerciseService } from '../../service/math-exercise.service';
-import { MathProblem } from '../../../shared/entities/math-problem.model';
+import { INDUCTION_DATATYPE_LABELS, InductionDatatype, MathProblem } from '../../../shared/entities/math-problem.model';
 import { MathNode } from '../../../shared/entities/math-node.model';
 import { DerivationStep } from '../../../shared/entities/derivation-step.model';
-import { GRADER_TYPE_LABELS, GraderType, defaultGraderForMode, graderSupportsMode } from '../../../shared/entities/grader-type.model';
+import { GRADER_TYPE_LABELS, GraderType, defaultGradersForMode, graderSupportsMode } from '../../../shared/entities/grader-type.model';
 import { GOAL_MODE_LABELS, GoalMode } from '../../../shared/entities/goal-mode.model';
 import { ReachabilityReport } from '../../../shared/entities/hint-suggestion.model';
 import { MathBuilderComponent } from '../math-builder/math-builder.component';
@@ -41,6 +42,7 @@ import { MATH_STARTER_TEMPLATES } from '../math-starter-templates';
         CheckboxModule,
         InputTextModule,
         MessageModule,
+        MultiSelectModule,
         SelectModule,
         TagModule,
         TooltipModule,
@@ -70,16 +72,33 @@ export class MathProblemEditComponent {
         }));
     }
 
-    /** Certifier candidates: the remote formal backends (everything but the in-process REWRITE_CHAIN) that support this mode. */
+    /**
+     * Whether the path checker is listed after a stronger (remote) backend, i.e. acts as a fallback. In that position it
+     * only grades when the stronger backend is unavailable, and only its full-pass verdicts are trusted — everything else
+     * routes to review. Surfaced as an authoring hint so instructors understand the interaction (mirrors the server's
+     * strength-based arbitration). All non-PATH_CHECKER graders are stronger, so "not first" is sufficient.
+     */
+    pathCheckerActsAsFallback(): boolean {
+        const graders = this.problem().graderTypes ?? [];
+        return graders.indexOf('PATH_CHECKER') > 0;
+    }
+
+    /** Certifier candidates: the remote formal backends (everything but the in-process PATH_CHECKER) that support this mode. */
     certifierOptionsFor(mode: GoalMode): { value: GraderType; label: string }[] {
         return (Object.keys(GRADER_TYPE_LABELS) as GraderType[])
-            .filter((value) => value !== 'REWRITE_CHAIN' && graderSupportsMode(value, mode))
+            .filter((value) => value !== 'PATH_CHECKER' && graderSupportsMode(value, mode))
             .map((value) => ({ value, label: GRADER_TYPE_LABELS[value] }));
     }
 
     readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({
         value,
         label: GOAL_MODE_LABELS[value],
+    }));
+
+    /** Options for the induction-datatype picker (ℕ / list / binary tree), shown only in INDUCTION mode. */
+    readonly inductionDatatypeOptions: { value: InductionDatatype; label: string }[] = (Object.keys(INDUCTION_DATATYPE_LABELS) as InductionDatatype[]).map((value) => ({
+        value,
+        label: INDUCTION_DATATYPE_LABELS[value],
     }));
 
     /** Transient selection for the starter-template picker (acts as an action menu, not persisted on the problem). */
@@ -126,17 +145,25 @@ export class MathProblemEditComponent {
 
     onGoalModeChange(mode: GoalMode): void {
         this.problem().goalMode = mode;
-        // If the selected grader can't grade the new mode, fall back to a compatible default (avoids a save-time 400).
-        const grader = this.problem().graderType;
-        if (!grader || !graderSupportsMode(grader, mode)) {
-            this.problem().graderType = defaultGraderForMode(mode);
-        }
+        // Drop any selected graders that can't grade the new mode; fall back to a compatible default if none remain
+        // (avoids a save-time 400).
+        const supported = (this.problem().graderTypes ?? []).filter((grader) => graderSupportsMode(grader, mode));
+        this.problem().graderTypes = supported.length > 0 ? supported : defaultGradersForMode(mode);
         // Clear the certifier if it no longer supports the new mode.
         const certifier = this.problem().certifyingGraderType;
         if (certifier && !graderSupportsMode(certifier, mode)) {
             this.problem().certifyingGraderType = undefined;
         }
         // Reset the example derivation — it's tied to the previous start expression.
+        this.problem().exampleDerivations = [];
+        this.reachability.set(undefined);
+        this.problemChange.emit(this.problem());
+    }
+
+    onInductionDatatypeChange(datatype: InductionDatatype): void {
+        this.problem().inductionDatatype = datatype;
+        // The base/step constructors (0/S n vs nil/cons vs empty/node) change with the datatype, so any recorded
+        // example derivation no longer matches — reset it.
         this.problem().exampleDerivations = [];
         this.reachability.set(undefined);
         this.problemChange.emit(this.problem());

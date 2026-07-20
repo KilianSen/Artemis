@@ -135,7 +135,8 @@ public class MathExerciseImportService extends ExerciseImportService {
         copy.setTargetExpression(originalProblem.getTargetExpression());
         copy.setGoalExpression(originalProblem.getGoalExpression());
         copy.setGoalMode(originalProblem.getGoalMode());
-        copy.setGraderType(originalProblem.getGraderType());
+        copy.setGraderTypes(originalProblem.getGraderTypes());
+        copy.setCertifyingGraderType(originalProblem.getCertifyingGraderType());
         copy.setManualDerivation(originalProblem.isManualDerivation());
         copy.setAllowVerification(originalProblem.isAllowVerification());
         copy.setOnlyShowApplicableRules(originalProblem.isOnlyShowApplicableRules());

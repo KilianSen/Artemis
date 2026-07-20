@@ -4,14 +4,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -64,14 +67,24 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     @Column(name = "goal_mode", length = 16, nullable = false)
     private GoalMode goalMode = GoalMode.TRANSFORMATION;
 
+    /**
+     * The grader backends that grade this problem, in preference order. At grade time the graders that support the
+     * problem's {@link #goalMode} are run in this order and the first conclusive verdict wins; an inconclusive result
+     * (e.g. a remote backend outage) falls through to the next. Selecting more than one backend therefore adds
+     * redundancy (same-mode graders) or mode coverage (disjoint-mode graders). Never empty — defaults to
+     * {@link GraderType#PATH_CHECKER}.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "math_problem_grader_types", joinColumns = @JoinColumn(name = "math_problem_id"))
+    @OrderColumn(name = "position")
     @Enumerated(EnumType.STRING)
     @Column(name = "grader_type", length = 32, nullable = false)
-    private GraderType graderType = GraderType.REWRITE_CHAIN;
+    private List<GraderType> graderTypes = new ArrayList<>(List.of(GraderType.PATH_CHECKER));
 
     /**
-     * Optional second, slower formal certifier (Phase 2b). After the primary {@link #graderType} returns a fast
+     * Optional second, slower formal certifier (Phase 2b). After the primary {@link #graderTypes} return a fast
      * preliminary verdict, this backend re-grades to certify (and, being the formal prover, is authoritative if
-     * it disagrees). {@code null} means single-backend grading.
+     * it disagrees). {@code null} means no certification pass.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "certifying_grader_type", length = 32)
@@ -99,6 +112,10 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
 
     @Column(name = "induction_variable", length = 64)
     private String inductionVariable;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "induction_datatype", length = 16, nullable = false)
+    private InductionDatatype inductionDatatype = InductionDatatype.NAT;
 
     public MathExercise getExercise() {
         return exercise;
@@ -161,12 +178,12 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     }
 
     @Override
-    public GraderType getGraderType() {
-        return graderType;
+    public List<GraderType> getGraderTypes() {
+        return graderTypes;
     }
 
-    public void setGraderType(GraderType graderType) {
-        this.graderType = graderType == null ? GraderType.REWRITE_CHAIN : graderType;
+    public void setGraderTypes(List<GraderType> graderTypes) {
+        this.graderTypes = graderTypes == null || graderTypes.isEmpty() ? new ArrayList<>(List.of(GraderType.PATH_CHECKER)) : new ArrayList<>(graderTypes);
     }
 
     @Override
@@ -235,6 +252,15 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
 
     public void setInductionVariable(String inductionVariable) {
         this.inductionVariable = inductionVariable;
+    }
+
+    @Override
+    public InductionDatatype getInductionDatatype() {
+        return inductionDatatype;
+    }
+
+    public void setInductionDatatype(InductionDatatype inductionDatatype) {
+        this.inductionDatatype = inductionDatatype == null ? InductionDatatype.NAT : inductionDatatype;
     }
 
     @Override

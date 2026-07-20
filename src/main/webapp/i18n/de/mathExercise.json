@@ -66,7 +66,19 @@
                 "commutativityAddition": { "name": "Kommutativität der Addition", "description": "Beweise a + b = b + a." },
                 "associativityAddition": { "name": "Assoziativität der Addition", "description": "Beweise (a + b) + c = a + (b + c)." },
                 "fractionIdentity": { "name": "Bruch-Identität", "description": "Forme a / 1 zu a um." },
-                "inductionAddZero": { "name": "Induktion: n + 0 = n", "description": "Beweise n + 0 = n durch Induktion über n." }
+                "inductionAddZero": { "name": "Induktion: n + 0 = n", "description": "Beweise n + 0 = n durch Induktion über n." },
+                "inductionFactAccumulator": {
+                    "name": "Induktion: fact_aux x n = x · fact n",
+                    "description": "Beweise die endrekursive Fakultät korrekt durch Induktion über n, indem die Hypothese mit verschobenem Akkumulator angewendet wird."
+                },
+                "inductionListSum": {
+                    "name": "Listeninduktion: sum l a = a + summa l",
+                    "description": "Beweise die akkumulierende Listensumme korrekt durch strukturelle Induktion über eine Liste (nil/cons)."
+                },
+                "inductionTreeCount": {
+                    "name": "Bauminduktion: aux t a = a + nodes t",
+                    "description": "Beweise die akkumulierende Knotenzählung korrekt durch strukturelle Induktion über einen Binärbaum (empty/node) mit zwei Hypothesen."
+                }
             },
             "editor": {
                 "content": "Deine Lösung"
@@ -117,8 +129,9 @@
             "onlyShowApplicableRulesHint": "Verbirgt Regeln, die am aktuell ausgewählten Knoten nicht anwendbar sind.",
             "partialCreditEnabled": "Teilpunkte",
             "partialCreditEnabledHint": "Vergibt anteilige Punkte für gültige Schritte bei unvollständigem Mathematik. Erfordert mindestens eine Beispielherleitung zur Bestimmung der erwarteten Schrittanzahl.",
-            "graderType": "Bewertungs-Backend",
-            "graderTypeHint": "Schritt-für-Schritt ist derzeit das einzige verfügbare Backend.",
+            "graderType": "Bewertungs-Backends",
+            "graderTypeHint": "Wähle ein oder mehrere Backends. Das erste, das den Zielmodus unterstützt, bewertet; die übrigen bieten Redundanz oder Modus-Abdeckung.",
+            "pathCheckerFallbackWarning": "Der Path-Checker steht nach einem stärkeren Backend und bewertet daher nur, wenn dieses nicht verfügbar ist. Da er nicht über die feste Regelbibliothek hinaus schließen kann, wird nur ein vollständiges Bestehen als Urteil akzeptiert — jede Ablehnung oder jedes Teilergebnis leitet die Abgabe stattdessen zur manuellen Überprüfung weiter.",
             "certifier": "Zertifizierer (optional)",
             "certifierHint": "Optionaler langsamerer formaler Beweiser, der das schnelle vorläufige Urteil des Backends oben zertifiziert.",
             "direction": {
@@ -130,10 +143,12 @@
             "goalModeHint": "Transformation: Studierende formen einen Startausdruck in einen Zielausdruck um. Gleichung: Studierende reduzieren eine Gleichung zu einer Tautologie (LHS struktur-gleich RHS).",
             "inductionVariable": "Induktionsvariable",
             "inductionVariableHint": "Die natürliche Zahl, über die induziert wird (z.B. n). Das Ziel unten ist P(n); es wird für 0 und für S(n) bewiesen.",
+            "inductionDatatype": "Induktionsdatentyp",
+            "inductionDatatypeHint": "Die Variable, über die induziert wird (z.B. n), und der Datentyp, über den sie läuft. Das Ziel unten wird für den Basis- und den Schrittkonstruktor des Datentyps bewiesen, unter Annahme der Induktionshypothese an jeder rekursiven Position.",
             "inductionProof": " — Induktionsbeweis",
-            "inductionIntro": "Beweise den Basisfall P(0) und den Induktionsschritt P(S n) unter Annahme der Induktionshypothese P(n).",
-            "inductionBase": "Basisfall: P(0)",
-            "inductionStep": "Induktionsschritt: P(S n)",
+            "inductionIntro": "Beweise den Basisfall P({{base}}) und den Induktionsschritt P({{step}}) unter Annahme der Induktionshypothese.",
+            "inductionBase": "Basisfall: P({{base}})",
+            "inductionStep": "Induktionsschritt: P({{step}})",
             "inductionHypothesis": "Du darfst die Induktionshypothese annehmen:",
             "goalExpression": "Ziel-Ausdruck",
             "goalExpressionHint": "Der Mathematik ist abgeschlossen, sobald sich der Ausdruck zu einer Tautologie (z.B. t = t) reduziert.",

@@ -1,5 +1,7 @@
 package de.tum.cit.aet.artemis.math.domain;
 
+import java.util.List;
+
 import de.tum.cit.aet.artemis.math.grader.GraderType;
 
 /**
@@ -29,9 +31,16 @@ public interface MathProblemConfig {
     MathNode getGoalExpression();
 
     /**
-     * @return the induction variable (the ℕ variable inducted over) for INDUCTION mode, else {@code null}
+     * @return the induction variable (the variable inducted over) for INDUCTION mode, else {@code null}
      */
     String getInductionVariable();
+
+    /**
+     * @return the datatype the induction variable ranges over for INDUCTION mode; defaults to {@link InductionDatatype#NAT ℕ}
+     */
+    default InductionDatatype getInductionDatatype() {
+        return InductionDatatype.NAT;
+    }
 
     /**
      * @return the goal mode selecting how the derivation is graded (TRANSFORMATION vs EQUATION)
@@ -39,9 +48,18 @@ public interface MathProblemConfig {
     GoalMode getGoalMode();
 
     /**
-     * @return the grader backend to dispatch to
+     * @return the grader backends to dispatch to, in preference order; never empty
      */
-    GraderType getGraderType();
+    List<GraderType> getGraderTypes();
+
+    /**
+     * @return the primary grader backend: the first configured grader, or {@link GraderType#PATH_CHECKER} when none is
+     *         configured. Convenience for the single-grader paths (hints, reachability, rule application).
+     */
+    default GraderType getGraderType() {
+        List<GraderType> types = getGraderTypes();
+        return types == null || types.isEmpty() ? GraderType.PATH_CHECKER : types.getFirst();
+    }
 
     /**
      * @return the optional slow formal certifier that upgrades the primary grader's preliminary verdict, or {@code null} for single-backend grading

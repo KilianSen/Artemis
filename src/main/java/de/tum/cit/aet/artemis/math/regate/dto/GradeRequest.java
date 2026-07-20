@@ -30,7 +30,36 @@ public record GradeRequest(String protocol, ExerciseSpec exercise, SubmissionSpe
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ExerciseSpec(String id, String mode, MathNode source, MathNode target, MathNode goal, String inductionVar, List<RuleSpec> ruleset, List<MathNode> reference,
-            List<AssumptionSpec> assumptions, List<MathNode> hypotheses, List<RuleSpec> definitions, OptionsSpec options) {
+            List<AssumptionSpec> assumptions, List<MathNode> hypotheses, List<RuleSpec> definitions, OptionsSpec options, String domain, DatatypeSpec datatype) {
+    }
+
+    /**
+     * The inductive datatype the induction variable ranges over (see {@code GRADING_PROTOCOL.md} "Datatype
+     * induction", since 1.1). Absent ⇒ ℕ (legacy {@code 0}/{@code succ}). Exactly one non-recursive ("base") and one
+     * recursive ("step") constructor are supported; a field whose {@code sort} equals the datatype {@code name} is a
+     * recursive position and yields an induction hypothesis.
+     *
+     * @param name         the datatype name (e.g. {@code "Lst"}, {@code "Tree"})
+     * @param constructors the constructors (one base, one recursive)
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record DatatypeSpec(String name, List<ConstructorSpec> constructors) {
+
+        /**
+         * @param name   the constructor name (e.g. {@code "nil"}, {@code "cons"})
+         * @param fields the constructor's fields in order
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public record ConstructorSpec(String name, List<FieldSpec> fields) {
+        }
+
+        /**
+         * @param name the field name
+         * @param sort {@code "int"} / {@code "rat"} for a numeric field, or the datatype's own name for a recursive position
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public record FieldSpec(String name, String sort) {
+        }
     }
 
     /**

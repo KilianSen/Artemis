@@ -31,14 +31,14 @@ import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
 
 /**
- * Pure unit tests for the rewrite-chain engine. No Spring context — the {@link BlockRegistry}
+ * Pure unit tests for the path checker engine. No Spring context — the {@link BlockRegistry}
  * is hand-assembled with every built-in block so changes to grading semantics surface here first.
  */
-class RewriteChainGraderTest {
+class PathCheckerGraderTest {
 
     private BlockRegistry registry;
 
-    private RewriteChainGrader grader;
+    private PathCheckerGrader grader;
 
     @BeforeEach
     void setUp() {
@@ -46,7 +46,7 @@ class RewriteChainGraderTest {
                 new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition(), new NegationBlockDefinition());
         registry = new BlockRegistry(blocks);
         registry.index();
-        grader = new RewriteChainGrader(registry);
+        grader = new PathCheckerGrader(registry);
     }
 
     // ----- Pattern matching & rule application -----
@@ -578,8 +578,8 @@ class RewriteChainGraderTest {
     }
 
     @Test
-    void getType_isRewriteChain() {
-        assertThat(grader.getType()).isEqualTo(GraderType.REWRITE_CHAIN);
+    void getType_isPathChecker() {
+        assertThat(grader.getType()).isEqualTo(GraderType.PATH_CHECKER);
     }
 
     // ----- Indexed rule lookup -----
