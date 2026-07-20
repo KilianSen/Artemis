@@ -19,6 +19,7 @@ import studentManual from './assets/math/student-manual.png';
 import studentUnderReview from './assets/math/student-under-review.png';
 import assessmentDashboard from './assets/math/assessment-dashboard.png';
 import assessmentView from './assets/math/assessment-view.png';
+import assessmentDerivation from './assets/math/assessment-derivation.png';
 import complaintResponse from './assets/math/complaint-response.png';
 
 # Math Exercise
@@ -132,6 +133,10 @@ Submissions awaiting review appear in the standard **assessment dashboard**. A t
 In the assessment view the tutor sees the student's full derivation, the automatic verdict, and any configured sample solution, and assigns a manual score with optional feedback. The assessment can be saved as a draft or submitted as final.
 
 <Image src={assessmentView} alt="Math assessment view" size={ImageSize.large} caption="Assessing a locked submission" />
+
+Each problem is reviewed side by side: the goal, the student's step-by-step derivation, and the configured sample solution. Steps that reach the goal are marked as complete.
+
+<Image src={assessmentDerivation} alt="Per-problem derivation review" size={ImageSize.large} caption="The per-problem review: goal, the student's derivation, and the sample solution" />
 
 ### Complaints
 
