@@ -153,6 +153,18 @@ artemis:
   weaviate:
     enabled: false
 
+  regate: # Remote math grading backends (Regate). Each backend is dormant until its URL is set: an unset backend rejects
+          # grading and routes matching submissions to manual review. A problem may select several backends (see the math
+          # module's grader configuration); the first configured one that supports the goal mode grades it.
+    eggregate:
+      url: "" # egglog e-graph backend — transformation / equation. e.g. http://localhost:5200
+    leanregate:
+      url: "" # Lean formal backend — transformation / equation / induction (the only backend that certifies induction). e.g. http://localhost:5201
+    coqregate:
+      url: "" # Rocq/Coq backend — induction only. e.g. http://localhost:5202
+    cvc5regate:
+      url: "" # cvc5 SMT backend — induction only. e.g. http://localhost:5203
+
 # Configure Spring AI, if you want to use Hyperion or Atlas
 spring:
   ai:

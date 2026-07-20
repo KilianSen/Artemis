@@ -129,8 +129,9 @@
             "onlyShowApplicableRulesHint": "Hide rules that cannot be applied at the currently selected node.",
             "partialCreditEnabled": "Partial Credit",
             "partialCreditEnabledHint": "Award proportional points for valid steps when the math is incomplete. Requires at least one example derivation to determine the expected step count.",
-            "graderType": "Grader",
-            "graderTypeHint": "Step-by-step is the only grader available today.",
+            "graderType": "Graders",
+            "graderTypeHint": "Pick one or more backends. The first that supports the goal mode grades; the rest add redundancy or mode coverage.",
+            "pathCheckerFallbackWarning": "The path checker is listed after a stronger backend, so it only grades when that backend is unavailable. Because it cannot reason beyond the fixed rule library, only its full-pass verdicts are trusted — any rejection or partial result routes the submission to manual review instead.",
             "certifier": "Certifier (optional)",
             "certifierHint": "Optional slower formal prover that certifies the fast preliminary verdict from the grader above.",
             "direction": {

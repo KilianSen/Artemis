@@ -12,7 +12,7 @@ import java.util.List;
  * {@link Double#NaN} and callers must not treat it as a grade. {@code outcome} and {@code certified} carry the
  * remote backend's verdict category and whether it is backed by a re-checked proof; {@code witness} is a
  * human-readable counterexample assignment for a {@code proven_unequal} verdict (all empty/false/null for the
- * in-process rewrite engine).
+ * in-process path checker).
  *
  * @param score        final score in [0, 100], or {@link Double#NaN} when {@code conclusive} is false
  * @param conclusive   whether the grader reached a decided verdict (false ⇒ route to review)

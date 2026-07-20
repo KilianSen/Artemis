@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Renames the in-process grader from REWRITE_CHAIN to PATH_CHECKER wherever its identifier is persisted as a
+         string. Runs after 20260720000000 backfilled the grader-types collection from the old single column. -->
+
+    <!-- 1) Rename the value in the per-problem grader-types collection. -->
+    <changeSet id="20260720000001-1" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="math_problem_grader_types"/>
+        </preConditions>
+        <update tableName="math_problem_grader_types">
+            <column name="grader_type" value="PATH_CHECKER"/>
+            <where>grader_type = 'REWRITE_CHAIN'</where>
+        </update>
+    </changeSet>
+
+    <!-- 2) Rename the value recorded on grading jobs. -->
+    <changeSet id="20260720000001-2" author="kiliansen">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="math_grading_job" columnName="grader_type"/>
+        </preConditions>
+        <update tableName="math_grading_job">
+            <column name="grader_type" value="PATH_CHECKER"/>
+            <where>grader_type = 'REWRITE_CHAIN'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

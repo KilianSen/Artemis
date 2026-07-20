@@ -47,7 +47,7 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Left identity of addition';
             problem.goalMode = 'TRANSFORMATION';
-            problem.graderType = 'REWRITE_CHAIN';
+            problem.graderTypes = ['PATH_CHECKER'];
             problem.sourceExpression = add(num('0'), vr('x'));
             problem.targetExpression = vr('x');
         },
@@ -60,7 +60,7 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Right identity of addition';
             problem.goalMode = 'TRANSFORMATION';
-            problem.graderType = 'REWRITE_CHAIN';
+            problem.graderTypes = ['PATH_CHECKER'];
             problem.sourceExpression = add(vr('x'), num('0'));
             problem.targetExpression = vr('x');
         },
@@ -73,7 +73,7 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Commutativity of addition';
             problem.goalMode = 'EQUATION';
-            problem.graderType = 'REWRITE_CHAIN';
+            problem.graderTypes = ['PATH_CHECKER'];
             problem.goalExpression = eq(add(vr('a'), vr('b')), add(vr('b'), vr('a')));
         },
     },
@@ -85,7 +85,7 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Associativity of addition';
             problem.goalMode = 'EQUATION';
-            problem.graderType = 'REWRITE_CHAIN';
+            problem.graderTypes = ['PATH_CHECKER'];
             problem.goalExpression = eq(add(add(vr('a'), vr('b')), vr('c')), add(vr('a'), add(vr('b'), vr('c'))));
         },
     },
@@ -97,7 +97,7 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Fraction identity denominator';
             problem.goalMode = 'TRANSFORMATION';
-            problem.graderType = 'REWRITE_CHAIN';
+            problem.graderTypes = ['PATH_CHECKER'];
             problem.sourceExpression = frac(vr('a'), num('1'));
             problem.targetExpression = vr('a');
         },
@@ -110,8 +110,8 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Induction: n + 0 = n';
             problem.goalMode = 'INDUCTION';
-            // Induction is certified by a formal backend; REWRITE_CHAIN cannot grade it.
-            problem.graderType = 'CVC5REGATE';
+            // Induction is certified by a formal backend; PATH_CHECKER cannot grade it.
+            problem.graderTypes = ['CVC5REGATE'];
             problem.inductionVariable = 'n';
             problem.goalExpression = eq(add(vr('n'), num('0')), vr('n'));
         },
@@ -124,8 +124,8 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Induction: fact_aux x n = x · fact n';
             problem.goalMode = 'INDUCTION';
-            // Induction is certified by a formal backend; REWRITE_CHAIN cannot grade it.
-            problem.graderType = 'CVC5REGATE';
+            // Induction is certified by a formal backend; PATH_CHECKER cannot grade it.
+            problem.graderTypes = ['CVC5REGATE'];
             problem.inductionVariable = 'n';
             // The accumulator-generalised form: proving fact_iter n = fact n directly does not go through — the IH must
             // be usable at a shifted accumulator. The fact/fact_aux definitions ship from ApplyBlockDefinition.
@@ -140,8 +140,8 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'List induction: sum l a = a + summa l';
             problem.goalMode = 'INDUCTION';
-            // Induction is certified by a formal backend; REWRITE_CHAIN cannot grade it.
-            problem.graderType = 'CVC5REGATE';
+            // Induction is certified by a formal backend; PATH_CHECKER cannot grade it.
+            problem.graderTypes = ['CVC5REGATE'];
             problem.inductionVariable = 'l';
             // Structural induction over a list (nil/cons), not ℕ.
             problem.inductionDatatype = 'LIST';
@@ -157,8 +157,8 @@ export const MATH_STARTER_TEMPLATES: MathStarterTemplate[] = [
             resetGoalFields(problem);
             problem.title = 'Tree induction: aux t a = a + nodes t';
             problem.goalMode = 'INDUCTION';
-            // Induction is certified by a formal backend; REWRITE_CHAIN cannot grade it.
-            problem.graderType = 'CVC5REGATE';
+            // Induction is certified by a formal backend; PATH_CHECKER cannot grade it.
+            problem.graderTypes = ['CVC5REGATE'];
             problem.inductionVariable = 't';
             // Structural induction over a binary tree (empty/node) — node has two recursive fields, so two hypotheses.
             problem.inductionDatatype = 'TREE';

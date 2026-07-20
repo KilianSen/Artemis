@@ -142,6 +142,17 @@ artemis:
           retention-period: 365 # Number of days before build job entries are deleted
     math:
       enabled: true
+    regate: # Local Regate math grading backends. Start them from /Regate with `make up` (docker compose publishes
+            # ports 8000-8003). A backend is only contacted when a problem actually selects it, so leaving a URL set
+            # while its container is down simply routes those submissions to review.
+      eggregate:
+        url: http://localhost:8000  # egglog e-graph — transformation / equation
+      leanregate:
+        url: http://localhost:8001  # Lean formal — transformation / equation / induction (certifies induction; ~9 GB image)
+      coqregate:
+        url: http://localhost:8002  # Rocq/Coq — induction only (~1.5 GB image)
+      cvc5regate:
+        url: http://localhost:8003  # cvc5 SMT — induction only
     security:
         internal:
             allowed-cidrs:

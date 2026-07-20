@@ -129,8 +129,9 @@
             "onlyShowApplicableRulesHint": "Verbirgt Regeln, die am aktuell ausgewählten Knoten nicht anwendbar sind.",
             "partialCreditEnabled": "Teilpunkte",
             "partialCreditEnabledHint": "Vergibt anteilige Punkte für gültige Schritte bei unvollständigem Mathematik. Erfordert mindestens eine Beispielherleitung zur Bestimmung der erwarteten Schrittanzahl.",
-            "graderType": "Bewertungs-Backend",
-            "graderTypeHint": "Schritt-für-Schritt ist derzeit das einzige verfügbare Backend.",
+            "graderType": "Bewertungs-Backends",
+            "graderTypeHint": "Wähle ein oder mehrere Backends. Das erste, das den Zielmodus unterstützt, bewertet; die übrigen bieten Redundanz oder Modus-Abdeckung.",
+            "pathCheckerFallbackWarning": "Der Path-Checker steht nach einem stärkeren Backend und bewertet daher nur, wenn dieses nicht verfügbar ist. Da er nicht über die feste Regelbibliothek hinaus schließen kann, wird nur ein vollständiges Bestehen als Urteil akzeptiert — jede Ablehnung oder jedes Teilergebnis leitet die Abgabe stattdessen zur manuellen Überprüfung weiter.",
             "certifier": "Zertifizierer (optional)",
             "certifierHint": "Optionaler langsamerer formaler Beweiser, der das schnelle vorläufige Urteil des Backends oben zertifiziert.",
             "direction": {

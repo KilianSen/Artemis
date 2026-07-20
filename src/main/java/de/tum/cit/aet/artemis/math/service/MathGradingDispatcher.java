@@ -41,7 +41,7 @@ import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
  * records a preliminary {@code AUTOMATIC} result immediately; if any problem configures a
  * {@link MathProblem#getCertifyingGraderType() certifier}, the <b>slow</b> certification pass
  * ({@code mathSlowGradingExecutor}) then re-grades those answers with the formal prover and upgrades the result.
- * In-process {@code REWRITE_CHAIN} grading stays synchronous in {@code MathSubmissionResource}.
+ * In-process {@code PATH_CHECKER} grading stays synchronous in {@code MathSubmissionResource}.
  * <p>
  * Because the job is persisted, a server restart mid-grade does not strand the submission: the
  * {@link MathGradingRecoveryService} re-dispatches any job left {@link MathGradingJobStatus#PENDING}. When a pass

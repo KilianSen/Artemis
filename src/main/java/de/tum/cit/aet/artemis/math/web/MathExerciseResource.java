@@ -310,7 +310,7 @@ public class MathExerciseResource {
 
     /**
      * GET /math-exercises/{exerciseId}/problems/{problemId}/verify-reachability : run the configured grader's automated
-     * reachability check on a single problem. For rewrite-chain problems this runs the FORWARD_ONLY reduction strategy
+     * reachability check on a single problem. For path-checker problems this runs the FORWARD_ONLY reduction strategy
      * from the source (or goal in EQUATION mode) and reports how close it gets to the target / a tautology.
      *
      * @param exerciseId the exercise the problem belongs to
@@ -352,7 +352,7 @@ public class MathExerciseResource {
 
     /**
      * Rejects a problem whose grader cannot grade its goal mode — e.g. an induction-only backend
-     * ({@code COQREGATE}/{@code CVC5REGATE}) on a transformation problem, or the in-process rewrite engine
+     * ({@code COQREGATE}/{@code CVC5REGATE}) on a transformation problem, or the in-process path checker
      * on an induction problem. Uses the static {@link GraderType#supports(GoalMode)} capability.
      */
     private void validateGraderModeCompatibility(MathExerciseDTO dto) {
@@ -360,10 +360,12 @@ public class MathExerciseResource {
             return;
         }
         for (MathProblemDTO problem : dto.problems()) {
-            GraderType graderType = problem.graderType() == null ? GraderType.REWRITE_CHAIN : problem.graderType();
             GoalMode goalMode = problem.goalMode() == null ? GoalMode.TRANSFORMATION : problem.goalMode();
-            if (!graderType.supports(goalMode)) {
-                throw new BadRequestAlertException("Grader " + graderType + " cannot grade goal mode " + goalMode, ENTITY_NAME, "graderModeMismatch");
+            List<GraderType> graderTypes = problem.graderTypes() == null || problem.graderTypes().isEmpty() ? List.of(GraderType.PATH_CHECKER) : problem.graderTypes();
+            for (GraderType graderType : graderTypes) {
+                if (!graderType.supports(goalMode)) {
+                    throw new BadRequestAlertException("Grader " + graderType + " cannot grade goal mode " + goalMode, ENTITY_NAME, "graderModeMismatch");
+                }
             }
             // Phase 2b: the optional certifier must be a remote backend that also supports this mode (in-process cannot certify).
             GraderType certifier = problem.certifyingGraderType();

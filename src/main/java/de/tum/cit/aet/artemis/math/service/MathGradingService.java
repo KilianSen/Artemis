@@ -19,12 +19,13 @@ import de.tum.cit.aet.artemis.math.domain.MathProblemConfig;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.grader.GraderRegistry;
+import de.tum.cit.aet.artemis.math.grader.GraderStrength;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.grader.GradingResult;
 import de.tum.cit.aet.artemis.math.grader.HintSuggestion;
 import de.tum.cit.aet.artemis.math.grader.MathGrader;
+import de.tum.cit.aet.artemis.math.grader.PathCheckerGrader;
 import de.tum.cit.aet.artemis.math.grader.ReachabilityReport;
-import de.tum.cit.aet.artemis.math.grader.RewriteChainGrader;
 import de.tum.cit.aet.artemis.math.regate.RegateException;
 
 /**
@@ -69,10 +70,7 @@ public class MathGradingService {
                 continue;
             }
             List<DerivationStep> steps = List.copyOf(answer.getSteps());
-            GraderType graderType = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
-            // An unattempted problem on a remote grader scores 0: the backends reject an empty submission, so
-            // grading it would route the whole (otherwise-complete) submission to review and never produce a result.
-            GradingResult result = graderType.isRemote() && steps.isEmpty() ? GradingResult.of(0.0) : gradeProblemWith(graderType, problem, steps);
+            GradingResult result = gradeProblem(problem, steps);
             applyVerdict(answer, problem, result);
             // A configured slow certifier will re-grade this answer on the slow lane (Phase 2b); flag it pending.
             answer.setCertificationPending(problem.getCertifyingGraderType() != null);
@@ -152,20 +150,69 @@ public class MathGradingService {
         if (answer != null) {
             return answer.getScoreInPoints();
         }
-        GraderType type = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
-        GradingResult result = type.isRemote() ? GradingResult.of(0.0) : gradeProblem(problem, List.of());
+        GradingResult result = gradeProblem(problem, List.of());
         return result.conclusive() ? result.score() / 100.0 * problem.getPoints() : null;
     }
 
     /**
-     * Grades a single derivation with the grader configured on the problem.
+     * Grades a single derivation with the graders configured on the problem, taking the first conclusive verdict.
+     * <p>
+     * The problem's {@link MathProblemConfig#getGraderTypes() configured graders} that support the problem's goal mode
+     * are run in configured order until one produces a <em>trustworthy</em> conclusive verdict, which is returned. An
+     * inconclusive result — e.g. a remote backend outage — falls through to the next grader, so selecting several
+     * same-mode backends yields redundancy.
+     * <p>
+     * Verdicts are arbitrated by {@link GraderStrength}: a conclusive <b>pass</b> (a full score) from any grader is
+     * trusted, but a conclusive <b>fail</b> from a grader <em>weaker</em> than one that already abstained is not — the
+     * answer may rely on reasoning the weaker grader cannot express, so it is not allowed to override the stronger
+     * grader's abstention and the problem routes to review instead. If no grader yields a trustworthy verdict the
+     * result is inconclusive (routing to review).
      *
      * @param config the problem configuration being graded (a {@link MathProblem})
      * @param steps  the student's ordered derivation steps
      * @return the grader's verdict (a conclusive score, or inconclusive)
      */
     public GradingResult gradeProblem(MathProblemConfig config, List<DerivationStep> steps) {
-        return gradeProblemWith(config.getGraderType() == null ? GraderType.REWRITE_CHAIN : config.getGraderType(), config, steps);
+        GradingResult last = null;
+        GraderStrength strongestAbstention = null;
+        for (GraderType type : applicableGraders(config)) {
+            // An unattempted problem on a remote grader scores 0: the backends reject an empty submission, so grading it
+            // would route the whole (otherwise-complete) submission to review and never produce a result.
+            GradingResult result = type.isRemote() && steps.isEmpty() ? GradingResult.of(0.0) : gradeProblemWith(type, config, steps);
+            if (!result.conclusive()) {
+                // Record that a grader of this strength could not decide, so a weaker grader's fail cannot override it.
+                if (strongestAbstention == null || type.getStrength().compareTo(strongestAbstention) > 0) {
+                    strongestAbstention = type.getStrength();
+                }
+                last = result;
+                continue;
+            }
+            boolean fullPass = result.score() >= 100.0;
+            // A pass is sound from any tier; a fail is authoritative only if no strictly stronger grader abstained.
+            if (fullPass || strongestAbstention == null || type.getStrength().compareTo(strongestAbstention) >= 0) {
+                return result;
+            }
+            // A weaker grader rejected an answer a stronger grader could not decide — distrust it and route to review.
+            last = GradingResult.inconclusive("A weaker grader rejected an answer a stronger grader could not decide; routed to review");
+        }
+        return last != null ? last : GradingResult.inconclusive("No grader configured");
+    }
+
+    /**
+     * Resolves the graders to run for a problem: the configured graders that support the problem's goal mode, in
+     * configured order. Falls back to all configured graders when none supports the mode (a misconfiguration the
+     * authoring layer normally prevents), and to {@link GraderType#PATH_CHECKER} when none is configured at all.
+     *
+     * @param config the problem configuration
+     * @return the non-empty, ordered list of graders to attempt
+     */
+    private List<GraderType> applicableGraders(MathProblemConfig config) {
+        List<GraderType> configured = config.getGraderTypes();
+        if (configured == null || configured.isEmpty()) {
+            return List.of(GraderType.PATH_CHECKER);
+        }
+        List<GraderType> supporting = configured.stream().filter(type -> type.supports(config.getGoalMode())).toList();
+        return supporting.isEmpty() ? configured : supporting;
     }
 
     /**
@@ -195,8 +242,7 @@ public class MathGradingService {
      * @return ranked suggestions, possibly empty
      */
     public List<HintSuggestion> suggestHints(MathProblem problem, MathNode currentState) {
-        GraderType type = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
-        return graderRegistry.getGrader(type).suggestHints(problem, currentState);
+        return graderRegistry.getGrader(applicableGraders(problem).getFirst()).suggestHints(problem, currentState);
     }
 
     /**
@@ -206,13 +252,12 @@ public class MathGradingService {
      * @return reachability report, or empty if the grader does not support this check
      */
     public Optional<ReachabilityReport> verifyReachability(MathProblem problem) {
-        GraderType type = problem.getGraderType() == null ? GraderType.REWRITE_CHAIN : problem.getGraderType();
-        return graderRegistry.getGrader(type).verifyReachability(problem);
+        return graderRegistry.getGrader(applicableGraders(problem).getFirst()).verifyReachability(problem);
     }
 
     /**
-     * Re-exposes single-step rule application for callers that still operate on the rewrite-chain
-     * engine directly. Only meaningful for the {@link GraderType#REWRITE_CHAIN} grader; throws
+     * Re-exposes single-step rule application for callers that still operate on the path checker
+     * engine directly. Only meaningful for the {@link GraderType#PATH_CHECKER} grader; throws
      * {@link UnsupportedOperationException} if another grader is configured.
      *
      * @param tree the current math tree
@@ -221,10 +266,10 @@ public class MathGradingService {
      * @return the rewritten tree, or empty if the pattern or any constraint rejects the rule
      */
     public Optional<MathNode> applyRule(MathNode tree, List<Integer> path, RewriteRule rule) {
-        MathGrader grader = graderRegistry.getGrader(GraderType.REWRITE_CHAIN);
-        if (grader instanceof RewriteChainGrader rcg) {
+        MathGrader grader = graderRegistry.getGrader(GraderType.PATH_CHECKER);
+        if (grader instanceof PathCheckerGrader rcg) {
             return rcg.applyRule(tree, path, rule);
         }
-        throw new UnsupportedOperationException("applyRule is only available on the rewrite-chain grader");
+        throw new UnsupportedOperationException("applyRule is only available on the path checker grader");
     }
 }

@@ -153,7 +153,7 @@ describe('MathProblemEditComponent', () => {
         component.applyStarterTemplate('left-identity');
 
         expect(problem.goalMode).toBe('TRANSFORMATION');
-        expect(problem.graderType).toBe('REWRITE_CHAIN');
+        expect(problem.graderTypes).toEqual(['PATH_CHECKER']);
         expect(problem.sourceExpression?.type).toBe('add');
         expect(problem.targetExpression).toEqual({ type: 'variable', value: 'x' });
         expect(problem.exampleDerivations).toEqual([]);
@@ -170,7 +170,7 @@ describe('MathProblemEditComponent', () => {
 
         expect(problem.goalMode).toBe('INDUCTION');
         expect(problem.inductionVariable).toBe('n');
-        expect(problem.graderType).toBe('CVC5REGATE');
+        expect(problem.graderTypes).toEqual(['CVC5REGATE']);
         expect(problem.goalExpression?.type).toBe('eq');
         expect(problem.sourceExpression).toBeUndefined();
         expect(problem.targetExpression).toBeUndefined();

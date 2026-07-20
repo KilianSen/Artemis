@@ -27,8 +27,9 @@ export class MathProblem {
     public goalExpression?: MathNode;
     /** How the goal is encoded — source→target or single equation closed by tautology. */
     public goalMode?: GoalMode = DEFAULT_GOAL_MODE;
-    /** Backend grader to dispatch to. Defaults to REWRITE_CHAIN. */
-    public graderType?: GraderType = DEFAULT_GRADER_TYPE;
+    /** Backend graders to dispatch to, in preference order. The first that supports the goal mode grades; the rest add
+     * redundancy or mode coverage. Defaults to [PATH_CHECKER]. */
+    public graderTypes?: GraderType[] = [DEFAULT_GRADER_TYPE];
     /** Optional slow formal certifier that upgrades the primary grader's fast preliminary verdict (Phase 2b). */
     public certifyingGraderType?: GraderType;
     public partialCreditEnabled?: boolean;
@@ -47,7 +48,7 @@ export class MathProblem {
     constructor() {
         this.points = 1;
         this.goalMode = DEFAULT_GOAL_MODE;
-        this.graderType = DEFAULT_GRADER_TYPE;
+        this.graderTypes = [DEFAULT_GRADER_TYPE];
         this.allowVerification = true;
         this.exampleDerivations = [];
     }

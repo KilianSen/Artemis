@@ -10,8 +10,9 @@ import de.tum.cit.aet.artemis.math.domain.GoalMode;
  * authoring layer needs to validate a problem: latency {@link GradingSpeed} (fast/slow lane), whether the
  * grader is a remote Regate backend, and which {@link GoalMode}s it can grade conclusively.
  * <p>
- * {@link #REWRITE_CHAIN} is the in-process engine and the default fallback. The four Regate backends are
- * reached over HTTP; they all speak the same protocol, differing in engine and the modes they certify:
+ * {@link #PATH_CHECKER} is the in-process engine and the default fallback. The four Regate backends are
+ * reached over HTTP; they all speak the same protocol, differing in engine, {@link GraderStrength strength}, and the
+ * modes they certify:
  * <ul>
  * <li>{@link #EGGREGATE} — egglog e-graph; transformation/equation (defers induction).</li>
  * <li>{@link #LEANREGATE} — Lean formal; transformation/equation/induction (certifies).</li>
@@ -21,30 +22,33 @@ import de.tum.cit.aet.artemis.math.domain.GoalMode;
  */
 public enum GraderType {
 
-    /** Step-by-step structural rewriting against the fixed rule library, in-process. The default. */
-    REWRITE_CHAIN(GradingSpeed.FAST, false, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION)),
+    /** In-process path checker: replays the student's steps against the fixed rewrite-rule library. The default. */
+    PATH_CHECKER(GradingSpeed.FAST, false, GraderStrength.STRUCTURAL, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION)),
 
     /** Regate eggregate backend (egglog equality saturation + proof-producing e-graph). */
-    EGGREGATE(GradingSpeed.FAST, true, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION)),
+    EGGREGATE(GradingSpeed.FAST, true, GraderStrength.SEMANTIC, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION)),
 
     /** Regate leanregate backend (Lean formal proofs); the only backend that certifies induction. */
-    LEANREGATE(GradingSpeed.SLOW, true, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION, GoalMode.INDUCTION)),
+    LEANREGATE(GradingSpeed.SLOW, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION, GoalMode.INDUCTION)),
 
     /** Regate coqregate backend (Rocq/Coq); a specialist induction certifier. */
-    COQREGATE(GradingSpeed.SLOW, true, EnumSet.of(GoalMode.INDUCTION)),
+    COQREGATE(GradingSpeed.SLOW, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.INDUCTION)),
 
     /** Regate cvc5regate backend (cvc5 SMT with structural induction); a specialist induction certifier. */
-    CVC5REGATE(GradingSpeed.FAST, true, EnumSet.of(GoalMode.INDUCTION));
+    CVC5REGATE(GradingSpeed.FAST, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.INDUCTION));
 
     private final GradingSpeed speed;
 
     private final boolean remote;
 
+    private final GraderStrength strength;
+
     private final Set<GoalMode> supportedModes;
 
-    GraderType(GradingSpeed speed, boolean remote, Set<GoalMode> supportedModes) {
+    GraderType(GradingSpeed speed, boolean remote, GraderStrength strength, Set<GoalMode> supportedModes) {
         this.speed = speed;
         this.remote = remote;
+        this.strength = strength;
         this.supportedModes = Set.copyOf(supportedModes);
     }
 
@@ -52,9 +56,14 @@ public enum GraderType {
         return speed;
     }
 
-    /** @return whether this grader is a remote Regate backend (as opposed to the in-process rewrite engine). */
+    /** @return whether this grader is a remote Regate backend (as opposed to the in-process path checker). */
     public boolean isRemote() {
         return remote;
+    }
+
+    /** @return how deeply this grader can reason, used to arbitrate conflicting verdicts (see {@link GraderStrength}). */
+    public GraderStrength getStrength() {
+        return strength;
     }
 
     public Set<GoalMode> getSupportedModes() {

@@ -24,7 +24,7 @@ class GraderRegistryTest {
 
     private GraderRegistry registry;
 
-    private RewriteChainGrader rewriteChainGrader;
+    private PathCheckerGrader pathCheckerGrader;
 
     @BeforeEach
     void setUp() {
@@ -32,14 +32,14 @@ class GraderRegistryTest {
                 new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition());
         BlockRegistry blockRegistry = new BlockRegistry(blocks);
         blockRegistry.index();
-        rewriteChainGrader = new RewriteChainGrader(blockRegistry);
-        registry = new GraderRegistry(List.of(rewriteChainGrader));
+        pathCheckerGrader = new PathCheckerGrader(blockRegistry);
+        registry = new GraderRegistry(List.of(pathCheckerGrader));
         registry.index();
     }
 
     @Test
-    void getGrader_rewriteChain_returnsTheBean() {
-        assertThat(registry.getGrader(GraderType.REWRITE_CHAIN)).isSameAs(rewriteChainGrader);
+    void getGrader_pathChecker_returnsTheBean() {
+        assertThat(registry.getGrader(GraderType.PATH_CHECKER)).isSameAs(pathCheckerGrader);
     }
 
     @Test
@@ -53,7 +53,7 @@ class GraderRegistryTest {
 
             @Override
             public GraderType getType() {
-                return GraderType.REWRITE_CHAIN;
+                return GraderType.PATH_CHECKER;
             }
 
             @Override
@@ -61,7 +61,7 @@ class GraderRegistryTest {
                 return GradingResult.of(0.0);
             }
         };
-        GraderRegistry duped = new GraderRegistry(List.of(rewriteChainGrader, duplicate));
+        GraderRegistry duped = new GraderRegistry(List.of(pathCheckerGrader, duplicate));
         assertThatThrownBy(duped::index).isInstanceOf(IllegalStateException.class).hasMessageContaining("Multiple MathGrader");
     }
 }

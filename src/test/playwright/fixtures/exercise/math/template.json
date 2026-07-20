@@ -18,7 +18,7 @@
             "title": "Problem 1",
             "points": 10,
             "goalMode": "TRANSFORMATION",
-            "graderType": "REWRITE_CHAIN",
+            "graderTypes": ["PATH_CHECKER"],
             "sourceExpression": { "type": "number", "value": "1" },
             "targetExpression": { "type": "number", "value": "1" }
         }
