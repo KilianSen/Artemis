@@ -10,6 +10,9 @@
 
 .math-update__column {
     width: 100%;
+    // Clear the sticky form-footer (Cancel/Save bar): the last card is the tall, interactive derivation
+    // workspace, so without bottom room the sticky footer floats over its lower nodes/rules while scrolling.
+    padding-bottom: 3.5rem;
 
     @media (min-width: 768px) {
         width: 83.3333%;

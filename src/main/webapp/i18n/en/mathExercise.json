@@ -178,6 +178,7 @@
             "expressionsTitle": "Math Expressions",
             "expressions": "Expressions",
             "expressionsRequired": "Both a source and a target expression are required for the derivation workspace to appear for students.",
+            "exampleSolution": "Example Solution",
             "exampleSolutions": "Example Solutions",
             "addExampleSolution": "Add example solution",
             "noExampleSolutions": "No example solutions yet. Click \"Add example solution\" to add one.",
