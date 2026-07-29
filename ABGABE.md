@@ -425,14 +425,92 @@ Specs: `MathExerciseParticipation`, `MathExerciseAssessment`, `MathExerciseManag
 
 ## 6. Visual overview
 
-Student participation:
+The whole feature, in the order a course actually uses it. Same images as the instructor documentation page.
 
-![Student participation](documentation/docs/instructor/exercises/assets/math/gallery-participation.png)
+### Instructor — authoring
 
-Instructor authoring:
+Creating a math exercise from course management:
 
-![Instructor authoring](documentation/docs/instructor/exercises/assets/math/gallery-authoring.png)
+![Creating a math exercise](documentation/docs/instructor/exercises/assets/math/create-exercise.png)
 
-Tutor assessment:
+The authoring form — exercise-level settings, then one card per problem:
 
-![Tutor assessment](documentation/docs/instructor/exercises/assets/math/gallery-tutor.png)
+![Math exercise authoring form](documentation/docs/instructor/exercises/assets/math/authoring-form.png)
+
+Per-problem configuration: goal mode, expressions, allowed rules, and the grading options:
+
+![Per-problem block editor](documentation/docs/instructor/exercises/assets/math/problem-editor.png)
+
+Pre-filling a problem from a curated starter template:
+
+![Starter templates](documentation/docs/instructor/exercises/assets/math/starter-templates.png)
+
+Picking graders. Backends that cannot grade the chosen goal mode are disabled — here the induction-only
+provers are greyed out for a transformation problem:
+
+![Grader multi-select](documentation/docs/instructor/exercises/assets/math/grader-selection.png)
+
+For an induction problem the formal provers become selectable instead:
+
+![Graders for induction](documentation/docs/instructor/exercises/assets/math/grader-induction.png)
+
+An optional slower certifier can double-check the fast preliminary verdict:
+
+![Optional certifier](documentation/docs/instructor/exercises/assets/math/grader-certifier.png)
+
+Listing the Path checker behind a stronger backend makes it a fallback, and the form says so:
+
+![Path-checker fallback warning](documentation/docs/instructor/exercises/assets/math/grader-fallback-warning.png)
+
+The exercise detail view with statistics and the review-queue count:
+
+![Math exercise detail](documentation/docs/instructor/exercises/assets/math/exercise-detail.png)
+
+### Student — participation
+
+The workspace: problem navigation on the left, goal at the top, derivation below:
+
+![Student workspace](documentation/docs/instructor/exercises/assets/math/student-multi-problem.png)
+
+The block editor itself — blocks, the searchable rule palette, and the interactive expression canvas:
+
+![Student block editor](documentation/docs/instructor/exercises/assets/math/student-editor.png)
+
+Hints: up to three next rules, ranked by progress toward the goal:
+
+![Suggested next rules](documentation/docs/instructor/exercises/assets/math/student-hints.png)
+
+A derivation that reaches the goal:
+
+![Goal reached](documentation/docs/instructor/exercises/assets/math/student-goal-reached.png)
+
+In manual step mode the student writes the result expression instead of Artemis applying the rule:
+
+![Manual step](documentation/docs/instructor/exercises/assets/math/student-manual.png)
+
+An induction problem, with base case and inductive step:
+
+![Induction problem](documentation/docs/instructor/exercises/assets/math/student-induction.png)
+
+A graded submission:
+
+![Graded submission](documentation/docs/instructor/exercises/assets/math/student-graded.png)
+
+When automatic grading is inconclusive or a backend is unavailable, the submission is escalated rather than
+scored zero:
+
+![Awaiting tutor review](documentation/docs/instructor/exercises/assets/math/student-under-review.png)
+
+### Tutor — assessment
+
+Escalated submissions appear on the standard assessment dashboard:
+
+![Assessment dashboard](documentation/docs/instructor/exercises/assets/math/assessment-dashboard.png)
+
+Assessing a locked submission — soft lock, manual score, and feedback:
+
+![Assessing a submission](documentation/docs/instructor/exercises/assets/math/assessment-view.png)
+
+Per-problem review: the goal, the student's derivation, and the sample solution side by side:
+
+![Per-problem derivation review](documentation/docs/instructor/exercises/assets/math/assessment-derivation.png)
