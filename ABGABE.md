@@ -5,8 +5,21 @@ expressions step by step in an interactive block editor; submissions are graded 
 escalate to a human tutor when automatic grading is inconclusive.
 
 This file is the entry point for reviewing the submission: a quick setup, how to run the tests, where the
-code lives, and a short tour of the feature. For the full narrative walkthrough with screenshots see the
-instructor documentation page: [`documentation/docs/instructor/exercises/math-exercise.mdx`](documentation/docs/instructor/exercises/math-exercise.mdx).
+code lives, and a short tour of the feature. Screenshots are in [§6 Visual overview](#6-visual-overview)
+below.
+
+The full narrative walkthrough is the instructor documentation page
+`documentation/docs/instructor/exercises/math-exercise.mdx`. It is Docusaurus **MDX** — it imports a React
+image component and its screenshots, so GitHub shows it as raw source rather than rendering it. To read it
+properly, start the documentation site and open
+*Instructor → Exercises → Math Exercise* (it serves on <http://localhost:3000>):
+
+```bash
+cd documentation
+corepack enable      # one-time: activates the pinned pnpm
+pnpm install
+pnpm start
+```
 
 ## Contribution at a glance
 

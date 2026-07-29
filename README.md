@@ -4,8 +4,14 @@
 > is the entry point for the hand-in: a from-scratch setup guide for Linux (prerequisites, database, the Regate
 > grading backends, and the server), how to run the tests, where the code lives, and a short feature tour.
 >
-> For the narrative walkthrough with screenshots, see the instructor documentation page
-> [`documentation/docs/instructor/exercises/math-exercise.mdx`](documentation/docs/instructor/exercises/math-exercise.mdx).
+> For screenshots of the feature, see [the visual overview in `ABGABE.md`](ABGABE.md#6-visual-overview) — it
+> renders here on GitHub. The full narrative walkthrough lives in the instructor documentation
+> (`documentation/docs/instructor/exercises/math-exercise.mdx`); that page is Docusaurus MDX and does **not**
+> render on GitHub, so read it through the documentation site:
+>
+> ```bash
+> cd documentation && corepack enable && pnpm install && pnpm start
+> ```
 >
 > Everything below is the upstream Artemis README.
 
