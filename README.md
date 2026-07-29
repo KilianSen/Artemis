@@ -1,3 +1,14 @@
+> ### 📄 Reviewing the bachelor's thesis submission? Start here → **[`ABGABE.md`](ABGABE.md)**
+>
+> This branch adds a new **Math exercise type** (equational reasoning) to Artemis. **[`ABGABE.md`](ABGABE.md)**
+> is the entry point for the hand-in: a from-scratch setup guide for Linux (prerequisites, database, the Regate
+> grading backends, and the server), how to run the tests, where the code lives, and a short feature tour.
+>
+> For the narrative walkthrough with screenshots, see the instructor documentation page
+> [`documentation/docs/instructor/exercises/math-exercise.mdx`](documentation/docs/instructor/exercises/math-exercise.mdx).
+>
+> Everything below is the upstream Artemis README.
+
 # Artemis: Interactive Learning with Individual Feedback 
 
 [![CI](https://github.com/ls1intum/Artemis/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/ls1intum/Artemis/actions/workflows/ci.yml)

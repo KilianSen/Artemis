@@ -20,35 +20,260 @@ The card below is generated from the git history (commits, files, and lines auth
 
 ## 1. Quick setup
 
-### Prerequisites
+Follow this section top to bottom and you end up with a running Artemis dev instance that has **math exercises
+enabled and both lightweight Regate provers attached**, covering every goal mode.
 
-- **Java 25**, **Node 24**, **pnpm 11** (`corepack enable`), and **Docker** (used for the database and for the
-  test suites via Testcontainers).
+It is written for **Linux** and assumes **nothing is installed yet** — every tool is set up below. Budget about
+30 minutes (mostly downloads), **~20 GB free disk**, and **16 GB RAM** (8 GB works, but the client build is
+slow). All commands are run in a terminal; `$HOME/artemis-ba` is used as the working directory, but any
+directory will do.
 
-### Run it
+### Step 0 — Install the prerequisites
+
+Skip whatever you already have. The commands below are for **Debian/Ubuntu**; on other distributions use the
+equivalent package manager, or follow https://docs.docker.com/engine/install/ for Docker.
+
+**Docker** — runs the database and the grading backends:
 
 ```bash
-# One command: starts the Spring Boot server (:8080) and builds + serves the Angular client
-./gradlew bootRun
+sudo apt update
+sudo apt install -y docker.io docker-compose-v2 git curl unzip zip
+sudo systemctl enable --now docker
 
-# Or, for faster client iteration, run them separately:
-./gradlew bootRun -x webapp     # server only, on :8080
-pnpm install                    # first time
-pnpm start                      # Angular dev server on :9000 (HMR)
+# Allow your user to use Docker without sudo, and apply it to the current shell:
+sudo usermod -aG docker "$USER"
+newgrp docker
 ```
 
-Open the app, log in, and either **create a Math exercise** as an instructor (Course Management →
-Exercises → *Create a new math exercise*) or **participate** as a student.
+> **This group step is the most common stumbling block.** Without it every Docker command fails with
+> `permission denied while trying to connect to the Docker daemon socket`. If `newgrp docker` does not take
+> effect, log out and back in.
 
-### Remote grading backends (optional)
+**Java 25** — via SDKMAN, which installs into your home directory and needs no root:
 
-Math exercises are graded by either:
+```bash
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+sdk install java 25-tem
+```
 
-- the **in-process rewrite-chain grader** (`REWRITE_CHAIN`) — needs **nothing extra**; or
-- one of four **remote Regate provers** (`eggregate`, `leanregate`, `coqregate`, `cvc5regate`) — reached over
-  HTTP and run as separate services (the *Regate* project, **not** part of this hand-in).
+**Node 24 and pnpm** — via nvm, likewise no root (check the nvm README for the current installer version):
 
-Point Artemis at the remote backends with environment variables (empty by default):
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source "$HOME/.nvm/nvm.sh"
+nvm install 24
+corepack enable       # activates the exact pnpm version pinned in package.json
+```
+
+**Verify** — every line should print a version, and the Docker line must succeed *without* `sudo`:
+
+```bash
+docker run --rm hello-world > /dev/null && echo "docker ok"
+java -version    # 25.x
+node -v          # v24.x
+git --version
+```
+
+If you opened a new terminal since installing, re-run the two `source` lines above (SDKMAN and nvm add them to
+your shell profile for future sessions).
+
+### Step 1 — Get both repositories, side by side
+
+The grading backends live in the separate **Regate** project (**not part of this hand-in**). Clone both into
+the same parent directory — that is the layout the Docker setup assumes by default:
+
+```bash
+mkdir -p "$HOME/artemis-ba" && cd "$HOME/artemis-ba"
+git clone --branch Abgabe https://github.com/KilianSen/Artemis.git Artemis
+git clone https://github.com/KilianSen/Regate.git Regate
+cd Artemis
+```
+
+giving you:
+
+```
+~/artemis-ba
+├── Artemis/     # this repository — all remaining commands run from here
+└── Regate/      # the grading backends
+```
+
+A different location works too — you then pass `REGATE_PATH=/path/to/Regate` in step 3.
+
+### Step 2 — Start the database
+
+The `dev` profile expects MySQL on `localhost:3306` (database `Artemis`, user `root`, empty password). Run it
+from the `Artemis` directory — the `--env-file` is required, as the compose files in `docker/` deliberately
+have no fallback defaults:
+
+```bash
+docker compose --env-file .env -f docker/mysql.yml up -d
+```
+
+Give it a few seconds, then confirm it reports `(healthy)`:
+
+```bash
+docker ps --filter name=artemis-mysql
+```
+
+Liquibase creates the schema (including the `math_*` tables) when Artemis first starts in step 4.
+
+### Step 3 — Start the Regate grading backends
+
+Also from the `Artemis` directory — [`docker/regate.yml`](docker/regate.yml) builds the backends straight from
+the Regate checkout you cloned in step 1 (Regate publishes no images). By default it starts only the two light
+backends, which together cover all three goal modes and are the two the live tests exercise. The first build
+takes a few minutes:
+
+```bash
+docker compose --env-file .env -f docker/regate.yml up -d --build
+```
+
+Check they are up:
+
+```bash
+curl -s localhost:8000/health; echo; curl -s localhost:8003/health
+```
+
+which prints exactly:
+
+```json
+{"status": "ok", "backend": "eggregate", "version": "0.1.0", "protocol": "1.1"}
+{"status": "ok", "backend": "cvc5regate", "version": "0.1.0", "protocol": "1.1", "cvc5": true, "carcara": false}
+```
+
+`"cvc5": true` is the one to watch — it means the solver binary is present inside the container. (`"carcara":
+false` is expected and fine: it only marks the optional independent proof re-checker.)
+
+Optionally, prove the graders work **before** involving Artemis at all, by grading the worked example from the
+thesis appendix directly:
+
+```bash
+curl -s localhost:8000/grade -H 'content-type: application/json' \
+  -d @../Regate/examples/appendix-b.json \
+  | python3 -c "import json,sys; r=json.load(sys.stdin); print(r['outcome'], r['score'], r['certified'])"
+```
+
+A correct setup prints `proven_equal 75 True`. If this works but grading in the UI does not, the problem is in
+Artemis's configuration, not in the backends.
+
+| Backend | Port | Grades | Image |
+| --- | --- | --- | --- |
+| `eggregate` (egglog e-graph) | 8000 | Transformation, Equation | small |
+| `cvc5regate` (cvc5 SMT induction) | 8003 | Induction | ~60 MB |
+
+Notes:
+
+- If your Regate checkout is **not** next to this repository, pass its path:
+  `REGATE_PATH=/path/to/Regate docker compose --env-file .env -f docker/regate.yml up -d --build`.
+- `cvc5regate` is pinned to `linux/amd64`; on Apple Silicon it runs under emulation (slower, but works).
+- The two large formal provers are deliberately **skipped** by default: `leanregate` (~9 GB) and `coqregate`
+  (~1.5 GB). Add them with the `full` Compose profile if you want to exercise Lean-certified induction — the
+  `dev` profile already points at them on `:8001` and `:8002`:
+
+  ```bash
+  docker compose --env-file .env -f docker/regate.yml --profile full up -d --build
+  ```
+
+- Leaving any of them down is harmless — see *Graceful degradation* below.
+
+### Step 4 — Start Artemis
+
+The Spring profiles must be passed explicitly — they select the configuration files that hold the admin
+account, the module toggles, and the Regate URLs. This is the same list the project's IntelliJ run
+configuration *Artemis (Server, Dev, BuildAgent & LocalCI)* uses:
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=artemis,localci,localvc,scheduling,buildagent,core,dev,local'
+```
+
+The first run downloads the Gradle and npm dependencies and builds the Angular client — expect **10–20
+minutes**. It is ready when the log prints:
+
+```
+Started ArtemisApp in 174.358 seconds
+	'Artemis' is running! Access URLs:
+	Local: 		http://localhost:8080/
+```
+
+Leave this terminal open; the server runs in the foreground on **http://localhost:8080**.
+
+For faster client iteration you can split the two, in two terminals:
+
+```bash
+./gradlew bootRun -x webapp --args='--spring.profiles.active=artemis,localci,localvc,scheduling,buildagent,core,dev,local'
+pnpm install && pnpm start     # Angular dev server with hot reload on http://localhost:9000
+```
+
+> **Do not drop the `--args`.** A bare `./gradlew bootRun` activates only the `dev` profile, which does not
+> load `application-artemis.yml` (admin account, repository paths). Note also that `dev` must come **after**
+> `core` in the list: both define `artemis.math.enabled`, the later profile wins, and only `dev` sets it to
+> `true`.
+
+### Step 5 — Log in and try it out
+
+Open **http://localhost:8080** (or **http://localhost:9000** with the split setup) and log in with the
+built-in administrator account, created automatically on first startup:
+
+```
+username: artemis_admin
+password: artemis_admin
+```
+
+Then walk through the **[two-minute tour](#5-a-two-minute-tour)** at the end of this file: create a course,
+create a math exercise from a starter template, solve it as a student, and watch it get graded.
+
+To exercise the **Regate** path specifically, pick a remote backend in the authoring form's **Graders**
+multi-select — `eggregate` for a Transformation or Equation problem, `cvc5regate` for an Induction problem.
+These grade asynchronously: the submission is accepted immediately and the score arrives over a websocket a
+moment later.
+
+### Step 6 — Shutting down
+
+**Artemis itself** runs in the foreground: press `Ctrl+C` in the terminal running `./gradlew bootRun` (and in
+the `pnpm start` terminal, if you used the split setup). That frees ports `8080` and `9000`. A lingering Gradle
+daemon can be stopped with `./gradlew --stop`.
+
+**The containers**, from the `Artemis` directory:
+
+```bash
+docker compose --env-file .env -f docker/regate.yml down    # grading backends
+docker compose --env-file .env -f docker/mysql.yml down     # database (data is kept)
+```
+
+Both are safe to re-run; `up -d` afterwards brings you back to the same state.
+
+Notes:
+
+- If you started the backends with `--profile full`, pass the same flag to `down` so the `leanregate` and
+  `coqregate` containers are removed as well:
+  `docker compose --env-file .env -f docker/regate.yml --profile full down`.
+- `down` keeps the database volume. To **reset the database completely** (wipes all courses, exercises, and
+  submissions — Liquibase recreates the schema on the next boot):
+
+  ```bash
+  docker compose --env-file .env -f docker/mysql.yml down -v
+  ```
+
+- To also reclaim the disk used by the locally built backend images, add `--rmi local` to the `regate.yml`
+  `down` — worth it after a `--profile full` run, which builds ~11 GB of images.
+- Confirm nothing is left behind with `docker ps --filter name=artemis-`.
+
+### What the `dev` profile wires for you
+
+Set in [`src/main/resources/config/application-dev.yml`](src/main/resources/config/application-dev.yml) — no
+environment variables required:
+
+| Property | Value |
+| --- | --- |
+| `artemis.math.enabled` | `true` (the module is **off** by default outside `dev`) |
+| `artemis.regate.eggregate.url` | `http://localhost:8000` |
+| `artemis.regate.leanregate.url` | `http://localhost:8001` |
+| `artemis.regate.coqregate.url` | `http://localhost:8002` |
+| `artemis.regate.cvc5regate.url` | `http://localhost:8003` |
+
+To use different ports or a remote host, override them per backend (these also work outside the `dev`
+profile, where the URLs are empty by default):
 
 ```bash
 export ARTEMIS_REGATE_EGGREGATE_URL=http://localhost:8000
@@ -56,9 +281,35 @@ export ARTEMIS_REGATE_CVC5REGATE_URL=http://localhost:8003
 # leanregate / coqregate analogous
 ```
 
-Without them, everything still works: a submission routed to a remote grader whose backend is unavailable is
-**escalated to manual tutor review** rather than failed — this is the intended behaviour and is what the
-review/assessment flow demonstrates.
+### Graders and graceful degradation
+
+Math exercises are graded by either:
+
+- the **in-process Path checker** (`PATH_CHECKER`) — needs **nothing extra**, no backend, no Docker; or
+- one of four **remote Regate provers** (`eggregate`, `leanregate`, `coqregate`, `cvc5regate`) — reached over
+  HTTP, graded asynchronously, with the result pushed to the student over a websocket.
+
+Skipping steps 2–3 entirely still leaves a working app: a submission routed to a remote grader whose backend
+is unavailable (or whose URL is unset) is **escalated to manual tutor review** rather than failed — this is the
+intended behaviour and is what the review/assessment flow demonstrates.
+
+### Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `permission denied … /var/run/docker.sock` | Your user is not in the `docker` group. Re-run the `usermod` step in step 0, then `newgrp docker` or log out and back in. |
+| `unset variable MYSQL_IMAGE` or similar on `docker compose` | The `--env-file .env` flag is missing. The compose files in `docker/` deliberately define no fallback defaults. |
+| Build fails with `../../Regate: no such file or directory` | The Regate checkout is not next to the Artemis one. Re-check step 1, or pass `REGATE_PATH=/path/to/Regate`. |
+| `/health` prints `"cvc5": false` | The container is missing the solver binary — rebuild with `--build`. Grading still answers, but induction degrades to `unknown` (review) instead of certifying. |
+| A backend is missing from `docker ps` right after starting | It crash-looped. Check `docker logs artemis-cvc5regate`; a `ModuleNotFoundError` means the Regate checkout's Dockerfile does not copy every module `grade.py` imports. |
+| Another `docker compose` command warns about "orphan containers" | Every compose file here shares `COMPOSE_PROJECT_NAME=artemis`, so each one sees the others' containers as orphans. The warning is harmless — but never add `--remove-orphans`, which would delete the backends and the database. |
+| The E2E suite's escalation test fails | It requires the remote backend to be **down** (it asserts the submission escalates to review). Stop the backends before running it: `docker compose --env-file .env -f docker/regate.yml stop`. |
+| Port `3306`, `8000`, `8003`, or `8080` already in use | Another service (often a local MySQL) holds it. Stop it, or change the published port — `EGGREGATE_PORT`/`CVC5REGATE_PORT` for the backends, and the matching `ARTEMIS_REGATE_*_URL` so Artemis follows. |
+| Server exits with an unresolvable-placeholder or missing-property error | The profile list was dropped from `bootRun`. See the warning in step 4. |
+| Login rejects `artemis_admin` | The `artemis` profile was not active on the **first** startup, so the admin was never created. Stop the server, `docker compose --env-file .env -f docker/mysql.yml down -v`, and start again with the full profile list. |
+| The math exercise type is missing from Course Management | `artemis.math.enabled` is not `true` — the `dev` profile must come *after* `core` in the profile list. |
+| A submission stays *"awaiting tutor review"* forever | Its grader is a backend that is not running. Check `docker ps` and `curl localhost:8000/health`; this escalation is by design, not a crash. |
+| The client build runs out of memory | Give the machine more RAM/swap, or use the split setup in step 4 so the Angular build runs on its own. |
 
 ---
 
@@ -91,6 +342,18 @@ pnpm run vitest:run "app/math/"     # all math client specs
 ```bash
 ./run-e2e-tests-local-fast.sh --filter "Math"
 ```
+
+This starts its own Postgres, server and client (killing anything on ports 8080/9000), seeds the database via
+the `e2e` Liquibase context, and runs all five math specs.
+
+Two things to know before running it:
+
+- It calls `playwright install --with-deps`, which needs **root**. If sudo is unavailable it aborts with
+  `Failed to install browsers`. Install the browser once yourself beforehand, then the run proceeds:
+  `cd src/test/playwright && pnpm exec playwright install chromium`.
+- **Stop the Regate backends first** — one spec asserts that a submission escalates to tutor review *because*
+  the remote grader is unreachable, and it fails if `eggregate` is actually running:
+  `docker compose --env-file .env -f docker/regate.yml stop`.
 
 Specs: `MathExerciseParticipation`, `MathExerciseAssessment`, `MathExerciseManagement`
 (`src/test/playwright/e2e/exercise/math/`).
