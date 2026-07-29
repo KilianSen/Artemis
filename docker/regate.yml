@@ -1,0 +1,115 @@
+---
+# ----------------------------------------------------------------------------------------------------------------------
+# Regate math grading backends
+#
+# Optional add-on for math exercises. Artemis reaches these over HTTP (server-to-server) and reads their URLs from
+# artemis.regate.<backend>.url; the dev profile already points at the ports published below, so no extra configuration
+# is needed for a local dev instance. A backend that is not running simply routes matching submissions to manual
+# tutor review, so starting a subset is safe.
+#
+# Regate is a SEPARATE project and publishes no images, so these services build from a local checkout:
+#   git clone https://github.com/KilianSen/Regate.git ../Regate
+#
+# REGATE_PATH is resolved relative to THIS directory (docker/), because Compose uses the compose file's directory as
+# the project directory. The default therefore points at a checkout that sits next to the Artemis repository. If your
+# checkout lives elsewhere, pass an absolute path:
+#   REGATE_PATH=/path/to/Regate docker compose --env-file .env -f docker/regate.yml up -d --build
+#
+# By default only the two light backends start (eggregate + cvc5regate), which together cover all three goal modes.
+# The two large formal provers are behind the "full" Compose profile because of their image size:
+#   docker compose --env-file .env -f docker/regate.yml --profile full up -d --build
+#
+# Ports are published on 127.0.0.1 for an Artemis started on the host (./gradlew bootRun). When Artemis itself runs as
+# a container on the shared "artemis" network, point it at the service names instead, e.g.
+# ARTEMIS_REGATE_EGGREGATE_URL=http://eggregate:8000.
+# ----------------------------------------------------------------------------------------------------------------------
+
+services:
+  # egglog e-graph — transformation / equation. Small image.
+  eggregate:
+    container_name: artemis-eggregate
+    build:
+      context: ${REGATE_PATH:-../../Regate}
+      dockerfile: backends/eggregate/Dockerfile
+    ports:
+      - "127.0.0.1:${EGGREGATE_PORT:-8000}:8000"
+    # expose the port to make it reachable docker internally even if the external port mapping changes
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure:3
+    networks:
+      - artemis
+
+  # cvc5 SMT with native structural induction — induction only. ~60 MB image.
+  cvc5regate:
+    container_name: artemis-cvc5regate
+    build:
+      context: ${REGATE_PATH:-../../Regate}
+      dockerfile: backends/cvc5regate/Dockerfile
+    # The Dockerfile fetches the x86_64 static cvc5 binary; pin the platform so it also works on arm64 hosts
+    # (Apple Silicon) under emulation. Native on amd64.
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:${CVC5REGATE_PORT:-8003}:8000"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure:3
+    networks:
+      - artemis
+
+  # Lean formal proofs — transformation / equation / induction; the only backend that certifies induction.
+  # ~9 GB image: opt in with --profile full.
+  # Note: 8001 is also weaviate.yml's default host port — set LEANREGATE_PORT if you run both.
+  leanregate:
+    container_name: artemis-leanregate
+    profiles: ["full"]
+    build:
+      context: ${REGATE_PATH:-../../Regate}
+      dockerfile: backends/leanregate/Dockerfile
+    ports:
+      - "127.0.0.1:${LEANREGATE_PORT:-8001}:8000"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure:3
+    networks:
+      - artemis
+
+  # Rocq/Coq — induction only. ~1.5 GB image: opt in with --profile full.
+  coqregate:
+    container_name: artemis-coqregate
+    profiles: ["full"]
+    build:
+      context: ${REGATE_PATH:-../../Regate}
+      dockerfile: backends/coqregate/Dockerfile
+    ports:
+      - "127.0.0.1:${COQREGATE_PORT:-8002}:8000"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure:3
+    networks:
+      - artemis
+
+networks:
+  artemis:
+    driver: "bridge"
+    name: artemis
