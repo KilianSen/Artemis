@@ -17,7 +17,7 @@ import de.tum.cit.aet.artemis.math.domain.RuleDirection;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record BlockDefinitionDTO(String type, String category, String label, String paletteLatex, List<String> slots, List<RewriteRuleDTO> rules, List<RewriteRuleDTO> definitions,
-        int precedence, Associativity associativity, LayoutCategory layoutCategory, String displaySymbol, String latexSymbol) {
+        int precedence, Associativity associativity, LayoutCategory layoutCategory, String displaySymbol, String latexSymbol, String functionName) {
 
     /**
      * Serializable view of a {@link RewriteRule}.
@@ -43,6 +43,6 @@ public record BlockDefinitionDTO(String type, String category, String label, Str
         List<RewriteRuleDTO> ruleDTOs = rules.stream().map(RewriteRuleDTO::of).toList();
         List<RewriteRuleDTO> definitionDTOs = definitions.stream().map(RewriteRuleDTO::of).toList();
         return new BlockDefinitionDTO(block.getType(), block.getCategory(), block.getLabel(), block.getPaletteLatex(), block.getSlots(), ruleDTOs, definitionDTOs,
-                block.getPrecedence(), block.getAssociativity(), block.getLayoutCategory(), block.getDisplaySymbol(), block.getLatexSymbol());
+                block.getPrecedence(), block.getAssociativity(), block.getLayoutCategory(), block.getDisplaySymbol(), block.getLatexSymbol(), block.getFunctionName());
     }
 }

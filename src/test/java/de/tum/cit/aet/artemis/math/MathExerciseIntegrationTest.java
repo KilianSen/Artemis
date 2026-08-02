@@ -204,7 +204,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
                 false, false, false, true, true, null, null, null);
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0,
                 IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
-                ZonedDateTime.now().plusDays(2), null, course.getId(), List.of(problemDTO), null);
+                ZonedDateTime.now().plusDays(2), null, course.getId(), null, List.of(problemDTO), null);
 
         MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
                 HttpStatus.CREATED);
@@ -236,8 +236,8 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         // The answer's derivation steps must be deep-copied onto the new submission (not shared with the template's).
         MathSubmission reloadedCopy = mathSubmissionRepository.findByIdWithAnswersAndResults(copiedSubmission.getId()).orElseThrow();
         assertThat(reloadedCopy.getAnswers()).hasSize(1);
-        assertThat(reloadedCopy.getAnswers().getFirst().getSteps()).hasSize(1);
-        assertThat(reloadedCopy.getAnswers().getFirst().getSteps().iterator().next().getAppliedRuleId()).isEqualTo("example work");
+        assertThat(reloadedCopy.getAnswers().iterator().next().getSteps()).hasSize(1);
+        assertThat(reloadedCopy.getAnswers().iterator().next().getSteps().iterator().next().getAppliedRuleId()).isEqualTo("example work");
     }
 
     @Test

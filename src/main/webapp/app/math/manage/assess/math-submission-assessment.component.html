@@ -131,6 +131,12 @@
                                         <p-tag severity="secondary" value="Goal" />
                                         <span [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
                                     </div>
+                                } @else if (isInduction(problem)) {
+                                    <div class="math-tag-row">
+                                        <p-tag severity="secondary" value="Goal" />
+                                        <span [innerHTML]="problem.goalExpression | mathNodeLatex"></span>
+                                    </div>
+                                    <div class="math-prove-label">↓ by induction on {{ problem.inductionVariable || 'n' }} ↓</div>
                                 } @else {
                                     <div class="math-expr-row">
                                         <p-tag severity="secondary" value="Start" />
@@ -150,12 +156,41 @@
                             <h6 class="math-subheading">Student's Math</h6>
                             @if (studentSteps.length === 0) {
                                 <p class="math-empty-note">No derivation steps submitted.</p>
+                            } @else if (isInduction(problem)) {
+                                <!-- An induction submission is two derivations in one list, tagged BASE / STEP; replay each against its own instantiated goal. -->
+                                @for (part of inductionParts(problem, studentSteps); track part.role) {
+                                    <div class="math-induction-case">
+                                        <div class="math-tag-row">
+                                            <p-tag [severity]="part.complete ? 'success' : 'warn'" [value]="part.label" />
+                                        </div>
+                                        @if (part.steps.length === 0) {
+                                            <p class="math-empty-note">No steps submitted for this case.</p>
+                                        } @else {
+                                            <div class="math-expr-row">
+                                                <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
+                                                <span [innerHTML]="part.goal | mathNodeLatex"></span>
+                                            </div>
+                                            @for (step of part.steps; track step.id ?? $index; let last = $last) {
+                                                <div class="math-step-rule">
+                                                    <span style="font-size: 1.1rem; line-height: 1">↓</span>
+                                                    <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
+                                                </div>
+                                                <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && part.complete }">
+                                                    <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
+                                                    @if (last && part.complete) {
+                                                        <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                }
                             } @else {
                                 <div class="math-expr-row">
                                     <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
                                     <span [innerHTML]="startExpression(problem) | mathNodeLatex"></span>
                                 </div>
-                                @for (step of studentSteps; track step.stepIndex; let last = $last) {
+                                @for (step of studentSteps; track step.id ?? $index; let last = $last) {
                                     <div class="math-step-rule">
                                         <span style="font-size: 1.1rem; line-height: 1">↓</span>
                                         <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
@@ -180,21 +215,51 @@
                                         [value]="problem.exampleDerivations!.length + ' step' + (problem.exampleDerivations!.length !== 1 ? 's' : '')"
                                     />
                                 </div>
-                                <div class="math-expr-row">
-                                    <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
-                                    <span [innerHTML]="startExpression(problem) | mathNodeLatex"></span>
-                                </div>
-                                @for (step of problem.exampleDerivations; track step.stepIndex; let last = $last) {
-                                    <div class="math-step-rule">
-                                        <span style="font-size: 1.1rem; line-height: 1">↓</span>
-                                        <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
+                                @if (isInduction(problem)) {
+                                    @for (part of inductionParts(problem, problem.exampleDerivations!); track part.role) {
+                                        <div class="math-induction-case">
+                                            <div class="math-tag-row">
+                                                <p-tag [severity]="part.complete ? 'success' : 'warn'" [value]="part.label" />
+                                            </div>
+                                            @if (part.steps.length === 0) {
+                                                <p class="math-empty-note">No steps for this case.</p>
+                                            } @else {
+                                                <div class="math-expr-row">
+                                                    <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
+                                                    <span [innerHTML]="part.goal | mathNodeLatex"></span>
+                                                </div>
+                                                @for (step of part.steps; track step.id ?? $index; let last = $last) {
+                                                    <div class="math-step-rule">
+                                                        <span style="font-size: 1.1rem; line-height: 1">↓</span>
+                                                        <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
+                                                    </div>
+                                                    <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && part.complete }">
+                                                        <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
+                                                        @if (last && part.complete) {
+                                                            <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                } @else {
+                                    <div class="math-expr-row">
+                                        <p-tag severity="secondary" value="Start" styleClass="math-shrink-0" />
+                                        <span [innerHTML]="startExpression(problem) | mathNodeLatex"></span>
                                     </div>
-                                    <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && isDerivationComplete(problem, problem.exampleDerivations) }">
-                                        <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
-                                        @if (last && isDerivationComplete(problem, problem.exampleDerivations)) {
-                                            <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
-                                        }
-                                    </div>
+                                    @for (step of problem.exampleDerivations; track step.id ?? $index; let last = $last) {
+                                        <div class="math-step-rule">
+                                            <span style="font-size: 1.1rem; line-height: 1">↓</span>
+                                            <p-tag severity="secondary" [value]="ruleNameById().get(step.appliedRuleId) ?? step.appliedRuleId" />
+                                        </div>
+                                        <div class="math-step-result" [ngClass]="{ 'math-goal-reached': last && isDerivationComplete(problem, problem.exampleDerivations) }">
+                                            <span [innerHTML]="step.resultExpression | mathNodeLatex"></span>
+                                            @if (last && isDerivationComplete(problem, problem.exampleDerivations)) {
+                                                <p-tag severity="success" value="✓ Goal" styleClass="math-ms1" />
+                                            }
+                                        </div>
+                                    }
                                 }
                             } @else {
                                 <div class="math-empty-note">No sample solution configured.</div>

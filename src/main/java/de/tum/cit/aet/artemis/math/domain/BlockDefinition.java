@@ -87,6 +87,39 @@ public interface BlockDefinition {
     }
 
     /**
+     * The function name this block emits as, decoupling how a block <em>renders</em> from what it
+     * <em>emits</em>.
+     * <p>
+     * A block normally emits nodes of its own {@link #getType() type}, which means a new operator is a new
+     * MathNode type — and a node type no grading backend knows is declined (see {@code GRADING_PROTOCOL.md},
+     * "Unimplemented vocabulary"), so adding one costs a release in every backend. When this method returns a
+     * non-null name, the block instead emits the protocol's generic {@code apply} node carrying that name,
+     * with its arguments in the ordered {@code args} slot — the shape every backend already compiles from the
+     * exercise's trusted {@code definitions}. The block keeps its own {@link #getLayoutCategory()} and
+     * {@link #getLatexSymbol()}, so an operator can still render infix (e.g. {@code a ⊕ b}) while travelling
+     * as {@code apply("oplus", a, b)}.
+     * <p>
+     * What this buys: a numeric operator declared this way costs <em>one reviewed block bean here</em> — no
+     * protocol version, and no change in any grading backend. It does <em>not</em> make operators authorable
+     * at runtime, and is not meant to: {@code definitions} are unconditionally trusted by every backend (see
+     * {@code GRADING_PROTOCOL.md}, "Recursive definitions are definitional and therefore always trusted, in
+     * every mode and whatever {@code verify_rules} says"), so a defining equation must arrive through code
+     * review like any other operation or rule. This method moves the cost from four backends to one bean; it
+     * does not move authorship out of code.
+     * <p>
+     * Note it buys translation, not automation: an operator whose semantics the target kernel cannot reason
+     * about still grades {@code unknown}, and an operator needing a sort the term language lacks (a boolean,
+     * say) cannot be expressed this way at all.
+     * <p>
+     * {@link #getSlots()} still declares the block's rendering slots; their count is the function's arity.
+     *
+     * @return the {@code apply} function name to emit, or {@code null} to emit this block's own node type
+     */
+    default String getFunctionName() {
+        return null;
+    }
+
+    /**
      * LaTeX symbol emitted in math output for {@code BINARY_INFIX} nodes (e.g., {@code "\\cdot"}).
      *
      * @return the LaTeX symbol, or {@code null} for non-infix layout categories

@@ -14,7 +14,8 @@ import { MathSubmission } from 'app/math/shared/entities/math-submission.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { BlockDefinitionModel } from 'app/math/shared/entities/block-definition.model';
 import { DerivationStep } from 'app/math/shared/entities/derivation-step.model';
-import { MathNode, isTautology, mathNodesEqual } from 'app/math/shared/entities/math-node.model';
+import { MathNode, isTautology, mathNodesEqual, substituteVariable } from 'app/math/shared/entities/math-node.model';
+import { schemaFor, termToPlain } from 'app/math/shared/entities/induction-schema';
 import { AssessmentLayoutComponent } from 'app/assessment/manage/assessment-layout/assessment-layout.component';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { HtmlForMarkdownPipe } from 'app/foundation/pipes/html-for-markdown.pipe';
@@ -32,6 +33,17 @@ import { InputGroupModule } from 'primeng/inputgroup';
 import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
+
+/** One case of an induction proof as the assessment view replays it: its instantiated goal and the steps discharging it. */
+interface InductionPart {
+    role: 'BASE' | 'STEP';
+    /** Section heading, e.g. {@code Base case: P(empty)}. */
+    label: string;
+    /** The induction goal with the induction variable instantiated to this case's constructor term. */
+    goal: MathNode;
+    steps: DerivationStep[];
+    complete: boolean;
+}
 
 @Component({
     selector: 'jhi-math-submission-assessment',
@@ -285,23 +297,66 @@ export class MathSubmissionAssessmentComponent implements OnInit {
         return (this.submission()?.answers ?? []).find((answer) => answer.problemId === problem.id);
     }
 
-    /** The expression a problem's derivation starts from. */
+    /** Whether a problem is proved by induction, i.e. reduces to a base case and an inductive step. */
+    isInduction(problem: MathProblem): boolean {
+        return (problem.goalMode ?? 'TRANSFORMATION') === 'INDUCTION';
+    }
+
+    /** The expression a problem's derivation starts from. Induction starts per case — see {@link inductionParts}. */
     startExpression(problem: MathProblem): MathNode | undefined {
         return (problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION' ? problem.goalExpression : problem.sourceExpression;
     }
 
     hasExpressions(problem: MathProblem): boolean {
-        if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+        const mode = problem.goalMode ?? 'TRANSFORMATION';
+        // An induction problem carries its statement in the goal; source/target stay unset, as in EQUATION mode.
+        if (mode === 'EQUATION' || mode === 'INDUCTION') {
             return !!problem.goalExpression;
         }
         return !!(problem.sourceExpression && problem.targetExpression);
     }
 
+    /**
+     * The two cases an induction submission is made of, each an ordinary equation derivation: the base case
+     * {@code P(base)} and the inductive step {@code P(step)}. The submitted steps arrive as one flat list tagged
+     * by {@code derivationRole}, exactly as the participation editor concatenated them, so they are split back
+     * here by role. Substitution mirrors {@code MathInductionParticipationComponent} via the shared schema.
+     */
+    inductionParts(problem: MathProblem, steps: DerivationStep[]): InductionPart[] {
+        const goal = problem.goalExpression;
+        if (!goal) {
+            return [];
+        }
+        const inductionVar = problem.inductionVariable || 'n';
+        const schema = schemaFor(problem.inductionDatatype ?? 'NAT', inductionVar);
+        return [
+            { role: 'BASE' as const, term: schema.baseTerm, label: 'Base case' },
+            { role: 'STEP' as const, term: schema.stepTerm, label: 'Inductive step' },
+        ].map(({ role, term, label }) => {
+            const caseSteps = steps.filter((step) => step.derivationRole === role);
+            return {
+                role,
+                // e.g. "Base case: P(empty)" / "Inductive step: P(node l v r)".
+                label: `${label}: P(${termToPlain(term)})`,
+                goal: substituteVariable(goal, inductionVar, term),
+                steps: caseSteps,
+                // Each case is an equation derivation, so it is discharged exactly when its last step is a tautology.
+                complete: caseSteps.length > 0 && isTautology(caseSteps[caseSteps.length - 1].resultExpression),
+            };
+        });
+    }
+
     /** Whether a list of steps reaches the problem's goal (target expression, or tautology in EQUATION mode). */
     isDerivationComplete(problem: MathProblem, steps: DerivationStep[] | undefined): boolean {
         if (!steps?.length) return false;
+        const mode = problem.goalMode ?? 'TRANSFORMATION';
+        // An induction proof is complete only when both the base case and the inductive step are discharged.
+        if (mode === 'INDUCTION') {
+            const parts = this.inductionParts(problem, steps);
+            return parts.length > 0 && parts.every((part) => part.complete);
+        }
         const last = steps[steps.length - 1].resultExpression;
-        if ((problem.goalMode ?? 'TRANSFORMATION') === 'EQUATION') {
+        if (mode === 'EQUATION') {
             return isTautology(last);
         }
         const target = problem.targetExpression;

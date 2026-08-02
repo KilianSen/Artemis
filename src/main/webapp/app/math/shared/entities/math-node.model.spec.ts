@@ -294,6 +294,56 @@ describe('math-node engine — frontend mirror', () => {
         it('renders a nullary application as just the name', () => {
             expect(mathNodeToLatex(apply('unit'))).toBe('\\mathrm{unit}');
         });
+
+        // The registry↔apply bridge: a block may declare `functionName`, so a new operator travels the wire
+        // as the generic `apply` node every grading backend already compiles from `definitions`, while still
+        // rendering as an operator. Without this, a new operator needs a new MathNode type, which every
+        // backend must learn before it can grade anything using it.
+        describe('operator emitted as apply (registry bridge)', () => {
+            // Terminals carry a high precedence in the real registry; without them every child would be
+            // parenthesised, which would make these assertions test the stub rather than the bridge.
+            const terminals: Record<string, { precedence: number; layoutCategory: string }> = {
+                variable: { precedence: 100, layoutCategory: 'TERMINAL_VARIABLE' },
+                number: { precedence: 100, layoutCategory: 'TERMINAL_NUMBER' },
+            };
+            const registry =
+                (blocks: Record<string, { functionName?: string; latexSymbol?: string; precedence?: number; layoutCategory?: string }>) => (type: string, value?: string) =>
+                    (value !== undefined ? blocks[value] : undefined) ?? blocks[type] ?? terminals[type];
+            const infix = (functionName: string, latexSymbol: string, precedence = 40) =>
+                registry({ [functionName]: { functionName, latexSymbol, precedence, layoutCategory: 'BINARY_INFIX' } }) as Parameters<typeof mathNodeToLatex>[1];
+
+            it('renders infix when a block claims the function name', () => {
+                const lookup = infix('oplus', '\\oplus');
+                expect(mathNodeToLatex(apply('oplus', variable('a'), variable('b')), lookup)).toBe('a \\oplus b');
+            });
+
+            it('renders prefix for a unary operator', () => {
+                const lookup = registry({ lnot: { functionName: 'lnot', latexSymbol: '\\neg', precedence: 80, layoutCategory: 'UNARY_PREFIX' } }) as Parameters<
+                    typeof mathNodeToLatex
+                >[1];
+                expect(mathNodeToLatex(apply('lnot', variable('p')), lookup)).toBe('\\neg p');
+            });
+
+            it('still parenthesises by precedence inside the infix form', () => {
+                const lookup = registry({
+                    oplus: { functionName: 'oplus', latexSymbol: '\\oplus', precedence: 40, layoutCategory: 'BINARY_INFIX' },
+                    add: { precedence: 30, layoutCategory: 'BINARY_INFIX', latexSymbol: '+' },
+                }) as Parameters<typeof mathNodeToLatex>[1];
+                const nested: MathNode = { type: 'add', slots: { left: [variable('x')], right: [variable('y')] } };
+                expect(mathNodeToLatex(apply('oplus', nested, variable('b')), lookup)).toBe('\\left(x + y\\right) \\oplus b');
+            });
+
+            it('falls back to juxtaposition when the arity does not match the layout', () => {
+                const lookup = infix('oplus', '\\oplus');
+                // Declared BINARY_INFIX but applied to three arguments — render as a function, never mis-render.
+                expect(mathNodeToLatex(apply('oplus', variable('a'), variable('b'), variable('c')), lookup)).toBe('\\mathrm{oplus}\\,a\\,b\\,c');
+            });
+
+            it('leaves unrelated functions as juxtaposition', () => {
+                const lookup = infix('oplus', '\\oplus');
+                expect(mathNodeToLatex(apply('fact', variable('n')), lookup)).toBe('\\mathrm{fact}\\,n');
+            });
+        });
     });
 
     // Parity fixtures — these MUST be kept in sync with MathGradingServiceTest.java on the backend.

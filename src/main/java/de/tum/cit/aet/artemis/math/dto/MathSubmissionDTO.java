@@ -1,8 +1,9 @@
 package de.tum.cit.aet.artemis.math.dto;
 
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.hibernate.Hibernate;
 
@@ -89,18 +90,66 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
         }
     }
 
+    /**
+     * A grading result. {@code rated} is load-bearing for the complaint flow, not decoration:
+     * {@code ComplaintService.getIndividualComplaintDueDate} refuses to open a complaint window when
+     * {@code !exercise.allowComplaintsForAutomaticAssessments && !result.rated}, and an absent field reads as
+     * {@code undefined} — i.e. unrated — which disabled the Complain button for every math result.
+     */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public record MathResultDTO(Long id, Double score, AssessmentType assessmentType, ZonedDateTime completionDate, List<Feedback> feedbacks) {
+    public record MathResultDTO(Long id, Double score, AssessmentType assessmentType, ZonedDateTime completionDate, Boolean rated, List<Feedback> feedbacks) {
 
         public static MathResultDTO of(Result result) {
             // Feedbacks are only projected when eagerly loaded (assessment paths); a lazy/uninitialized collection stays null.
             List<Feedback> feedbacks = Hibernate.isInitialized(result.getFeedbacks()) ? List.copyOf(result.getFeedbacks()) : null;
-            return new MathResultDTO(result.getId(), result.getScore(), result.getAssessmentType(), result.getCompletionDate(), feedbacks);
+            return new MathResultDTO(result.getId(), result.getScore(), result.getAssessmentType(), result.getCompletionDate(), result.isRated(), feedbacks);
         }
     }
 
+    /**
+     * The participation's owner, projected to the fields the shared components identify a student by.
+     * <p>
+     * The flat {@code studentLogin}/{@code studentName} are kept for the assessment view, but they are not enough for
+     * the complaint flow: {@code AccountService.isOwnerOfParticipation} <em>throws</em> "Participation does not have
+     * any owners" unless {@code participation.student} (or a team) is present, and
+     * {@code ComplaintsStudentViewComponent} compares {@code participation.student.id} against the logged-in user to
+     * decide whether to offer the Complain button.
+     *
+     * @param id    the user id, compared against the logged-in user
+     * @param login the user login, used by the owner check
+     * @param name  the display name
+     */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public record MathParticipationDTO(Long id, MathExerciseDTO exercise, String studentLogin, String studentName) {
+    public record MathStudentDTO(Long id, String login, String name) {
+
+        /**
+         * @param user the entity to project, may be {@code null}
+         * @return the projection, or {@code null} when there is no user
+         */
+        public static MathStudentDTO of(User user) {
+            return user == null ? null : new MathStudentDTO(user.getId(), user.getLogin(), user.getName());
+        }
+    }
+
+    /**
+     * A participation's submission reduced to its identity — deliberately without the back-reference to the
+     * participation, which would make the response recursive.
+     * <p>
+     * {@code ComplaintsStudentViewComponent.ngOnInit} picks the newest submission out of
+     * {@code participation.submissions} and then calls {@code findBySubmissionId(this.submission.id)}. Omitting the
+     * collection left that undefined, so the lookup threw and aborted the rest of the hook — including the
+     * {@code showSection} assignment that renders the complaint section at all.
+     *
+     * @param id             the submission id, used to look up an existing complaint
+     * @param submissionDate when it was submitted
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public record MathSubmissionStubDTO(Long id, ZonedDateTime submissionDate) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public record MathParticipationDTO(Long id, MathExerciseDTO exercise, String studentLogin, String studentName, MathStudentDTO student,
+            List<MathSubmissionStubDTO> submissions) {
 
         /**
          * Projects a {@link StudentParticipation} into a participation DTO, including the exercise stub when its
@@ -117,7 +166,12 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
             }
             String login = participation.getStudent().map(User::getLogin).orElse(null);
             String name = participation.getStudent().map(User::getName).orElse(null);
-            return new MathParticipationDTO(participation.getId(), exerciseDTO, login, name);
+            MathStudentDTO student = participation.getStudent().map(MathStudentDTO::of).orElse(null);
+            // Lazy on several paths; project only when fetched, and only the identity to keep the response acyclic.
+            List<MathSubmissionStubDTO> submissions = Hibernate.isInitialized(participation.getSubmissions()) && participation.getSubmissions() != null
+                    ? participation.getSubmissions().stream().map(s -> new MathSubmissionStubDTO(s.getId(), s.getSubmissionDate())).toList()
+                    : List.of();
+            return new MathParticipationDTO(participation.getId(), exerciseDTO, login, name, student, submissions);
         }
     }
 
@@ -152,7 +206,7 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
         }
 
         List<MathProblemAnswerDTO> answerDTOs = null;
-        List<MathProblemAnswer> answers = submission.getAnswers();
+        Set<MathProblemAnswer> answers = submission.getAnswers();
         if (answers != null && !answers.isEmpty()) {
             answerDTOs = answers.stream().map(MathProblemAnswerDTO::of).toList();
         }
@@ -174,7 +228,7 @@ public record MathSubmissionDTO(Long id, Boolean submitted, ZonedDateTime submis
         }
         submission.setSubmitted(Boolean.TRUE.equals(submitted));
         if (answers != null) {
-            List<MathProblemAnswer> answerEntities = new ArrayList<>();
+            Set<MathProblemAnswer> answerEntities = new LinkedHashSet<>();
             for (MathProblemAnswerDTO answerDTO : answers) {
                 MathProblemAnswer answer = answerDTO.toEntity();
                 answer.setSubmission(submission);

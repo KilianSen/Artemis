@@ -20,6 +20,7 @@ import { GRADER_TYPE_LABELS, GraderType, defaultGradersForMode, graderSupportsMo
 import { GOAL_MODE_LABELS, GoalMode } from '../../../shared/entities/goal-mode.model';
 import { ReachabilityReport } from '../../../shared/entities/hint-suggestion.model';
 import { MathBuilderComponent } from '../math-builder/math-builder.component';
+import { MathInductionExampleWorkspaceComponent } from 'app/math/manage/update/math-induction-example-workspace/math-induction-example-workspace.component';
 import { MathDerivationWorkspaceComponent } from '../math-derivation-workspace/math-derivation-workspace.component';
 import { MATH_STARTER_TEMPLATES } from '../math-starter-templates';
 
@@ -37,6 +38,7 @@ import { MATH_STARTER_TEMPLATES } from '../math-starter-templates';
         ArtemisTranslatePipe,
         MathBuilderComponent,
         MathDerivationWorkspaceComponent,
+        MathInductionExampleWorkspaceComponent,
         ButtonModule,
         CardModule,
         CheckboxModule,

@@ -50,11 +50,18 @@ export class MathDerivationWorkspaceComponent implements OnInit {
     acNormalization = input<boolean>(false);
     initialSteps = input<DerivationStep[]>([]);
     onlyShowApplicableRules = input<boolean>(false);
+    /**
+     * Extra palette blocks appended to the catalogue fetched from the block registry. The induction example-solution
+     * editor uses this to offer the induction hypotheses in the step case; empty for an ordinary derivation.
+     */
+    extraBlocks = input<BlockDefinitionModel[]>([]);
     stepsChange = output<DerivationStep[]>();
 
     currentExpression = signal<MathNode | undefined>(undefined);
     steps = signal<DerivationStep[]>([]);
-    blocks = signal<BlockDefinitionModel[]>([]);
+    /** Catalogue blocks fetched from the block registry; {@link blocks} appends {@link extraBlocks} on top. */
+    private registryBlocks = signal<BlockDefinitionModel[]>([]);
+    blocks = computed<BlockDefinitionModel[]>(() => [...this.registryBlocks(), ...this.extraBlocks()]);
     selectedRuleId = signal<string>('');
     selectedDirection = signal<StepDirection>('FORWARD');
     selectedNodePath = signal<number[] | undefined>(undefined);
@@ -182,7 +189,7 @@ export class MathDerivationWorkspaceComponent implements OnInit {
             this.currentExpression.set(this.startExpression());
         }
         this.blockRegistryService.getBlockRegistry().subscribe({
-            next: (blocks) => this.blocks.set(blocks),
+            next: (blocks) => this.registryBlocks.set(blocks),
         });
     }
 

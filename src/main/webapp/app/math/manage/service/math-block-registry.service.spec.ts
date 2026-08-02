@@ -50,4 +50,33 @@ describe('MathBlockRegistryService', () => {
     it('returns undefined for unknown block types', () => {
         expect(service.descriptorFor('mystery')).toBeUndefined();
     });
+
+    // The registry<->apply bridge: an operator declared with `functionName` travels as the generic
+    // `apply` node (which every grading backend already understands) but must still resolve to its own
+    // descriptor so it renders as an operator rather than as a function call.
+    describe('descriptorFor with an apply function name', () => {
+        const oplus = { type: 'oplus', category: 'arithmetic', label: 'Oplus', paletteLatex: 'a \\oplus b', functionName: 'oplus', latexSymbol: '\\oplus' };
+
+        async function load(blocks: unknown[]): Promise<void> {
+            const promise = firstValueFrom(service.getBlockRegistry());
+            httpMock.expectOne({ method: 'GET', url: 'api/math/block-registry' }).flush(blocks);
+            await promise;
+        }
+
+        it('resolves an apply node by its function name', async () => {
+            await load([...sample, oplus]);
+            expect(service.descriptorFor('apply', 'oplus')?.latexSymbol).toBe('\\oplus');
+        });
+
+        it('falls back to the plain type when no block claims the function name', async () => {
+            await load([...sample, oplus]);
+            // `fact` is an ordinary function, not a declared operator -> the generic apply block (or nothing).
+            expect(service.descriptorFor('apply', 'fact')?.functionName).toBeUndefined();
+        });
+
+        it('does not match blocks that declare no functionName when value is undefined', async () => {
+            await load([...sample, oplus]);
+            expect(service.descriptorFor('add')?.type).toBe('add');
+        });
+    });
 });

@@ -31,4 +31,12 @@ export interface BlockDefinitionModel {
     layoutCategory?: LayoutCategory;
     displaySymbol?: string;
     latexSymbol?: string;
+    /**
+     * When set, this block emits the protocol's generic `apply` node carrying this function name
+     * (arguments in the ordered `args` slot) instead of a node of its own `type`, while still rendering
+     * with its own `layoutCategory`/`latexSymbol`. Lets a new operator be added as registry data that the
+     * grading backends already understand, instead of as a new node type none of them know.
+     * `slots.length` is the arity. See `BlockDefinition#getFunctionName()` on the server.
+     */
+    functionName?: string;
 }

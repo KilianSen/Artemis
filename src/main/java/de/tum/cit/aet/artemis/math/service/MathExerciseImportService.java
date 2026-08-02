@@ -196,8 +196,8 @@ public class MathExerciseImportService extends ExerciseImportService {
             newSubmission.setParticipation(originalSubmission.getParticipation());
             // Deep-copy the per-problem answers and their derivation steps (loaded lazily via a targeted query) so the example
             // submission owns its own answer/step rows rather than sharing the template's (cascade/orphanRemoval on MathSubmission#answers).
-            List<MathProblemAnswer> originalAnswers = mathSubmissionRepository.findByIdWithAnswersAndResults(originalSubmission.getId()).map(MathSubmission::getAnswers)
-                    .orElse(List.of());
+            Set<MathProblemAnswer> originalAnswers = mathSubmissionRepository.findByIdWithAnswersAndResults(originalSubmission.getId()).map(MathSubmission::getAnswers)
+                    .orElse(Set.of());
             for (MathProblemAnswer originalAnswer : originalAnswers) {
                 MathProblemAnswer copiedAnswer = new MathProblemAnswer();
                 copiedAnswer.setScoreInPoints(originalAnswer.getScoreInPoints());

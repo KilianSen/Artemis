@@ -9,6 +9,7 @@ import org.hibernate.Hibernate;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.DifficultyLevel;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
@@ -42,6 +43,7 @@ import de.tum.cit.aet.artemis.math.domain.MathProblem;
  * @param assessmentDueDate                      deadline for tutors to complete assessments
  * @param exampleSolutionPublicationDate         when the example solution becomes visible
  * @param courseId                               the course ID (math exercises are course-only)
+ * @param course                                 the course projected to the fields the shared complaint components need
  * @param problems                               the ordered list of math problems (questions) this exercise holds
  * @param channelName                            the name of the exercise's linked communication channel (like every other exercise type)
  */
@@ -49,15 +51,55 @@ import de.tum.cit.aet.artemis.math.domain.MathProblem;
 public record MathExerciseDTO(Long id, String title, String shortName, String problemStatement, Set<String> categories, DifficultyLevel difficulty, Double maxPoints,
         Double bonusPoints, IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments, Boolean allowFeedbackRequests,
         Boolean presentationScoreEnabled, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions, ZonedDateTime releaseDate,
-        ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId, List<MathProblemDTO> problems,
-        String channelName) {
+        ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate, Long courseId, MathCourseDTO course,
+        List<MathProblemDTO> problems, String channelName) {
+
+    /**
+     * The exercise's course, projected down to the fields the shared complaint components read.
+     * <p>
+     * {@code courseId} alone is not enough: the client resolves a course with
+     * {@code getCourseFromExercise(exercise) = exercise.course ?? exercise.exerciseGroup?.exam?.course}, so a DTO
+     * carrying only the id leaves {@code course} undefined. That silently hid the whole complaint section on the
+     * math submission page — {@code ComplaintsStudentViewComponent.getSectionVisibility()} reads
+     * {@code course.complaintsEnabled}, and the complaint window comes from {@code course.maxComplaintTimeDays}.
+     *
+     * @param id                             the course id
+     * @param complaintsEnabled              whether complaints are possible at all (derived: maxComplaintTimeDays > 0)
+     * @param requestMoreFeedbackEnabled     whether more-feedback requests are possible (derived: maxRequestMoreFeedbackTimeDays > 0)
+     * @param maxComplaints                  how many complaints a student may file in the course
+     * @param maxTeamComplaints              the same limit for team exercises
+     * @param maxComplaintTimeDays           how long after the result a complaint may be filed
+     * @param maxRequestMoreFeedbackTimeDays the same window for more-feedback requests
+     * @param maxComplaintTextLimit          character limit of the student's complaint text
+     * @param maxComplaintResponseTextLimit  character limit of the tutor's response
+     */
+    public record MathCourseDTO(Long id, boolean complaintsEnabled, boolean requestMoreFeedbackEnabled, Integer maxComplaints, Integer maxTeamComplaints, int maxComplaintTimeDays,
+            int maxRequestMoreFeedbackTimeDays, int maxComplaintTextLimit, int maxComplaintResponseTextLimit) {
+
+        /**
+         * @param course the entity to project, may be {@code null} for an exercise without a resolvable course
+         * @return the projection, or {@code null} when there is no course
+         */
+        public static MathCourseDTO of(Course course) {
+            if (course == null) {
+                return null;
+            }
+            return new MathCourseDTO(course.getId(), course.getComplaintsEnabled(), course.getRequestMoreFeedbackEnabled(), course.getMaxComplaints(),
+                    course.getMaxTeamComplaints(), course.getMaxComplaintTimeDays(), course.getMaxRequestMoreFeedbackTimeDays(), course.getMaxComplaintTextLimit(),
+                    course.getMaxComplaintResponseTextLimit());
+        }
+    }
 
     /**
      * @param exercise the entity to project
      * @return a DTO carrying the entity's user-facing fields
      */
     public static MathExerciseDTO of(MathExercise exercise) {
-        Long courseId = exercise.getCourseViaExerciseGroupOrCourseMember() != null ? exercise.getCourseViaExerciseGroupOrCourseMember().getId() : null;
+        Course course = exercise.getCourseViaExerciseGroupOrCourseMember();
+        Long courseId = course != null ? course.getId() : null;
+        // The course association is lazy on several fetch paths; projecting an uninitialized proxy would throw a
+        // LazyInitializationException on these non-transactional REST paths, so only project it when it was fetched.
+        MathCourseDTO courseDTO = Hibernate.isInitialized(course) ? MathCourseDTO.of(course) : null;
         // The problems collection is lazy; only project it when it was fetched (e.g. list/search endpoints omit it).
         boolean problemsLoaded = Hibernate.isInitialized(exercise.getProblems()) && exercise.getProblems() != null;
         List<MathProblemDTO> problemDTOs = problemsLoaded ? exercise.getProblems().stream().map(MathProblemDTO::of).toList() : List.of();
@@ -66,7 +108,7 @@ public record MathExerciseDTO(Long id, String title, String shortName, String pr
                 exercise.getDifficulty(), maxPoints, exercise.getBonusPoints(), exercise.getIncludedInOverallScore(), exercise.getAllowComplaintsForAutomaticAssessments(),
                 exercise.getAllowFeedbackRequests(), exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(),
                 exercise.getGradingInstructions(), exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(),
-                exercise.getExampleSolutionPublicationDate(), courseId, problemDTOs, exercise.getChannelName());
+                exercise.getExampleSolutionPublicationDate(), courseId, courseDTO, problemDTOs, exercise.getChannelName());
     }
 
     /** Sum of the exercise's problem points; falls back to the entity's own maxPoints if it has no problems yet. */

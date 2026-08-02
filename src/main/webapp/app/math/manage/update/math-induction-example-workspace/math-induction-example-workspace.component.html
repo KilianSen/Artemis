@@ -1,0 +1,45 @@
+@if (!problem().goalExpression) {
+    <p-message severity="info" text="Define the induction goal above before authoring an example solution." />
+} @else {
+    <p-message
+        severity="info"
+        [text]="'The proof splits into two obligations. Prove each as an equation — the case is discharged when both sides match. The induction hypothesis is available as a rule in the inductive step.'"
+    />
+
+    <!-- Base case: P(base), an ordinary equation derivation with no hypothesis in scope. -->
+    <p-card styleClass="edit-card mt-2">
+        <ng-template pTemplate="header">
+            <div class="d-flex align-items-center gap-2 p-2">
+                <p-tag severity="secondary" [value]="'Base case: P(' + baseTermLabel() + ')'" />
+                <span [innerHTML]="baseGoal() | mathNodeLatex"></span>
+            </div>
+        </ng-template>
+        <jhi-math-derivation-workspace
+            goalMode="EQUATION"
+            [goalExpression]="baseGoal()"
+            [acNormalization]="!!problem().acNormalization"
+            [initialSteps]="initialBaseSteps()"
+            [onlyShowApplicableRules]="onlyShowApplicableRules()"
+            (stepsChange)="onBaseSteps($event)"
+        />
+    </p-card>
+
+    <!-- Inductive step: P(step), with the induction hypotheses added to the palette. -->
+    <p-card styleClass="edit-card mt-2">
+        <ng-template pTemplate="header">
+            <div class="d-flex align-items-center gap-2 p-2">
+                <p-tag severity="secondary" [value]="'Inductive step: P(' + stepTermLabel() + ')'" />
+                <span [innerHTML]="stepGoal() | mathNodeLatex"></span>
+            </div>
+        </ng-template>
+        <jhi-math-derivation-workspace
+            goalMode="EQUATION"
+            [goalExpression]="stepGoal()"
+            [acNormalization]="!!problem().acNormalization"
+            [initialSteps]="initialStepSteps()"
+            [onlyShowApplicableRules]="onlyShowApplicableRules()"
+            [extraBlocks]="hypothesisBlocks()"
+            (stepsChange)="onStepSteps($event)"
+        />
+    </p-card>
+}

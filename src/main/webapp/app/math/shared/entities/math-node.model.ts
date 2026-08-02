@@ -8,7 +8,19 @@ export interface MathNode {
 }
 
 /** Callback to look up rendering metadata for a node type from the block registry. */
-export type RegistryLookup = (type: string) => { precedence?: number; associativity?: string; layoutCategory?: string; latexSymbol?: string } | undefined;
+export type RegistryLookup = (
+    type: string,
+    value?: string,
+) => { precedence?: number; associativity?: string; layoutCategory?: string; latexSymbol?: string; functionName?: string } | undefined;
+
+/**
+ * Joins a prefix symbol to its operand. A symbol ending in a letter is a LaTeX control sequence
+ * (`\neg`, `\lnot`), and `\neg` + `p` would run together into the undefined `\negp`; a symbolic one
+ * (`-`) must NOT gain a space, so existing `neg` output is unchanged.
+ */
+function prefixJoin(symbol: string, operand: string): string {
+    return /[a-zA-Z]$/.test(symbol) ? `${symbol} ${operand}` : `${symbol}${operand}`;
+}
 
 /**
  * Converts a {@link MathNode} AST to a LaTeX string.
@@ -23,7 +35,9 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
         return '{?}';
     }
 
-    const desc = lookup(node.type);
+    // `node.value` is passed so an `apply` node can be described by the block that declares its
+    // functionName — the hook that lets an operator travel as `apply` but render as an operator.
+    const desc = lookup(node.type, node.value);
     const myPrec = desc?.precedence ?? -Infinity;
 
     const needsParens = parentPrecedence >= 0 && (myPrec === -Infinity || (isRightChild ? myPrec <= parentPrecedence : myPrec < parentPrecedence));
@@ -75,8 +89,23 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
             // Named n-ary function application f(a₁,…,aₖ): the function name is in `value`, arguments in the
             // single `args` slot. Rendered OCaml/FPV-style as juxtaposition `f a₁ … aₖ`, wrapping any compound
             // argument (one with slots) in parentheses so `f (g x) y` never collapses to `f g x y`.
+            const applyArgs = node.slots?.['args'] ?? [];
+            // A block may declare `functionName`, emitting `apply` while rendering as an operator (infix
+            // `a ⊕ b`, or prefix `¬a`). This is what lets a new operator be added as registry data alone:
+            // the wire carries the generic `apply` every backend already compiles from `definitions`.
+            if (desc && desc.functionName !== undefined && desc.functionName === node.value && desc.latexSymbol) {
+                if (desc.layoutCategory === 'BINARY_INFIX' && applyArgs.length === 2) {
+                    const prec = desc.precedence ?? -1;
+                    inner = `${mathNodeToLatex(applyArgs[0], lookup, prec)} ${desc.latexSymbol} ${mathNodeToLatex(applyArgs[1], lookup, prec, true)}`;
+                    break;
+                }
+                if (desc.layoutCategory === 'UNARY_PREFIX' && applyArgs.length === 1) {
+                    inner = prefixJoin(desc.latexSymbol, mathNodeToLatex(applyArgs[0], lookup, desc.precedence ?? -1));
+                    break;
+                }
+            }
             const name = `\\mathrm{${(node.value ?? '?').replace(/_/g, '\\_')}}`;
-            const args = (node.slots?.['args'] ?? []).map((arg) => {
+            const args = applyArgs.map((arg) => {
                 const rendered = mathNodeToLatex(arg, lookup, -1);
                 return arg.slots && Object.keys(arg.slots).length > 0 ? `\\left(${rendered}\\right)` : rendered;
             });
@@ -89,7 +118,7 @@ export function mathNodeToLatex(node: MathNode | undefined, lookup: RegistryLook
                 inner = `${renderChild(node.slots?.['left']?.[0], 'left')} ${desc.latexSymbol} ${renderChild(node.slots?.['right']?.[0], 'right')}`;
             } else if (desc?.layoutCategory === 'UNARY_PREFIX' && desc.latexSymbol) {
                 const slotKey = Object.keys(node.slots ?? {})[0] ?? 'inner';
-                inner = `${desc.latexSymbol}${renderChild(node.slots?.[slotKey]?.[0], slotKey)}`;
+                inner = prefixJoin(desc.latexSymbol, renderChild(node.slots?.[slotKey]?.[0], slotKey));
             } else {
                 inner = `{${node.type}}`;
             }

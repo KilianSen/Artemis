@@ -18,6 +18,15 @@ describe('MathBuilderComponent', () => {
     const sampleBlocks: BlockDefinitionModel[] = [
         { type: 'number', displaySymbol: 'n', layoutCategory: 'LEAF', slots: [] } as unknown as BlockDefinitionModel,
         { type: 'add', displaySymbol: '+', layoutCategory: 'BINARY_INFIX', slots: ['lhs', 'rhs'] } as unknown as BlockDefinitionModel,
+        // An operator declared via the registry<->apply bridge: renders infix, emits `apply`.
+        {
+            type: 'oplus',
+            displaySymbol: '⊕',
+            latexSymbol: '\\oplus',
+            layoutCategory: 'BINARY_INFIX',
+            slots: ['left', 'right'],
+            functionName: 'oplus',
+        } as unknown as BlockDefinitionModel,
     ];
 
     beforeEach(() => {
@@ -43,7 +52,29 @@ describe('MathBuilderComponent', () => {
     });
 
     it('loads the block registry on init', () => {
-        expect(component.blocks().length).toBe(2);
+        expect(component.blocks().length).toBe(3);
+    });
+
+    // Without this, a new operator is a new MathNode type that every grading backend must learn before it
+    // can grade anything using it. Emitting `apply` means the operator is data the backends already accept.
+    it('emits an apply node for a block declaring a functionName', () => {
+        component.selectedBlockType.set('oplus');
+        component.insertAtSelected();
+
+        const node = component.rootNodes()[component.rootNodes().length - 1];
+        expect(node.type).toBe('apply');
+        expect(node.value).toBe('oplus');
+        expect(node.slots?.['args']).toHaveLength(2);
+        expect(node.slots?.['left']).toBeUndefined();
+    });
+
+    it('still emits named slots for an ordinary block', () => {
+        component.selectedBlockType.set('add');
+        component.insertAtSelected();
+
+        const node = component.rootNodes()[component.rootNodes().length - 1];
+        expect(node.type).toBe('add');
+        expect(Object.keys(node.slots ?? {})).toEqual(['lhs', 'rhs']);
     });
 
     it('isTerminal returns true for leaf blocks', () => {

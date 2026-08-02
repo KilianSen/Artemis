@@ -214,6 +214,16 @@ export class MathBuilderComponent implements OnInit {
         if (!block || !block.slots?.length) {
             return { type: blockType, value: value ?? '?' };
         }
+        // A block declaring `functionName` emits the protocol's generic `apply` node instead of its own
+        // type, so a new operator needs no node type and no backend release. Its declared slots give the
+        // arity; the ordered `args` slot replaces the named ones. It still renders via its latexSymbol.
+        if (block.functionName) {
+            return {
+                type: 'apply',
+                value: block.functionName,
+                slots: { args: block.slots.map(() => ({ type: 'number', value: '?' }) as MathNode) },
+            };
+        }
         const slots: Record<string, MathNode[]> = {};
         for (const slot of block.slots) {
             slots[slot] = [{ type: 'number', value: '?' }];

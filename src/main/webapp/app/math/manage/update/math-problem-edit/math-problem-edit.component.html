@@ -292,15 +292,26 @@
                 }
             </div>
         </div>
-        <jhi-math-derivation-workspace
-            [sourceExpression]="problem().sourceExpression"
-            [targetExpression]="problem().targetExpression"
-            [goalMode]="problem().goalMode ?? 'TRANSFORMATION'"
-            [goalExpression]="problem().goalExpression"
-            [acNormalization]="!!problem().acNormalization"
-            [initialSteps]="problem().exampleDerivations ?? []"
-            [onlyShowApplicableRules]="previewOnlyApplicableRules()"
-            (stepsChange)="onExampleStepsChange($event)"
-        />
+        @if ((problem().goalMode ?? 'TRANSFORMATION') === 'INDUCTION') {
+            <!-- Induction splits into two obligations, so it needs its own editor: a single flat workspace has no
+                 start expression (induction leaves source/target unset), no base/step split and no hypothesis. -->
+            <jhi-math-induction-example-workspace
+                [problem]="problem()"
+                [initialSteps]="problem().exampleDerivations ?? []"
+                [onlyShowApplicableRules]="previewOnlyApplicableRules()"
+                (stepsChange)="onExampleStepsChange($event)"
+            />
+        } @else {
+            <jhi-math-derivation-workspace
+                [sourceExpression]="problem().sourceExpression"
+                [targetExpression]="problem().targetExpression"
+                [goalMode]="problem().goalMode ?? 'TRANSFORMATION'"
+                [goalExpression]="problem().goalExpression"
+                [acNormalization]="!!problem().acNormalization"
+                [initialSteps]="problem().exampleDerivations ?? []"
+                [onlyShowApplicableRules]="previewOnlyApplicableRules()"
+                (stepsChange)="onExampleStepsChange($event)"
+            />
+        }
     </p-card>
 }
