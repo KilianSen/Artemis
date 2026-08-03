@@ -167,14 +167,24 @@ public class PathCheckerGrader implements MathGrader {
      * Replays the student's steps against {@code start}, returning the final tree and the count of valid steps before any break.
      * The chain also breaks if a step's result revisits a previously-seen state (no-regress invariant) — looping
      * applications of {@code add_comm} and the like cannot inflate the valid-step count or distance progress.
-     * When {@code ac} is true, equality checks and visited-state membership are AC-aware so that students don't
+     * When {@code ac} is true, the equality check against the claimed result is AC-aware so that students don't
      * need to apply commutativity / associativity rules explicitly to make trees match.
+     * <p>
+     * Visited-state membership, however, is deliberately <em>syntactic</em> even under {@code ac}. Rule patterns
+     * are matched structurally, so a reordering is not a no-op: it is what makes the next pattern fit
+     * ({@code (b+c)·a} must become {@code a·(b+c)} before distributivity applies). Keying the visited set on the
+     * AC-canonical form put the current state's whole AC class into the set, so any commutativity step "revisited"
+     * it and broke the chain — truncating a derivation that went on to reach the goal, and scoring it partial.
+     * This mirrors the client (see {@code math-problem-participation.component.ts}); the two engines must agree,
+     * and {@code GRADING_PROTOCOL.md} is explicit that AC normalisation governs equivalence and reaching the
+     * target form, never step legality. A genuine loop is still caught: returning to a syntactically identical
+     * tree fails the {@code add} below.
      */
     private ReplayResult replay(MathNode start, List<DerivationStep> steps, boolean ac) {
         MathNode current = start;
         int validSteps = 0;
         Set<MathNode> visited = new HashSet<>();
-        visited.add(canonicalise(start, ac));
+        visited.add(start);
         for (DerivationStep step : steps) {
             Optional<RewriteRule> ruleOpt = blockRegistry.findRuleById(step.getAppliedRuleId());
             if (ruleOpt.isEmpty()) {
@@ -184,7 +194,7 @@ public class PathCheckerGrader implements MathGrader {
             if (newTree.isEmpty() || !MathNodes.equalsAC(newTree.get(), step.getResultExpression(), ac)) {
                 break;
             }
-            if (!visited.add(canonicalise(step.getResultExpression(), ac))) {
+            if (!visited.add(step.getResultExpression())) {
                 break;
             }
             current = step.getResultExpression();

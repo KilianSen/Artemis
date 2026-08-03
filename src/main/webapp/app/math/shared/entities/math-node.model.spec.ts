@@ -346,11 +346,34 @@ describe('math-node engine — frontend mirror', () => {
         });
     });
 
-    // Parity fixtures — these MUST be kept in sync with MathGradingServiceTest.java on the backend.
+    // Parity fixtures — these MUST be kept in sync with PathCheckerGraderTest.java on the backend
+    // (the anchor previously named MathGradingServiceTest.java, which does not exist — so nothing
+    // was actually being kept in sync). The no-regress case below is the one that mattered: the
+    // client offered a commutativity step under AC that the server's replay() treated as a revisit,
+    // truncating a derivation that reached the goal. See replay_acOn_commutativityStepDoesNotBreakTheChain.
     describe('parity with backend engine', () => {
         const cases: { name: string; tree: MathNode; path: number[]; pattern: MathNode; template: MathNode; expected: MathNode | undefined }[] = [
             { name: 'add_zero_left at root', tree: add(num('0'), variable('x')), path: [], pattern: add(num('0'), wc('a')), template: wc('a'), expected: variable('x') },
             { name: 'add_zero_left mismatch', tree: add(variable('x'), num('0')), path: [], pattern: add(num('0'), wc('a')), template: wc('a'), expected: undefined },
+            // Pairs with PathCheckerGraderTest.replay_acOn_commutativityStepDoesNotBreakTheChain: mul_distrib's
+            // pattern is `a * (b + c)`, matched STRUCTURALLY, so `(b + c) * a` must be reordered first. That is
+            // why an AC reordering is a real step in both engines and must not count as revisiting a state.
+            {
+                name: 'mul_distrib needs the operands reordered first (structural match, not AC)',
+                tree: mul(add(variable('b'), variable('c')), variable('a')),
+                path: [],
+                pattern: mul(wc('a'), add(wc('b'), wc('c'))),
+                template: add(mul(wc('a'), wc('b')), mul(wc('a'), wc('c'))),
+                expected: undefined,
+            },
+            {
+                name: 'mul_distrib applies once the reordering has happened',
+                tree: mul(variable('a'), add(variable('b'), variable('c'))),
+                path: [],
+                pattern: mul(wc('a'), add(wc('b'), wc('c'))),
+                template: add(mul(wc('a'), wc('b')), mul(wc('a'), wc('c'))),
+                expected: add(mul(variable('a'), variable('b')), mul(variable('a'), variable('c'))),
+            },
         ];
         for (const c of cases) {
             it(c.name, () => {

@@ -335,6 +335,36 @@ class PathCheckerGraderTest {
     }
 
     @Test
+    void replay_acOn_commutativityStepDoesNotBreakTheChain() {
+        // REGRESSION: keying the visited set on the AC-canonical form put the current state's whole
+        // AC class into the set, so a commutativity step "revisited" it and broke the replay — a
+        // derivation that went on to reach the goal was truncated at that step and scored partial.
+        // `mul_distrib` matches `a * (b + c)` structurally, so the reorder is what makes it fit.
+        MathNode source = MathNodes.mul(MathNodes.add(MathNodes.var("b"), MathNodes.var("c")), MathNodes.var("a"));
+        MathNode afterComm = MathNodes.mul(MathNodes.var("a"), MathNodes.add(MathNodes.var("b"), MathNodes.var("c")));
+        MathNode target = MathNodes.add(MathNodes.mul(MathNodes.var("a"), MathNodes.var("b")), MathNodes.mul(MathNodes.var("a"), MathNodes.var("c")));
+        MathProblem exercise = exerciseOf(source, target);
+        exercise.setAcNormalization(true);
+        exercise.setPartialCreditEnabled(true);
+        List<DerivationStep> submission = submissionOf(step(0, "mul_comm", List.of(), afterComm), step(1, "mul_distrib", List.of(), target));
+        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+    }
+
+    @Test
+    void replay_acOn_genuineLoopStillBreaks() {
+        // The no-regress invariant must survive the fix above: returning to a SYNTACTICALLY identical
+        // tree is still a revisit, AC normalisation or not.
+        MathNode source = MathNodes.add(MathNodes.var("a"), MathNodes.var("b"));
+        MathNode target = MathNodes.mul(MathNodes.var("a"), MathNodes.var("b"));   // unreachable by add_comm
+        MathProblem exercise = exerciseOf(source, target);
+        exercise.setAcNormalization(true);
+        exercise.setPartialCreditEnabled(true);
+        List<DerivationStep> submission = submissionOf(step(0, "add_comm", List.of(), MathNodes.add(MathNodes.var("b"), MathNodes.var("a"))),
+                step(1, "add_comm", List.of(), source));
+        assertThat(grader.gradeSubmission(exercise, submission)).isLessThan(100.0);
+    }
+
+    @Test
     void distanceBasedPartialCredit_reducesAsStudentApproachesTarget() {
         // Source: 0 + (0 + x), target: x. Single valid step: add_zero_left on outermost gives (0 + x), still distance 2 to x.
         MathNode source = MathNodes.add(MathNodes.num("0"), MathNodes.add(MathNodes.num("0"), MathNodes.var("x")));
