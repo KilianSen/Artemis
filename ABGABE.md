@@ -254,6 +254,36 @@ multi-select — `eggregate` for a Transformation or Equation problem, `cvc5rega
 These grade asynchronously: the submission is accepted immediately and the score arrives over a websocket a
 moment later.
 
+### Step 5b — Provision a demo course (optional, but the fastest way to see everything)
+
+Clicking through the feature by hand covers one exercise at a time. This script fills a course with a
+broad, deliberately varied catalogue and then answers it as three different students, so the graded
+states exist before you look at anything:
+
+```bash
+node supporting_scripts/math-demo/provision-math-demo.js
+```
+
+It creates **49 math exercises** in the seeded course `9018` (*E2E Exercise Participation Course*, where
+the `artemis_test_user_*` logins are already enrolled) covering all three goal modes, every grader
+including the Regate backends, and the editor options — partial credit, AC normalisation, manual
+derivation, restricted rule palette, verification off — then submits answers landing in each outcome:
+
+| Outcome | Roughly | What it demonstrates |
+| --- | --- | --- |
+| `100` correct | 19 | A derivation that reaches the goal |
+| `0` wrong / empty | 23 | An invalid step, and an untouched submission |
+| partial (e.g. 50%, 66.7%) | 6 | Distance-based credit for an unfinished chain |
+| awaiting review (`null` score) | 1 | Automatic grading inconclusive → routed to a tutor |
+
+Options: `--course <id>` targets a different course, `--no-submissions` creates the exercises only.
+It needs the Regate backends from step 3 for the Regate-graded entries; any backend that is not
+running simply routes its exercise to manual review, which is one of the states above anyway.
+
+Each run adds a **fresh batch** rather than updating in place, so run it once unless you want duplicates.
+Afterwards, browse as a student at `/courses/9018/exercises`, or as a tutor at
+`/course-management/9018/assessment-dashboard` to see the submissions waiting for assessment.
+
 ### Step 6 — Shutting down
 
 **Artemis itself** runs in the foreground: press `Ctrl+C` in the terminal running `./gradlew bootRun` (and in
