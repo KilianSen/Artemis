@@ -147,13 +147,20 @@ export class MathProblemParticipationComponent implements OnInit {
         return (this.problem()?.goalMode ?? 'TRANSFORMATION') === 'EQUATION' ? this.problem()?.goalExpression : this.problem()?.sourceExpression;
     }
 
-    /** Set of trees the student has already visited — start expression + every recorded step result. */
+    /**
+     * Set of trees the student has already visited — start expression + every recorded step result.
+     *
+     * Keyed SYNTACTICALLY, never AC-normalised: AC normalisation governs equivalence and "reached the target form",
+     * never step legality, and rule availability is step legality (see `GRADING_PROTOCOL.md`, `ac_normalization`).
+     * Keying this set on the AC-canonical form would make every commutativity/associativity result collapse onto the
+     * current state, so a purely-AC rule could never be applied — e.g. a student on `(b + c) · a` could never commute
+     * to `a · (b + c)` to make distributivity's pattern match.
+     */
     private visitedStates = computed<Set<string>>(() => {
-        const ac = !!this.problem()?.acNormalization;
         const set = new Set<string>();
         const start = this.startExpression();
-        if (start) set.add(JSON.stringify(canonical(start, ac)));
-        for (const step of this.steps()) set.add(JSON.stringify(canonical(step.resultExpression, ac)));
+        if (start) set.add(stateKey(start));
+        for (const step of this.steps()) set.add(stateKey(step.resultExpression));
         return set;
     });
 
@@ -176,15 +183,14 @@ export class MathProblemParticipationComponent implements OnInit {
 
     /**
      * Rule IDs that match at the currently selected node path (either direction) AND whose result is not a previously-visited
-     * state under the active AC mode. Empty set when no node is selected.
+     * state. Freshness is syntactic — see {@link visitedStates}. Empty set when no node is selected.
      */
     applicableRuleIds = computed<Set<string>>(() => {
         const path = this.selectedNodePath();
         const current = this.currentExpression();
         if (path === undefined || !current) return new Set<string>();
-        const ac = !!this.problem()?.acNormalization;
         const visited = this.visitedStates();
-        const fresh = (tree: MathNode | undefined) => tree !== undefined && !visited.has(JSON.stringify(canonical(tree, ac)));
+        const fresh = (tree: MathNode | undefined) => tree !== undefined && !visited.has(stateKey(tree));
         const applicable = new Set<string>();
         for (const block of this.blocks()) {
             for (const rule of block.rules ?? []) {
@@ -321,7 +327,7 @@ export class MathProblemParticipationComponent implements OnInit {
             this.ruleApplicationError.set('Please build the result expression first.');
             return;
         }
-        if (this.visitedStates().has(JSON.stringify(canonical(result, !!this.problem()?.acNormalization)))) {
+        if (this.visitedStates().has(stateKey(result))) {
             this.ruleApplicationError.set('This step would return to a previously visited state.');
             return;
         }
@@ -387,7 +393,7 @@ export class MathProblemParticipationComponent implements OnInit {
             this.ruleApplicationError.set('Rule does not apply at the selected node.');
             return;
         }
-        if (this.visitedStates().has(JSON.stringify(canonical(newTree, !!this.problem()?.acNormalization)))) {
+        if (this.visitedStates().has(stateKey(newTree))) {
             this.ruleApplicationError.set('This step would return to a previously visited state.');
             return;
         }
@@ -574,6 +580,15 @@ export class MathProblemParticipationComponent implements OnInit {
 /** Returns the AC-normalised form when ac is true, the input unchanged otherwise. */
 function canonical(node: MathNode | undefined, ac: boolean): MathNode | undefined {
     return ac ? normalizeAC(node) : node;
+}
+
+/**
+ * Identity of a derivation state for the no-regress check. Deliberately syntactic (no AC normalisation): the
+ * no-regress feature guards against literally re-deriving a tree the student already had, not against reaching an
+ * AC-equivalent one, which is what commutativity and associativity steps legitimately do.
+ */
+function stateKey(node: MathNode): string {
+    return JSON.stringify(node);
 }
 
 /** Progress in [0, 1] toward the target — how much of the initial source→target distance has been closed. */

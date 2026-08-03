@@ -46,7 +46,10 @@ export class MathDerivationWorkspaceComponent implements OnInit {
     /** When EQUATION, the workspace starts from {@link goalExpression} and completes on tautology. Defaults to TRANSFORMATION. */
     goalMode = input<GoalMode>('TRANSFORMATION');
     goalExpression = input<MathNode | undefined>(undefined);
-    /** When true, equality + tautology + no-regress comparisons treat {@code +} and {@code ·} as commutative/associative. */
+    /**
+     * When true, equality + tautology comparisons treat {@code +} and {@code ·} as commutative/associative.
+     * Never applied to the no-regress check, which stays syntactic — see {@link visitedStates}.
+     */
     acNormalization = input<boolean>(false);
     initialSteps = input<DerivationStep[]>([]);
     onlyShowApplicableRules = input<boolean>(false);
@@ -111,14 +114,21 @@ export class MathDerivationWorkspaceComponent implements OnInit {
 
     startExpression = computed<MathNode | undefined>(() => (this.goalMode() === 'EQUATION' ? this.goalExpression() : this.sourceExpression()));
 
-    /** Set of result trees the student has visited so far. Used by the no-regress UX. */
+    /**
+     * Set of result trees the student has visited so far. Used by the no-regress UX.
+     *
+     * Keyed SYNTACTICALLY, never AC-normalised: AC normalisation governs equivalence and "reached the target form",
+     * never step legality, and rule availability is step legality (see `GRADING_PROTOCOL.md`, `ac_normalization`).
+     * Keying this set on the AC-canonical form would make every commutativity/associativity result collapse onto the
+     * current state, so a purely-AC rule could never be applied — e.g. on `(b + c) · a` one could never commute to
+     * `a · (b + c)` to make distributivity's pattern match.
+     */
     private visitedStates = computed<Set<string>>(() => {
-        const ac = this.acNormalization();
         const start = this.startExpression();
         const visited = new Set<string>();
-        if (start) visited.add(JSON.stringify(canonical(start, ac)));
+        if (start) visited.add(stateKey(start));
         for (const step of this.steps()) {
-            visited.add(JSON.stringify(canonical(step.resultExpression, ac)));
+            visited.add(stateKey(step.resultExpression));
         }
         return visited;
     });
@@ -143,9 +153,9 @@ export class MathDerivationWorkspaceComponent implements OnInit {
         const path = this.selectedNodePath();
         const current = this.currentExpression();
         if (path === undefined || !current) return new Set<string>();
-        const ac = this.acNormalization();
         const visited = this.visitedStates();
-        const fresh = (tree: MathNode | undefined) => tree !== undefined && !visited.has(JSON.stringify(canonical(tree, ac)));
+        // Freshness is syntactic — see visitedStates.
+        const fresh = (tree: MathNode | undefined) => tree !== undefined && !visited.has(stateKey(tree));
         const applicable = new Set<string>();
         for (const block of this.blocks()) {
             for (const rule of block.rules ?? []) {
@@ -282,7 +292,7 @@ export class MathDerivationWorkspaceComponent implements OnInit {
             this.ruleApplicationError.set('Rule does not apply at the selected node.');
             return;
         }
-        if (this.visitedStates().has(JSON.stringify(canonical(newTree, this.acNormalization())))) {
+        if (this.visitedStates().has(stateKey(newTree))) {
             this.ruleApplicationError.set('This step would return to a previously visited state.');
             return;
         }
@@ -332,6 +342,15 @@ export class MathDerivationWorkspaceComponent implements OnInit {
 /** Returns the AC-normalised form when ac is true, the input unchanged otherwise. */
 function canonical(node: MathNode | undefined, ac: boolean): MathNode | undefined {
     return ac ? normalizeAC(node) : node;
+}
+
+/**
+ * Identity of a derivation state for the no-regress check. Deliberately syntactic (no AC normalisation): the
+ * no-regress feature guards against literally re-deriving a tree that was already reached, not against reaching an
+ * AC-equivalent one, which is what commutativity and associativity steps legitimately do.
+ */
+function stateKey(node: MathNode): string {
+    return JSON.stringify(node);
 }
 
 /** Progress in [0, 1] toward the target — how much of the initial source→target distance has been closed. */
