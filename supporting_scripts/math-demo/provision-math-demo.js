@@ -5,11 +5,16 @@
  *
  *   node provision-math-demo.js [--course <id>] [--no-submissions]
  *
+ * The catalogue is weighted towards the Regate backends rather than the in-process path checker:
+ * EGGREGATE grades most of the transformation and equation exercises, CVC5REGATE the induction
+ * section (with COQREGATE on a few of the same goals, and one problem certified by both).
+ *
  * Requires a running Artemis with the e2e seed data (default course 9018, where the
  * artemis_test_user_* logins are already enrolled) and, for the Regate-graded exercises,
  * the grading backends from docker/regate.yml. Exercises whose backend is not running are
  * still created — they simply route to manual review, which is itself one of the states
- * this script is meant to demonstrate.
+ * this script is meant to demonstrate. With no backends at all, only the PATH_CHECKER
+ * exercises grade automatically.
  *
  * Idempotency: every run creates a fresh batch (exercise short names are randomised), so
  * running it twice gives two batches rather than duplicates-in-place.
@@ -94,26 +99,42 @@ function exercise(title, problems, extra = {}) {
 // ── The catalogue ────────────────────────────────────────────────────────────
 // Each entry carries the derivation that SOLVES it, so the script can submit a correct,
 // a partial and a wrong answer without hand-writing three payloads per exercise.
+//
+// The catalogue is weighted towards the two backends that run in the default docker/regate.yml
+// set: EGGREGATE grades the transformation/equation body, CVC5REGATE the induction section.
+// PATH_CHECKER keeps the exercises the backends cannot take (see the guarded-fraction note below)
+// plus the editor-option showcases, where the grader is beside the point.
+//
 // step = { rule, path, result } — `path` indexes flatChildren (slots sorted alphabetically).
-const step = (rule, path, result) => ({ rule, path, result });
+// `role` places a step in one of an answer's derivations: MAIN for transformation/equation, and
+// BASE / STEP for the two obligations of an induction proof. Artemis keeps all of them in one
+// ordered list on the answer and partitions by role (see DerivationRole), which is why induction
+// solutions below interleave base and step entries in a single array.
+const step = (rule, path, result, role) => ({ rule, path, result, role: role ?? 'MAIN' });
+const base = (rule, path, result) => step(rule, path, result, 'BASE');
+const ind = (rule, path, result) => step(rule, path, result, 'STEP');
+// A Type-B step rewrites with the induction hypothesis instead of applying a rule: it carries the
+// hypothesis as an equation rather than a rule id (see GRADING_PROTOCOL.md, "Type-B substitution").
+const hyp = (path, equation, result) => ({ rule: null, kind: 'B', path, equation, result, role: 'STEP' });
 
 function catalogue() {
     const x = vr('x'), y = vr('y'), a = vr('a'), b = vr('b'), c = vr('c'), n = vr('n');
     const items = [];
     const push = (title, spec, solution) => items.push({ title, spec, solution });
+    const EGG = ['EGGREGATE'];
 
-    // 1. Identity laws — the simplest one-step transformations.
-    push('Left identity of addition', { source: add(num(0), x), target: x },
+    // 1. Identity laws — the simplest one-step transformations, graded by the e-graph.
+    push('Left identity of addition', { source: add(num(0), x), target: x, graderTypes: EGG },
         [step('add_zero_left', [], x)]);
-    push('Right identity of addition', { source: add(x, num(0)), target: x },
+    push('Right identity of addition', { source: add(x, num(0)), target: x, graderTypes: EGG },
         [step('add_zero_right', [], x)]);
-    push('Left identity of multiplication', { source: mul(num(1), x), target: x },
+    push('Left identity of multiplication', { source: mul(num(1), x), target: x, graderTypes: EGG },
         [step('mul_one_left', [], x)]);
-    push('Right identity of multiplication', { source: mul(x, num(1)), target: x },
+    push('Right identity of multiplication', { source: mul(x, num(1)), target: x, graderTypes: EGG },
         [step('mul_one_right', [], x)]);
-    push('Absorbing zero on the left', { source: mul(num(0), x), target: num(0) },
+    push('Absorbing zero on the left', { source: mul(num(0), x), target: num(0), graderTypes: EGG },
         [step('mul_zero_left', [], num(0))]);
-    push('Absorbing zero on the right', { source: mul(x, num(0)), target: num(0) },
+    push('Absorbing zero on the right', { source: mul(x, num(0)), target: num(0), graderTypes: EGG },
         [step('mul_zero_right', [], num(0))]);
     push('Subtracting zero', { source: sub(x, num(0)), target: x },
         [step('sub_zero_right', [], x)]);
@@ -121,30 +142,33 @@ function catalogue() {
         [step('sub_self', [], num(0))]);
     push('Double negation', { source: neg(neg(x)), target: x },
         [step('neg_neg', [], x)]);
-    push('Negating zero', { source: neg(num(0)), target: num(0) },
-        [step('neg_zero', [], num(0))]);
 
     // 2. Nested identities — the rewrite happens below the root, exercising path encoding.
-    push('Identity inside a sum', { source: add(add(num(0), x), y), target: add(x, y) },
+    push('Identity inside a sum', { source: add(add(num(0), x), y), target: add(x, y), graderTypes: EGG },
         [step('add_zero_left', [0], add(x, y))]);
-    push('Identity inside a product', { source: mul(mul(num(1), x), y), target: mul(x, y) },
+    push('Identity inside a product', { source: mul(mul(num(1), x), y), target: mul(x, y), graderTypes: EGG },
         [step('mul_one_left', [0], mul(x, y))]);
-    push('Identity in the right operand', { source: add(y, mul(x, num(1))), target: add(y, x) },
+    push('Identity in the right operand', { source: add(y, mul(x, num(1))), target: add(y, x), graderTypes: EGG },
         [step('mul_one_right', [1], add(y, x))]);
     push('Zero factor inside a sum', { source: add(mul(num(0), x), y), target: add(num(0), y) },
         [step('mul_zero_left', [0], add(num(0), y))]);
 
     // 3. Two-step chains — where partial credit becomes meaningful.
-    push('Collapsing two additive identities', { source: add(num(0), add(x, num(0))), target: x, partialCredit: true },
+    push('Collapsing two additive identities', { source: add(num(0), add(x, num(0))), target: x, partialCredit: true, graderTypes: EGG },
         [step('add_zero_left', [], add(x, num(0))), step('add_zero_right', [], x)]);
-    push('Collapsing two multiplicative identities', { source: mul(num(1), mul(x, num(1))), target: x, partialCredit: true },
+    push('Collapsing two multiplicative identities', { source: mul(num(1), mul(x, num(1))), target: x, partialCredit: true, graderTypes: EGG },
         [step('mul_one_left', [], mul(x, num(1))), step('mul_one_right', [], x)]);
     push('From a zero product to a clean sum', { source: add(mul(num(0), x), y), target: y, partialCredit: true },
         [step('mul_zero_left', [0], add(num(0), y)), step('add_zero_left', [], y)]);
     push('Unfolding a double negation inside a sum', { source: add(neg(neg(x)), num(0)), target: x, partialCredit: true },
         [step('neg_neg', [0], add(x, num(0))), step('add_zero_right', [], x)]);
 
-    // 4. Fractions — including the guarded cancellation rule.
+    // 4. Fractions — the guarded cancellation rule. These stay on PATH_CHECKER deliberately:
+    //    frac_mul_cancel_left is only valid for c != 0, eggregate enforces that side condition and
+    //    answers `invalid_derivation` ("needs assumption: c != 0") unless the fact is in scope. Artemis
+    //    has no way to declare it — RegateRequestMapper sends `assumptions: null` on every request and
+    //    MathProblem has no field to populate it from — so routing these to the e-graph would score a
+    //    correct derivation 0. Move them to EGGREGATE once problem-level assumptions are authorable.
     push('Denominator of one', { source: frac(x, num(1)), target: x },
         [step('frac_one_denom', [], x)]);
     push('Cancelling a common factor', { source: frac(mul(c, a), mul(c, b)), target: frac(a, b) },
@@ -154,23 +178,23 @@ function catalogue() {
 
     // 5. Commutativity and associativity — the AC-sensitive family. With AC normalisation on,
     //    the target matches up to reordering; with it off the student must cite the rule.
-    push('Commutativity of addition', { source: add(a, b), target: add(b, a) },
+    push('Commutativity of addition', { source: add(a, b), target: add(b, a), graderTypes: EGG },
         [step('add_comm', [], add(b, a))]);
-    push('Commutativity of multiplication', { source: mul(a, b), target: mul(b, a) },
+    push('Commutativity of multiplication', { source: mul(a, b), target: mul(b, a), graderTypes: EGG },
         [step('mul_comm', [], mul(b, a))]);
-    push('Associativity of addition', { source: add(add(a, b), c), target: add(a, add(b, c)) },
+    push('Associativity of addition', { source: add(add(a, b), c), target: add(a, add(b, c)), graderTypes: EGG },
         [step('add_assoc', [], add(a, add(b, c)))]);
     push('Associativity of multiplication', { source: mul(mul(a, b), c), target: mul(a, mul(b, c)) },
         [step('mul_assoc', [], mul(a, mul(b, c)))]);
-    push('Reordering under AC normalisation', { source: add(a, b), target: add(b, a), ac: true },
+    push('Reordering under AC normalisation', { source: add(a, b), target: add(b, a), ac: true, graderTypes: EGG },
         [step('add_comm', [], add(b, a))]);
     push('Reordering a product under AC normalisation', { source: mul(a, b), target: mul(b, a), ac: true },
         [step('mul_comm', [], mul(b, a))]);
 
     // 6. Distributivity — two directions of the same law.
-    push('Expanding a product over a sum', { source: mul(a, add(b, c)), target: add(mul(a, b), mul(a, c)) },
+    push('Expanding a product over a sum', { source: mul(a, add(b, c)), target: add(mul(a, b), mul(a, c)), graderTypes: EGG },
         [step('mul_distrib', [], add(mul(a, b), mul(a, c)))]);
-    push('Expanding from the right', { source: mul(add(b, c), a), target: add(mul(b, a), mul(c, a)) },
+    push('Expanding from the right', { source: mul(add(b, c), a), target: add(mul(b, a), mul(c, a)), graderTypes: EGG },
         [step('mul_distrib_right', [], add(mul(b, a), mul(c, a)))]);
     push('Expanding then absorbing a zero', { source: mul(num(0), add(b, c)), target: num(0), partialCredit: true },
         [step('mul_zero_left', [], num(0))]);
@@ -181,28 +205,64 @@ function catalogue() {
     push('Subtraction as addition of a negative', { source: sub(a, b), target: add(a, neg(b)) },
         [step('sub_as_add_neg', [], add(a, neg(b)))]);
 
-    // 8. Equation mode — reduce an equation to a tautology rather than hit a target tree.
-    push('Equation commutativity of addition', { goalMode: 'EQUATION', goal: eq(add(a, b), add(b, a)), ac: true }, []);
-    push('Equation commutativity of multiplication', { goalMode: 'EQUATION', goal: eq(mul(a, b), mul(b, a)), ac: true }, []);
-    push('Equation associativity of addition', { goalMode: 'EQUATION', goal: eq(add(add(a, b), c), add(a, add(b, c))), ac: true }, []);
-    push('Equation with an explicit rewrite', { goalMode: 'EQUATION', goal: eq(add(num(0), x), x) },
+    // 8. Equation mode — reduce an equation to a tautology rather than hit a target tree. Every entry
+    //    carries an explicit rewrite: a remote grader is never asked to judge an empty derivation
+    //    (MathGradingService scores an unattempted remote problem 0 without dispatching).
+    push('Equation commutativity of addition', { goalMode: 'EQUATION', goal: eq(add(a, b), add(b, a)), ac: true, graderTypes: EGG },
+        [step('add_comm', [0], eq(add(b, a), add(b, a)))]);
+    push('Equation commutativity of multiplication', { goalMode: 'EQUATION', goal: eq(mul(a, b), mul(b, a)), ac: true, graderTypes: EGG },
+        [step('mul_comm', [0], eq(mul(b, a), mul(b, a)))]);
+    push('Equation associativity of addition', { goalMode: 'EQUATION', goal: eq(add(add(a, b), c), add(a, add(b, c))), ac: true },
+        [step('add_assoc', [0], eq(add(a, add(b, c)), add(a, add(b, c))))]);
+    push('Equation with an explicit rewrite', { goalMode: 'EQUATION', goal: eq(add(num(0), x), x), graderTypes: EGG },
         [step('add_zero_left', [0], eq(x, x))]);
 
-    // 9. Induction — the Regate certifiers. cvc5 handles ℕ, lists and trees; coq handles ℕ.
-    const indDefs = { goalMode: 'INDUCTION', inductionVariable: 'n', inductionDatatype: 'NAT' };
-    push('Induction on the additive identity', { ...indDefs, goal: eq(add(n, num(0)), n), graderTypes: ['CVC5REGATE'] }, []);
-    push('Induction one to the n', { ...indDefs, goal: eq(pow(num(1), n), num(1)), graderTypes: ['CVC5REGATE'] }, []);
-    push('Induction on a power product', { ...indDefs, goal: eq(mul(pow(a, n), pow(b, n)), pow(mul(a, b), n)), graderTypes: ['COQREGATE'] }, []);
-    push('Induction on a sum of exponents', { ...indDefs, goal: eq(pow(a, add(vr('m'), n)), mul(pow(a, vr('m')), pow(a, n))), graderTypes: ['COQREGATE'] }, []);
-    push('Induction with a certifier', { ...indDefs, goal: eq(add(n, num(0)), n), graderTypes: ['CVC5REGATE'], certifier: 'COQREGATE' }, []);
+    // 9. Induction — the Regate certifiers, cvc5 first. Every entry ships the proof: an induction
+    //    answer is only certified if it discharges BOTH obligations, so each solution carries a BASE
+    //    derivation for P(0) and a STEP derivation for P(n) |- P(S n). Submitting nothing here is not
+    //    "not yet certified" but a flat 0 — the backends decline an empty induction with `unknown`
+    //    ("no derivation submitted to grade"), and Artemis short-circuits it to 0 before dispatching.
+    const nat = { goalMode: 'INDUCTION', inductionVariable: 'n', inductionDatatype: 'NAT' };
+    const cvc5 = { ...nat, graderTypes: ['CVC5REGATE'] };
 
-    // 10. Grader variety on ordinary transformations — eggregate is the e-graph backend.
-    push('Identity graded by the e-graph', { source: add(num(0), x), target: x, graderTypes: ['EGGREGATE'] },
-        [step('add_zero_left', [], x)]);
-    push('Cancellation graded by the e-graph', { source: frac(mul(c, a), mul(c, b)), target: frac(a, b), graderTypes: ['EGGREGATE'] },
-        [step('frac_mul_cancel_left', [], frac(a, b))]);
+    // n + 0 = n: both obligations close on an identity law, no hypothesis needed.
+    push('Induction on the additive identity', { ...cvc5, goal: eq(add(n, num(0)), n) },
+        [base('add_zero_left', [0], eq(num(0), num(0))), ind('add_zero_right', [0], eq(succ(n), succ(n)))]);
+    push('Induction on the additive identity from the left', { ...cvc5, goal: eq(add(num(0), n), n) },
+        [base('add_zero_left', [0], eq(num(0), num(0))), ind('add_zero_left', [0], eq(succ(n), succ(n)))]);
+    push('Induction on the multiplicative identity', { ...cvc5, goal: eq(mul(n, num(1)), n) },
+        [base('mul_one_right', [0], eq(num(0), num(0))), ind('mul_one_right', [0], eq(succ(n), succ(n)))]);
+    push('Induction on the multiplicative identity from the left', { ...cvc5, goal: eq(mul(num(1), n), n) },
+        [base('mul_zero_right', [0], eq(num(0), num(0))), ind('mul_one_left', [0], eq(succ(n), succ(n)))]);
+    push('Induction on an absorbing zero', { ...cvc5, goal: eq(mul(n, num(0)), num(0)) },
+        [base('mul_zero_left', [0], eq(num(0), num(0))), ind('mul_zero_right', [0], eq(num(0), num(0)))]);
+    push('Induction on an absorbing zero from the left', { ...cvc5, goal: eq(mul(num(0), n), num(0)) },
+        [base('mul_zero_left', [0], eq(num(0), num(0))), ind('mul_zero_left', [0], eq(num(0), num(0)))]);
+
+    // 1^n = 1: the inductive step genuinely needs the hypothesis, rewritten by a Type-B step.
+    const oneToTheN = [
+        base('pow_zero', [0], eq(num(1), num(1))),
+        ind('pow_succ', [0], eq(mul(num(1), pow(num(1), n)), num(1))),
+        hyp([0, 1], eq(pow(num(1), n), num(1)), eq(mul(num(1), num(1)), num(1))),
+        ind('mul_one_left', [0], eq(num(1), num(1))),
+    ];
+    push('Induction one to the n', { ...cvc5, goal: eq(pow(num(1), n), num(1)) }, oneToTheN);
+    push('Induction one to the n certified twice', { ...cvc5, goal: eq(pow(num(1), n), num(1)), certifier: 'COQREGATE' }, oneToTheN);
+
+    // The same obligations sent to Coq instead, so the demo shows both induction certifiers.
+    push('Induction one to the n in Coq', { ...nat, goal: eq(pow(num(1), n), num(1)), graderTypes: ['COQREGATE'] }, oneToTheN);
+    // Abstention, not failure: Coq accepts every step but cannot translate this goal ("the Coq backstop
+    // did not certify the goal (untranslatable)"), so it declines with `unknown` and the answer routes to
+    // review rather than being scored wrong. cvc5 proves the very same theorem above — the point of the
+    // pairing is that a specialist backend says "I don't know" instead of guessing.
+    push('Induction where Coq abstains', { ...nat, goal: eq(add(n, num(0)), n), graderTypes: ['COQREGATE'] },
+        [base('add_zero_left', [0], eq(num(0), num(0))), ind('add_zero_right', [0], eq(succ(n), succ(n)))]);
+
+    // 10. Grader redundancy — several backends on one problem, tried in configured order.
     push('Path checker as fallback behind the e-graph', { source: mul(num(1), x), target: x, graderTypes: ['EGGREGATE', 'PATH_CHECKER'] },
         [step('mul_one_left', [], x)]);
+    push('E-graph ahead of the path checker on a chain', { source: add(num(0), mul(num(1), x)), target: x, partialCredit: true, graderTypes: ['EGGREGATE', 'PATH_CHECKER'] },
+        [step('add_zero_left', [], mul(num(1), x)), step('mul_one_left', [], x)]);
 
     // 11. Editor options — manual derivation, restricted palette, verification off.
     push('Manual derivation practice', { source: add(num(0), x), target: x, manual: true },
@@ -256,10 +316,15 @@ async function submit(ctx, exerciseId, problemId, steps) {
                 problemId,
                 steps: steps.map((s, i) => ({
                     stepIndex: i,
-                    appliedRuleId: s.rule,
+                    appliedRuleId: s.rule ?? null,
                     targetNodePath: s.path,
                     resultExpression: s.result,
                     direction: 'FORWARD',
+                    // MAIN unless the step belongs to an induction proof's base case or inductive step.
+                    derivationRole: s.role ?? 'MAIN',
+                    // A rewrites with a rule; B substitutes an equation (the induction hypothesis).
+                    kind: s.kind ?? 'A',
+                    substitutionEquation: s.equation ?? null,
                 })),
             }],
         },
@@ -309,13 +374,21 @@ async function submit(ctx, exerciseId, problemId, steps) {
         // step just lands on 0. Assigning "partial" by a blind cycle produced exactly one real
         // partial out of eight attempts, so pick by capability first and cycle over the rest.
         const canPartial = c.spec.partialCredit === true && solution.length > 1;
+        // An UNATTEMPTED answer on a remote grader is never dispatched: MathGradingService scores
+        // `remote && steps.isEmpty()` 0 outright, so the backend is never contacted and the exercise
+        // demonstrates nothing about it. Keep "empty" for the in-process path checker.
+        const remote = (c.spec.graderTypes ?? []).some((g) => g !== 'PATH_CHECKER');
         const kind = solution.length === 0 ? 'empty'
             : canPartial ? 'partial'
-                : ['correct', 'correct', 'wrong', 'empty'][i % 4];
+                : remote ? ['correct', 'correct', 'correct', 'wrong'][i % 4]
+                    : ['correct', 'correct', 'wrong', 'empty'][i % 4];
         let steps;
         if (kind === 'correct') steps = solution;
         else if (kind === 'partial') steps = solution.slice(0, solution.length - 1);
-        else if (kind === 'wrong') steps = [{ ...solution[0], result: num(42) }];   // a result the rule cannot yield
+        // Break the LAST step's result rather than truncating to one step: an induction answer that
+        // drops its inductive step is an incomplete proof (declined, routed to review), whereas a
+        // complete proof with one bad result is a genuine wrong answer the backend can reject.
+        else if (kind === 'wrong') steps = solution.map((s, k) => (k === solution.length - 1 ? { ...s, result: num(42) } : s));
         else steps = [];
 
         try {
