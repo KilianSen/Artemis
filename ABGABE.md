@@ -29,6 +29,19 @@ The card below is generated from the git history (commits, files, and lines auth
 
 ![Contribution card for KilianSen](contribution.svg)
 
+## Branch basis
+
+This work is built on Artemis's **`develop`** branch rather than a release tag, so that it can be merged
+upstream without a rebase onto a moving target. That choice has a cost worth stating plainly: `develop` is the
+active integration branch, it carries a number of known bugs at any given time, and two large UI migrations
+are currently in flight across it — Bootstrap components are being replaced by PrimeNG, and the Angular
+codebase is moving from legacy decorators to the signal-based APIs.
+
+Expect the consequences while reviewing: rough edges in **shared components** that the math feature only
+consumes, and **visual inconsistencies** where migrated and not-yet-migrated UI sit side by side. Unless a
+problem is inside the math exercise code itself, it is most likely inherited from `develop` rather than
+introduced by this submission.
+
 ---
 
 ## 1. Quick setup
