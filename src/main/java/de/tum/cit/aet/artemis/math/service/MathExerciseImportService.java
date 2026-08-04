@@ -143,6 +143,10 @@ public class MathExerciseImportService extends ExerciseImportService {
         copy.setAcNormalization(originalProblem.isAcNormalization());
         copy.setPartialCreditEnabled(originalProblem.isPartialCreditEnabled());
         copy.setExampleDerivations(originalProblem.getExampleDerivations());
+        // The induction configuration is part of the problem's grader configuration: dropping it would silently turn a
+        // LIST-/TREE-induction problem into a variable-less ℕ-induction one (induction_datatype is NOT NULL and defaults to NAT).
+        copy.setInductionVariable(originalProblem.getInductionVariable());
+        copy.setInductionDatatype(originalProblem.getInductionDatatype());
         return copy;
     }
 

@@ -14,7 +14,7 @@ export const GRADER_TYPE_LABELS: Record<GraderType, string> = {
     EGGREGATE: 'Regate · eggregate (e-graph)',
     LEANREGATE: 'Regate · leanregate (Lean formal)',
     COQREGATE: 'Regate · coqregate (Coq, induction)',
-    CVC5REGATE: 'Regate · cvc5regate (SMT, induction)',
+    CVC5REGATE: 'Regate · cvc5regate (SMT)',
 };
 
 /** Which goal modes each grader can grade conclusively — mirrors the server {@code GraderType.supports(mode)}. */
@@ -23,7 +23,7 @@ export const GRADER_MODE_SUPPORT: Record<GraderType, GoalMode[]> = {
     EGGREGATE: ['TRANSFORMATION', 'EQUATION'],
     LEANREGATE: ['TRANSFORMATION', 'EQUATION', 'INDUCTION'],
     COQREGATE: ['INDUCTION'],
-    CVC5REGATE: ['INDUCTION'],
+    CVC5REGATE: ['TRANSFORMATION', 'EQUATION', 'INDUCTION'],
 };
 
 /** Whether a grader can grade a given goal mode conclusively. */

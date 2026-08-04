@@ -55,7 +55,7 @@ For each problem you set the goal mode, the graders, the expressions, and the al
 
 <Image src={problemEditor} alt="Per-problem block editor" size={ImageSize.large} caption="Configuring a problem in the block editor" />
 
-Pick one or more grading backends in the **Graders** multi-select. Only backends that support the chosen goal mode are selectable — the rest are greyed out (for example, the induction-only provers cannot grade a transformation problem). The graders run in the listed order and the first conclusive verdict wins (see [Grading and Review](#grading-and-review)).
+Pick one or more grading backends in the **Graders** multi-select. Only backends that support the chosen goal mode are selectable — the rest are greyed out (for example, the induction-only prover coqregate cannot grade a transformation problem). The graders run in the listed order and the first conclusive verdict wins (see [Grading and Review](#grading-and-review)).
 
 <Image src={graderSelection} alt="Grader multi-select" size={ImageSize.large} caption="Selecting grading backends; graders that don't support the goal mode are disabled" />
 
@@ -112,7 +112,7 @@ Because the Path checker cannot reason beyond its fixed rule library, listing it
 
 <Image src={graderFallbackWarning} alt="Path-checker fallback warning" size={ImageSize.large} caption="The authoring warning shown when the Path checker sits behind a stronger backend" />
 
-Which backends are available depends on the goal mode — the induction-only provers (coqregate, cvc5regate) appear only for induction problems.
+Which backends are available depends on the goal mode — the induction-only prover (coqregate) appears only for induction problems, while leanregate and cvc5regate can be selected for every mode.
 
 <Image src={graderInduction} alt="Grader options for induction" size={ImageSize.large} caption="For induction problems the formal provers become selectable and the transformation-only backends are disabled" />
 

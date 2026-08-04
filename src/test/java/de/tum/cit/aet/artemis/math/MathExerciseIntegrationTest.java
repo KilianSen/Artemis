@@ -17,8 +17,11 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
+import de.tum.cit.aet.artemis.math.domain.GoalMode;
+import de.tum.cit.aet.artemis.math.domain.InductionDatatype;
 import de.tum.cit.aet.artemis.math.domain.LayoutCategory;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
 import de.tum.cit.aet.artemis.math.dto.BlockDefinitionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
@@ -212,6 +215,33 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result).isNotNull();
         assertThat(result.problems()).hasSize(1);
         assertThat(result.problems().getFirst().manualDerivation()).isTrue();
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void importMathExercise_preservesInductionConfiguration() throws Exception {
+        // The induction variable and datatype are part of an INDUCTION problem's grader configuration. If the import drops
+        // them, a LIST-induction problem silently degrades into a variable-less ℕ-induction one (the column defaults to NAT).
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Induction Problem", 10.0, null, null, MathNodes.eq(MathNodes.var("xs"), MathNodes.var("xs")), GoalMode.INDUCTION,
+                null, null, false, false, false, true, false, null, "xs", InductionDatatype.LIST);
+        MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Induction Exercise", null, "Prove the list property by induction.", null, null, 10.0, 0.0,
+                IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
+                ZonedDateTime.now().plusDays(2), null, course.getId(), null, List.of(problemDTO), null);
+
+        MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
+                HttpStatus.CREATED);
+
+        assertThat(result).isNotNull();
+        assertThat(result.problems()).hasSize(1);
+        assertThat(result.problems().getFirst().goalMode()).isEqualTo(GoalMode.INDUCTION);
+        assertThat(result.problems().getFirst().inductionVariable()).isEqualTo("xs");
+        assertThat(result.problems().getFirst().inductionDatatype()).isEqualTo(InductionDatatype.LIST);
+
+        // also assert on the persisted entity, not only on the response projection
+        MathExercise persisted = mathExerciseRepository.findByIdWithCategoriesAndProblems(result.id()).orElseThrow();
+        assertThat(persisted.getProblems()).hasSize(1);
+        assertThat(persisted.getProblems().getFirst().getInductionVariable()).isEqualTo("xs");
+        assertThat(persisted.getProblems().getFirst().getInductionDatatype()).isEqualTo(InductionDatatype.LIST);
     }
 
     @Test

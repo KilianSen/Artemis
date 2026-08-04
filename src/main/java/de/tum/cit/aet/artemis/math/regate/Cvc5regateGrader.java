@@ -9,7 +9,7 @@ import de.tum.cit.aet.artemis.math.config.MathEnabled;
 import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
 
-/** Regate cvc5regate backend (cvc5 SMT with native structural induction); a specialist induction certifier. */
+/** Regate cvc5regate backend (cvc5 SMT with native structural induction); a general grader that also certifies induction. */
 @Lazy
 @Service
 @Conditional(MathEnabled.class)

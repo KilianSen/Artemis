@@ -351,9 +351,9 @@ public class MathExerciseResource {
     }
 
     /**
-     * Rejects a problem whose grader cannot grade its goal mode — e.g. an induction-only backend
-     * ({@code COQREGATE}/{@code CVC5REGATE}) on a transformation problem, or the in-process path checker
-     * on an induction problem. Uses the static {@link GraderType#supports(GoalMode)} capability.
+     * Rejects a problem whose grader cannot grade its goal mode — e.g. the induction-only backend
+     * ({@code COQREGATE}) on a transformation problem, or the in-process path checker on an induction
+     * problem. Uses the static {@link GraderType#supports(GoalMode)} capability.
      */
     private void validateGraderModeCompatibility(MathExerciseDTO dto) {
         if (dto.problems() == null) {

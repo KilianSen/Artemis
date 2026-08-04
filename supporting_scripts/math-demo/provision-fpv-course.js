@@ -16,14 +16,20 @@
  * Each ported exercise becomes TWO problems, mirroring how the original proof actually decomposes:
  *   1. the accumulator-generalised lemma, by induction, certified by cvc5regate;
  *   2. the closing equation that gets from the lemma back to the original claim.
- * The lemmas go to cvc5regate. The closing equations fall back to the in-process PATH_CHECKER,
- * because neither remote grader can take them: their terms mention `fact`/`summa`/`nodes`, and
- *   - eggregate rejects an `apply` node in transformation/equation mode outright — HTTP 400
- *     "malformed MathNode in exercise.source: 'apply'" (measured against the running backend);
- *   - cvc5regate DOES grade them (measured: proven_equal, score 100, certified) but Artemis
- *     declares it induction-only in GraderType.java, so authoring rejects the pairing with 400
- *     "Grader CVC5REGATE cannot grade goal mode EQUATION".
- * The second is a capability-declaration gap, not a backend limitation.
+ * The lemmas go to cvc5regate, the closing equations to eggregate — its home ground, since each is a
+ * single rewrite by one catalogue rule.
+ *
+ * Their terms mention `fact`/`summa`/`nodes`, so eggregate must be built from protocol-1.1 source, where
+ * every backend parses and compiles `apply` (see GRADING_PROTOCOL.md, "apply support matrix"). An older
+ * image whose MathNode reader predates `apply` rejects the request outright with HTTP 400 "malformed
+ * MathNode in exercise.source: 'apply'", and Artemis routes the problem to tutor review. `docker compose
+ * -f docker/regate.yml up -d --build` (ABGABE.md step 3) builds from the checkout, so a reviewer
+ * following the guide gets a current image; a long-lived dev container may not be one.
+ *
+ * cvc5regate also grades these (measured: proven_equal, score 100, certified). Artemis used to declare it
+ * induction-only in GraderType.java, which rejected that pairing with 400 "Grader CVC5REGATE cannot grade
+ * goal mode EQUATION"; that capability-declaration gap is fixed — CVC5REGATE now declares
+ * TRANSFORMATION/EQUATION/INDUCTION, so it is a valid alternative for the closing equations too.
  * The derivations submitted here are the ones pinned by Regate conformance fixtures 28/29/30.
  * Those fixtures run with `ac_normalization`, and so do these problems (`ac: true`): all three
  * inductive steps close on an associativity/commutativity rearrangement — e.g. fact ends at
@@ -118,7 +124,7 @@ accumulator. So the proof is split the way it is actually done on paper:
                 {
                     title: 'Closing step 1 times fact n = fact n',
                     points: 5,
-                    spec: { goalMode: 'EQUATION', graderTypes: ['PATH_CHECKER'], goal: eq(mul(num(1), apply('fact', n)), apply('fact', n)) },
+                    spec: { goalMode: 'EQUATION', graderTypes: ['EGGREGATE'], goal: eq(mul(num(1), apply('fact', n)), apply('fact', n)) },
                     solution: [step('mul_one_left', [0], eq(apply('fact', n), apply('fact', n)))],
                 },
             ],
@@ -172,7 +178,7 @@ whose definition is not in the block palette, so the full statement is out of sc
                 {
                     title: 'Closing step 0 + summa l = summa l',
                     points: 5,
-                    spec: { goalMode: 'EQUATION', graderTypes: ['PATH_CHECKER'], goal: eq(add(num(0), apply('summa', l)), apply('summa', l)) },
+                    spec: { goalMode: 'EQUATION', graderTypes: ['EGGREGATE'], goal: eq(add(num(0), apply('summa', l)), apply('summa', l)) },
                     solution: [step('add_zero_left', [0], eq(apply('summa', l), apply('summa', l)))],
                 },
             ],
@@ -226,7 +232,7 @@ inductive step gets **two** induction hypotheses, one per subtree.
                 {
                     title: 'Closing step 0 + nodes t = nodes t',
                     points: 5,
-                    spec: { goalMode: 'EQUATION', graderTypes: ['PATH_CHECKER'], goal: eq(add(num(0), apply('nodes', t)), apply('nodes', t)) },
+                    spec: { goalMode: 'EQUATION', graderTypes: ['EGGREGATE'], goal: eq(add(num(0), apply('nodes', t)), apply('nodes', t)) },
                     solution: [step('add_zero_left', [0], eq(apply('nodes', t), apply('nodes', t)))],
                 },
             ],

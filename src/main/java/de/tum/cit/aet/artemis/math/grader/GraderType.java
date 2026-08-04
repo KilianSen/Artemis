@@ -17,7 +17,7 @@ import de.tum.cit.aet.artemis.math.domain.GoalMode;
  * <li>{@link #EGGREGATE} — egglog e-graph; transformation/equation (defers induction).</li>
  * <li>{@link #LEANREGATE} — Lean formal; transformation/equation/induction (certifies).</li>
  * <li>{@link #COQREGATE} — Rocq/Coq; induction only.</li>
- * <li>{@link #CVC5REGATE} — cvc5 SMT; induction only.</li>
+ * <li>{@link #CVC5REGATE} — cvc5 SMT; transformation/equation/induction (certifies).</li>
  * </ul>
  */
 public enum GraderType {
@@ -34,8 +34,8 @@ public enum GraderType {
     /** Regate coqregate backend (Rocq/Coq); a specialist induction certifier. */
     COQREGATE(GradingSpeed.SLOW, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.INDUCTION)),
 
-    /** Regate cvc5regate backend (cvc5 SMT with structural induction); a specialist induction certifier. */
-    CVC5REGATE(GradingSpeed.FAST, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.INDUCTION));
+    /** Regate cvc5regate backend (cvc5 SMT with structural induction); a general grader that also certifies induction. */
+    CVC5REGATE(GradingSpeed.FAST, true, GraderStrength.FORMAL, EnumSet.of(GoalMode.TRANSFORMATION, GoalMode.EQUATION, GoalMode.INDUCTION));
 
     private final GradingSpeed speed;
 

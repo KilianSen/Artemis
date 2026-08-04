@@ -152,7 +152,7 @@ artemis:
       coqregate:
         url: http://localhost:8002  # Rocq/Coq — induction only (~1.5 GB image)
       cvc5regate:
-        url: http://localhost:8003  # cvc5 SMT — induction only
+        url: http://localhost:8003  # cvc5 SMT — transformation/equation/induction
     security:
         internal:
             allowed-cidrs:

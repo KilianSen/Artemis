@@ -139,12 +139,12 @@ class MathGradingServiceMultiGraderTest {
 
     @Test
     void onlyGradersSupportingTheGoalModeAreRun() {
-        // EGGREGATE supports TRANSFORMATION; CVC5REGATE is induction-only and must be skipped for a transformation problem.
+        // EGGREGATE supports TRANSFORMATION; COQREGATE is induction-only and must be skipped for a transformation problem.
         RecordingGrader transformation = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
-        RecordingGrader induction = new RecordingGrader(GraderType.CVC5REGATE, GradingResult.of(0.0));
+        RecordingGrader induction = new RecordingGrader(GraderType.COQREGATE, GradingResult.of(0.0));
         MathGradingService service = serviceWith(transformation, induction);
 
-        GradingResult result = service.gradeProblem(problem(GoalMode.TRANSFORMATION, List.of(GraderType.EGGREGATE, GraderType.CVC5REGATE)), steps());
+        GradingResult result = service.gradeProblem(problem(GoalMode.TRANSFORMATION, List.of(GraderType.EGGREGATE, GraderType.COQREGATE)), steps());
 
         assertThat(result.score()).isEqualTo(100.0);
         assertThat(transformation.calls).isEqualTo(1);
