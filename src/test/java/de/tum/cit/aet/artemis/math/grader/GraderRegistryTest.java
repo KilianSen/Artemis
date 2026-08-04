@@ -19,6 +19,7 @@ import de.tum.cit.aet.artemis.math.domain.blocks.NumberBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.SubBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.VariableBlockDefinition;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
+import de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy;
 
 class GraderRegistryTest {
 
@@ -32,7 +33,7 @@ class GraderRegistryTest {
                 new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition());
         BlockRegistry blockRegistry = new BlockRegistry(blocks);
         blockRegistry.index();
-        pathCheckerGrader = new PathCheckerGrader(blockRegistry);
+        pathCheckerGrader = new PathCheckerGrader(blockRegistry, new RuleSubsetPolicy(blockRegistry));
         registry = new GraderRegistry(List.of(pathCheckerGrader));
         registry.index();
     }

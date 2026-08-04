@@ -29,6 +29,7 @@ import de.tum.cit.aet.artemis.math.domain.StepDirection;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
 import de.tum.cit.aet.artemis.math.service.MathNodeDistance;
 import de.tum.cit.aet.artemis.math.service.ReductionStrategy;
+import de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy;
 
 /**
  * Step-by-step grader: re-applies each {@link DerivationStep} against a rule from
@@ -46,8 +47,11 @@ public class PathCheckerGrader implements MathGrader {
 
     private final BlockRegistry blockRegistry;
 
-    public PathCheckerGrader(BlockRegistry blockRegistry) {
+    private final RuleSubsetPolicy ruleSubsetPolicy;
+
+    public PathCheckerGrader(BlockRegistry blockRegistry, RuleSubsetPolicy ruleSubsetPolicy) {
         this.blockRegistry = blockRegistry;
+        this.ruleSubsetPolicy = ruleSubsetPolicy;
     }
 
     @Override
@@ -132,7 +136,7 @@ public class PathCheckerGrader implements MathGrader {
         if (steps == null || steps.isEmpty()) {
             return MathNodes.equalsAC(source, target, ac) ? 100.0 : 0.0;
         }
-        ReplayResult r = replay(source, steps, ac);
+        ReplayResult r = replay(config, source, steps, ac);
         if (MathNodes.equalsAC(r.current(), target, ac)) {
             return 100.0;
         }
@@ -151,7 +155,7 @@ public class PathCheckerGrader implements MathGrader {
         if (steps == null || steps.isEmpty()) {
             return MathNodes.isTautology(canonicalise(goal, ac)) ? 100.0 : 0.0;
         }
-        ReplayResult r = replay(goal, steps, ac);
+        ReplayResult r = replay(config, goal, steps, ac);
         if (MathNodes.isTautology(canonicalise(r.current(), ac))) {
             return 100.0;
         }
@@ -179,13 +183,22 @@ public class PathCheckerGrader implements MathGrader {
      * and {@code GRADING_PROTOCOL.md} is explicit that AC normalisation governs equivalence and reaching the
      * target form, never step legality. A genuine loop is still caught: returning to a syntactically identical
      * tree fails the {@code add} below.
+     * <p>
+     * The chain also breaks on a step citing a rule outside the problem's
+     * {@link MathProblemConfig#getAllowedRuleIds() allowed subset}. This mirrors
+     * {@code MathGradingService#gradeProblem}'s authoritative check so a direct call on this grader is safe on its
+     * own, and it is deliberately the <em>same</em> break as for an unrecognised rule id: a disabled rule is the
+     * same class of event as a non-existent one.
      */
-    private ReplayResult replay(MathNode start, List<DerivationStep> steps, boolean ac) {
+    private ReplayResult replay(MathProblemConfig config, MathNode start, List<DerivationStep> steps, boolean ac) {
         MathNode current = start;
         int validSteps = 0;
         Set<MathNode> visited = new HashSet<>();
         visited.add(start);
         for (DerivationStep step : steps) {
+            if (!ruleSubsetPolicy.isStepAllowed(config, step)) {
+                break;
+            }
             Optional<RewriteRule> ruleOpt = blockRegistry.findRuleById(step.getAppliedRuleId());
             if (ruleOpt.isEmpty()) {
                 break;
@@ -240,6 +253,11 @@ public class PathCheckerGrader implements MathGrader {
         for (List<Integer> path : enumeratePaths(currentState)) {
             for (var block : blockRegistry.getAllBlocks()) {
                 for (RewriteRule rule : blockRegistry.getNormalizedRulesFor(block)) {
+                    // The hint endpoint is student-reachable, so an unfiltered hint would hand out a rule the
+                    // instructor switched off — and the student could then cite it.
+                    if (!ruleSubsetPolicy.isRuleAllowed(config, rule.id())) {
+                        continue;
+                    }
                     addCandidateIfFresh(currentState, path, rule, StepDirection.FORWARD, ac, metric, candidates, seenResults);
                     if (rule.direction() == RuleDirection.BIDIRECTIONAL) {
                         addCandidateIfFresh(currentState, path, rule, StepDirection.REVERSE, ac, metric, candidates, seenResults);
@@ -255,7 +273,7 @@ public class PathCheckerGrader implements MathGrader {
     public Optional<ReachabilityReport> verifyReachability(MathProblemConfig config) {
         boolean ac = config.isAcNormalization();
         GoalMode mode = config.getGoalMode() == null ? GoalMode.TRANSFORMATION : config.getGoalMode();
-        ReductionStrategy strategy = forwardOnlyStrategy();
+        ReductionStrategy strategy = forwardOnlyStrategy(config);
         if (mode == GoalMode.EQUATION) {
             MathNode goal = config.getGoalExpression();
             if (goal == null) {
@@ -336,12 +354,17 @@ public class PathCheckerGrader implements MathGrader {
         }
     }
 
-    /** Builds a ReductionStrategy with the registry's forward-only rules and this grader's rule applier. */
-    private ReductionStrategy forwardOnlyStrategy() {
+    /**
+     * Builds a ReductionStrategy with the registry's forward-only rules and this grader's rule applier, restricted
+     * to the problem's allowed rule subset. Without the restriction the editor's reachability check would certify a
+     * problem "reachable" using rules the instructor switched off — i.e. tell the author the exercise is solvable
+     * when, for the student, it is not.
+     */
+    private ReductionStrategy forwardOnlyStrategy(MathProblemConfig config) {
         List<RewriteRule> forwardOnly = new ArrayList<>();
         for (var block : blockRegistry.getAllBlocks()) {
             for (RewriteRule rule : blockRegistry.getNormalizedRulesFor(block)) {
-                if (rule.direction() == RuleDirection.FORWARD_ONLY) {
+                if (rule.direction() == RuleDirection.FORWARD_ONLY && ruleSubsetPolicy.isRuleAllowed(config, rule.id())) {
                     forwardOnly.add(rule);
                 }
             }

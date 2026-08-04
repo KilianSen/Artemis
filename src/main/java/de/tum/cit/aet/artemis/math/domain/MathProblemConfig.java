@@ -77,4 +77,18 @@ public interface MathProblemConfig {
      * @return whether equality and visited-state checks are AC-normalised (commutativity / associativity handled implicitly)
      */
     boolean isAcNormalization();
+
+    /**
+     * The rule subset the student is restricted to, by rule id.
+     * <p>
+     * {@code null} or empty means <em>unrestricted</em> (every catalogue rule is citable) — the default, and what
+     * every configuration that never sets it keeps. Recursive definitions and kind-B (Leibniz / induction-hypothesis)
+     * steps are outside this list's reach; see
+     * {@link de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy RuleSubsetPolicy}, which owns the interpretation.
+     *
+     * @return the allowed rule ids, or an empty list when the problem restricts nothing
+     */
+    default List<String> getAllowedRuleIds() {
+        return List.of();
+    }
 }

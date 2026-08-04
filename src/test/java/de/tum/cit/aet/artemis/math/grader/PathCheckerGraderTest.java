@@ -19,6 +19,7 @@ import de.tum.cit.aet.artemis.math.domain.MathProblem;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.domain.RuleDirection;
 import de.tum.cit.aet.artemis.math.domain.StepDirection;
+import de.tum.cit.aet.artemis.math.domain.StepKind;
 import de.tum.cit.aet.artemis.math.domain.blocks.AddBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.EqualityBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.FractionBlockDefinition;
@@ -29,6 +30,7 @@ import de.tum.cit.aet.artemis.math.domain.blocks.SubBlockDefinition;
 import de.tum.cit.aet.artemis.math.domain.blocks.VariableBlockDefinition;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
 import de.tum.cit.aet.artemis.math.service.BlockRegistry;
+import de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy;
 
 /**
  * Pure unit tests for the path checker engine. No Spring context — the {@link BlockRegistry}
@@ -46,7 +48,7 @@ class PathCheckerGraderTest {
                 new MulBlockDefinition(), new FractionBlockDefinition(), new EqualityBlockDefinition(), new NegationBlockDefinition());
         registry = new BlockRegistry(blocks);
         registry.index();
-        grader = new PathCheckerGrader(registry);
+        grader = new PathCheckerGrader(registry, new RuleSubsetPolicy(registry));
     }
 
     // ----- Pattern matching & rule application -----
@@ -213,6 +215,106 @@ class PathCheckerGraderTest {
         MathProblem exercise = exerciseOf(MathNodes.var("x"), MathNodes.var("x"));
         List<DerivationStep> submission = submissionOf();
         assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+    }
+
+    // ----- Per-problem rule subset enforcement -----
+    //
+    // MathGradingService is the authoritative check, but it is mirrored here so that a direct call on this grader —
+    // any caller that bypasses the service — is safe on its own. These tests pin the mirror.
+
+    /**
+     * The grader-level tampered-submission case: the step is mathematically correct and would score 100, but the
+     * instructor switched the rule off, so the chain must break exactly as it does on an unknown rule id.
+     */
+    @Test
+    void gradeSubmission_stepCitingRuleOutsideSubset_breaksChain() {
+        MathProblem exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
+        exercise.setAllowedRuleIds(List.of("add_zero_right"));
+        List<DerivationStep> submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
+
+        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(0.0);
+        // Control: the very same derivation is worth full marks once the rule is in the subset.
+        exercise.setAllowedRuleIds(List.of("add_zero_left"));
+        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+    }
+
+    /** No subset at all is unrestricted — the default every pre-existing problem keeps. */
+    @Test
+    void gradeSubmission_withoutASubset_isUnrestricted() {
+        MathProblem exercise = exerciseOf(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.var("x"));
+        List<DerivationStep> submission = submissionOf(step(0, "add_zero_left", List.of(), MathNodes.var("x")));
+
+        assertThat(exercise.getAllowedRuleIds()).isEmpty();
+        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(100.0);
+    }
+
+    /** The chain truncates <em>at</em> the offending step: the allowed prefix still earns its partial credit. */
+    @Test
+    void gradeSubmission_truncatesAtTheDisallowedStep_keepingThePrefixesCredit() {
+        // (0 + x) + 0 -> x + 0 -> x, but only the first rule is enabled.
+        MathNode source = MathNodes.add(MathNodes.add(MathNodes.num("0"), MathNodes.var("x")), MathNodes.num("0"));
+        MathNode afterStep1 = MathNodes.add(MathNodes.var("x"), MathNodes.num("0"));
+        MathNode target = MathNodes.var("x");
+        MathProblem exercise = exerciseOf(source, target);
+        exercise.setPartialCreditEnabled(true);
+        exercise.setAllowedRuleIds(List.of("add_zero_left"));
+        exercise.setExampleDerivations(
+                List.of(new DerivationStepDTO(null, 0, "add_zero_left", List.of(0), afterStep1), new DerivationStepDTO(null, 1, "add_zero_right", List.of(), target)));
+        List<DerivationStep> submission = submissionOf(step(0, "add_zero_left", List.of(0), afterStep1), step(1, "add_zero_right", List.of(), target));
+
+        // Both steps are mathematically sound and reach the target, but step 1 is cut off: 1 of 2 steps credited.
+        assertThat(grader.gradeSubmission(exercise, submission)).isEqualTo(50.0);
+    }
+
+    /**
+     * Kind-B (Leibniz) steps carry fabricated hypothesis ids that exist in no registry, so the subset must not reach
+     * them — otherwise every inductive step would be rejected for citing a rule that was never a rule.
+     */
+    @Test
+    void ruleSubset_neverAppliesToKindBSteps() {
+        RuleSubsetPolicy policy = new RuleSubsetPolicy(registry);
+        MathProblem exercise = exerciseOf(MathNodes.var("x"), MathNodes.var("x"));
+        exercise.setAllowedRuleIds(List.of("add_zero_left"));
+        DerivationStep hypothesisStep = step(0, "induction_hypothesis_n", List.of(), MathNodes.var("x"));
+        hypothesisStep.setKind(StepKind.B);
+
+        assertThat(policy.isStepAllowed(exercise, hypothesisStep)).isTrue();
+        hypothesisStep.setKind(StepKind.A);
+        assertThat(policy.isStepAllowed(exercise, hypothesisStep)).isFalse();
+    }
+
+    /** Hints are student-facing, so an unfiltered suggestion would hand out (and legitimise) a disabled rule. */
+    @Test
+    void suggestHints_neverSuggestsARuleOutsideTheSubset() {
+        MathNode current = MathNodes.add(MathNodes.add(MathNodes.num("0"), MathNodes.var("a")), MathNodes.add(MathNodes.num("0"), MathNodes.var("b")));
+        MathNode target = MathNodes.add(MathNodes.var("a"), MathNodes.var("b"));
+        MathProblem exercise = exerciseOf(current, target);
+        // Unrestricted, add_zero_left is the obvious suggestion (see suggestHints_rankedByDistanceToTarget above).
+        assertThat(grader.suggestHints(exercise, current)).anyMatch(h -> h.ruleId().equals("add_zero_left"));
+
+        exercise.setAllowedRuleIds(List.of("add_comm"));
+        List<HintSuggestion> hints = grader.suggestHints(exercise, current);
+
+        assertThat(hints).isNotEmpty().allMatch(h -> h.ruleId().equals("add_comm"));
+    }
+
+    /**
+     * Reachability is the authoring-side solvability check. Restricted to the subset it must report a problem the
+     * student cannot actually solve as unreachable, instead of certifying it with rules that were switched off.
+     */
+    @Test
+    void verifyReachability_onlyUsesRulesInsideTheSubset() {
+        MathNode source = MathNodes.add(MathNodes.num("0"), MathNodes.add(MathNodes.num("0"), MathNodes.var("x")));
+        MathProblem exercise = exerciseOf(source, MathNodes.var("x"));
+        // Unrestricted, the forward-only reducer walks add_zero_left twice and lands on x.
+        assertThat(grader.verifyReachability(exercise)).get().extracting(ReachabilityReport::reachable).isEqualTo(true);
+
+        exercise.setAllowedRuleIds(List.of("add_zero_right"));
+        Optional<ReachabilityReport> report = grader.verifyReachability(exercise);
+
+        assertThat(report).isPresent();
+        assertThat(report.get().reachable()).isFalse();
+        assertThat(report.get().reducedExpression()).isEqualTo(source);
     }
 
     // ----- Direction-aware rule application -----

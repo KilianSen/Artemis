@@ -8,8 +8,11 @@ import { TranslateService } from '@ngx-translate/core';
 import { of } from 'rxjs';
 import { MathProblemEditComponent } from 'app/math/manage/update/math-problem-edit/math-problem-edit.component';
 import { MathExerciseService } from 'app/math/manage/service/math-exercise.service';
+import { MathBlockRegistryService } from 'app/math/manage/service/math-block-registry.service';
 import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 import { MathNode } from 'app/math/shared/entities/math-node.model';
+import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
+import { WritableSignal, signal } from '@angular/core';
 
 describe('MathProblemEditComponent', () => {
     setupTestBed({ zoneless: true });
@@ -17,6 +20,7 @@ describe('MathProblemEditComponent', () => {
     let component: MathProblemEditComponent;
     let fixture: ComponentFixture<MathProblemEditComponent>;
     let mathExerciseService: { verifyReachability: ReturnType<typeof vi.fn> };
+    let registryBlocks: WritableSignal<BlockDefinitionModel[]>;
 
     function createComponent(problem: MathProblem, exerciseId?: number) {
         fixture = TestBed.createComponent(MathProblemEditComponent);
@@ -31,6 +35,7 @@ describe('MathProblemEditComponent', () => {
         mathExerciseService = {
             verifyReachability: vi.fn().mockReturnValue(of(undefined)),
         };
+        registryBlocks = signal<BlockDefinitionModel[]>([]);
 
         TestBed.configureTestingModule({
             imports: [MathProblemEditComponent],
@@ -38,6 +43,13 @@ describe('MathProblemEditComponent', () => {
                 provideHttpClient(),
                 provideHttpClientTesting(),
                 { provide: MathExerciseService, useValue: mathExerciseService },
+                {
+                    provide: MathBlockRegistryService,
+                    useValue: {
+                        blocks: registryBlocks.asReadonly(),
+                        getBlockRegistry: vi.fn().mockReturnValue(of([])),
+                    },
+                },
                 MockProvider(TranslateService, {
                     instant: (k: string) => k,
                     get: (k: string) => of(k) as any,
@@ -182,5 +194,77 @@ describe('MathProblemEditComponent', () => {
         const before = problem.goalMode;
         component.applyStarterTemplate('does-not-exist');
         expect(problem.goalMode).toBe(before);
+    });
+
+    describe('allowed rule subset', () => {
+        const rule = (id: string): RewriteRuleModel => ({ id, name: id, paletteLatex: id, pattern: {} as MathNode, template: {} as MathNode, direction: 'FORWARD_ONLY' });
+
+        beforeEach(() => {
+            registryBlocks.set([
+                { type: 'add', category: 'arith', label: 'Addition', paletteLatex: '+', rules: [rule('add_zero'), rule('add_comm')], definitions: [rule('summa_nil')] },
+                // Definitions only: RuleSubsetPolicy never restricts them, so the block contributes no option and drops out.
+                { type: 'pow', category: 'arith', label: 'Power', paletteLatex: '^', definitions: [rule('pow_zero'), rule('pow_succ')] },
+            ]);
+        });
+
+        it('offers registry rules grouped by block and excludes recursive definitions', () => {
+            createComponent(new MathProblem());
+
+            expect(component.ruleSubsetOptionGroups()).toEqual([
+                {
+                    label: 'Addition',
+                    rules: [
+                        { value: 'add_zero', label: 'add_zero' },
+                        { value: 'add_comm', label: 'add_comm' },
+                    ],
+                },
+            ]);
+        });
+
+        it('treats an unset and an empty subset as unrestricted', () => {
+            const problem = new MathProblem();
+            createComponent(problem);
+
+            expect(problem.allowedRuleIds).toBeUndefined();
+            expect(component.ruleSubsetUnrestricted()).toBe(true);
+
+            problem.allowedRuleIds = [];
+            expect(component.ruleSubsetUnrestricted()).toBe(true);
+        });
+
+        it('writes the selected rule ids onto the problem and emits the change', () => {
+            const problem = new MathProblem();
+            createComponent(problem);
+            let emitted: MathProblem | undefined;
+            component.problemChange.subscribe((p) => (emitted = p));
+
+            component.onAllowedRuleIdsChange(['add_zero', 'add_comm']);
+
+            expect(problem.allowedRuleIds).toEqual(['add_zero', 'add_comm']);
+            expect(component.ruleSubsetUnrestricted()).toBe(false);
+            expect(emitted).toBe(problem);
+        });
+
+        it('clears back to undefined rather than an empty array when the selection is emptied', () => {
+            const problem = new MathProblem();
+            problem.allowedRuleIds = ['add_zero'];
+            createComponent(problem);
+
+            component.onAllowedRuleIdsChange([]);
+
+            // Not [], which would round-trip as an authored-but-empty subset; undefined is the unrestricted state.
+            expect(problem.allowedRuleIds).toBeUndefined();
+            expect(component.ruleSubsetUnrestricted()).toBe(true);
+        });
+
+        it('treats a cleared control (undefined) the same as an empty selection', () => {
+            const problem = new MathProblem();
+            problem.allowedRuleIds = ['add_zero'];
+            createComponent(problem);
+
+            component.onAllowedRuleIdsChange(undefined);
+
+            expect(problem.allowedRuleIds).toBeUndefined();
+        });
     });
 });

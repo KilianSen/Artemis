@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setupTestBed } from '@analogjs/vitest-angular/setup-testbed';
 import { TestBed } from '@angular/core/testing';
+import { MockProvider } from 'ng-mocks';
 import { MathInductionParticipationComponent } from 'app/math/participate/math-induction-participation/math-induction-participation.component';
+import { MathProblemParticipationComponent } from 'app/math/participate/math-problem-participation/math-problem-participation.component';
+import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
 import { MathProblem } from 'app/math/shared/entities/math-problem.model';
 import { MathNode } from 'app/math/shared/entities/math-node.model';
+import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
 import { DerivationStep } from 'app/math/shared/entities/derivation-step.model';
 
 describe('MathInductionParticipationComponent', () => {
@@ -31,9 +35,12 @@ describe('MathInductionParticipationComponent', () => {
     }
 
     beforeEach(() => {
-        TestBed.configureTestingModule({ imports: [MathInductionParticipationComponent] }).overrideComponent(MathInductionParticipationComponent, {
-            set: { imports: [], template: '' },
-        });
+        TestBed.configureTestingModule({ imports: [MathInductionParticipationComponent], providers: [MockProvider(MathSubmissionService)] })
+            .overrideComponent(MathInductionParticipationComponent, {
+                set: { imports: [], template: '' },
+            })
+            // The two case workspaces are created directly by the rule-subset test below; they need no template for it.
+            .overrideComponent(MathProblemParticipationComponent, { set: { imports: [], template: '' } });
         fixture = TestBed.createComponent(MathInductionParticipationComponent);
         component = fixture.componentInstance;
         fixture.componentRef.setInput('problem', makeProblem());
@@ -287,6 +294,58 @@ describe('MathInductionParticipationComponent', () => {
         expect(ihRule!.template).toEqual({
             type: 'mul',
             slots: { left: [{ type: 'wild', value: 'x' }], right: [{ type: 'apply', value: 'fact', slots: { args: [{ type: 'variable', value: 'n' }] } }] },
+        });
+    });
+
+    describe('per-problem rule subset', () => {
+        const wild: MathNode = { type: 'wild', value: 'x' };
+        const rule = (id: string): RewriteRuleModel => ({ id, name: id, paletteLatex: id, pattern: wild, template: wild, direction: 'FORWARD_ONLY' });
+        const catalogue: BlockDefinitionModel = {
+            type: 'mul',
+            category: 'ARITHMETIC',
+            label: 'Multiplication',
+            paletteLatex: '\\cdot',
+            slots: ['left', 'right'],
+            rules: [rule('mul_comm'), rule('add_comm')],
+            definitions: [rule('pow_zero'), rule('pow_succ')],
+        };
+
+        /** The palette the reused workspace actually renders for one case: the parent's blocks, narrowed by the subset. */
+        function renderedPalette(problem: MathProblem, blocks: BlockDefinitionModel[]): string[] {
+            const workspace = TestBed.createComponent(MathProblemParticipationComponent);
+            workspace.componentRef.setInput('problem', problem);
+            workspace.componentRef.setInput('exerciseId', 1);
+            workspace.componentRef.setInput('blocks', blocks);
+            workspace.detectChanges();
+            return workspace.componentInstance.filteredBlocks().flatMap((b) => (b.rules ?? []).map((r) => r.id));
+        }
+
+        beforeEach(() => {
+            const restricted = makeProblem();
+            restricted.allowedRuleIds = ['mul_comm'];
+            fixture.componentRef.setInput('problem', restricted);
+            fixture.componentRef.setInput('blocks', [catalogue]);
+            fixture.detectChanges();
+        });
+
+        it('hands the subset down to both case workspaces', () => {
+            expect(component.baseProblem().allowedRuleIds).toEqual(['mul_comm']);
+            expect(component.stepProblem().allowedRuleIds).toEqual(['mul_comm']);
+        });
+
+        it('keeps the definitions in the base workspace and hides the rule the instructor switched off', () => {
+            // The definitions block is exactly how a student drives an induction proof, so it survives the narrowing.
+            expect(renderedPalette(component.baseProblem(), component.baseBlocks())).toEqual(['mul_comm', 'pow_zero', 'pow_succ']);
+        });
+
+        it('keeps the definitions and the induction hypothesis in the step workspace', () => {
+            expect(renderedPalette(component.stepProblem(), component.stepBlocks())).toEqual(['mul_comm', 'pow_zero', 'pow_succ', 'induction_hypothesis']);
+        });
+
+        it('offers every rule again once the problem is unrestricted', () => {
+            fixture.componentRef.setInput('problem', makeProblem());
+            fixture.detectChanges();
+            expect(renderedPalette(component.stepProblem(), component.stepBlocks())).toEqual(['mul_comm', 'add_comm', 'pow_zero', 'pow_succ', 'induction_hypothesis']);
         });
     });
 });

@@ -1,6 +1,6 @@
 import { MathNode, mathNodeToLatex, substituteVariable, wildcardizeExcept } from 'app/math/shared/entities/math-node.model';
 import { InductionDatatype, MathProblem } from 'app/math/shared/entities/math-problem.model';
-import { RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
+import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
 
 /** The synthetic rule id prefix under which an induction hypothesis is offered as an applicable rule. */
 export const IH_RULE_ID = 'induction_hypothesis';
@@ -127,4 +127,51 @@ export function ihRulesFor(problem: MathProblem): RewriteRuleModel[] {
             },
         ];
     });
+}
+
+/**
+ * A synthetic palette block holding the code-contributed recursive definitions ({@code pow_zero}, {@code fact_succ},
+ * {@code summa_nil}, …) that the catalogue blocks carry in their {@code definitions} arrays. They are what drives an
+ * induction proof, so both induction cases offer them; a flat problem's palette does not.
+ * <p>
+ * Never narrowed by the problem's rule subset: definitions are always trusted and lie outside the subset's reach (see
+ * {@code RuleSubsetPolicy}). {@code filterBlocksByRuleSubset} exempts exactly these rules, recognising them by the
+ * {@code definitions} arrays of the very blocks flat-mapped here.
+ *
+ * @param blocks the rule catalogue to harvest the definitions from
+ * @return the definitions block, or undefined when no block contributes a definition
+ */
+function definitionsBlockFor(blocks: BlockDefinitionModel[]): BlockDefinitionModel | undefined {
+    const rules = blocks.flatMap((b) => b.definitions ?? []);
+    return rules.length ? { type: 'definitions', category: 'induction', label: 'Definitions', paletteLatex: '', slots: [], rules } : undefined;
+}
+
+/**
+ * A synthetic palette block holding the problem's induction hypotheses as applicable (Leibniz) rules — one per
+ * recursive field of the step constructor. Offered in the inductive step only, where the IH is in scope.
+ *
+ * @param problem the induction problem
+ * @return the hypothesis block, or undefined when the problem has no goal to form a hypothesis from
+ */
+function hypothesisBlockFor(problem: MathProblem): BlockDefinitionModel | undefined {
+    const rules = ihRulesFor(problem);
+    return rules.length ? { type: 'hypothesis', category: 'induction', label: 'Hypothesis', paletteLatex: '', slots: [], rules } : undefined;
+}
+
+/**
+ * The palette blocks one induction case adds on top of the rule catalogue: the recursive definitions in both cases,
+ * plus the induction hypotheses in the inductive step.
+ * <p>
+ * Shared by the student's participation editor and the instructor's example-derivation editor so that authoring a
+ * sample solution offers exactly the palette the student is given for the same case — an instructor cannot be expected
+ * to author a derivation their students can produce but they cannot.
+ *
+ * @param blocks  the rule catalogue (whose {@code definitions} arrays supply the definitions)
+ * @param problem the induction problem
+ * @param role    which of the two obligations the palette is for
+ * @return the extra blocks, in palette order; empty when neither applies
+ */
+export function inductionPaletteBlocksFor(blocks: BlockDefinitionModel[], problem: MathProblem, role: 'BASE' | 'STEP'): BlockDefinitionModel[] {
+    const extras = [definitionsBlockFor(blocks), role === 'STEP' ? hypothesisBlockFor(problem) : undefined];
+    return extras.filter((block): block is BlockDefinitionModel => block !== undefined);
 }

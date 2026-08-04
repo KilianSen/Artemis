@@ -50,7 +50,7 @@ class MathGradingServiceMultiGraderTest {
     private static MathGradingService serviceWith(MathGrader... graders) {
         GraderRegistry registry = new GraderRegistry(List.of(graders));
         registry.index();
-        return new MathGradingService(registry);
+        return new MathGradingService(registry, ruleSubsetPolicy());
     }
 
     private static MathProblem problem(GoalMode mode, List<GraderType> graderTypes) {
@@ -63,6 +63,104 @@ class MathGradingServiceMultiGraderTest {
     /** A single non-empty step so the empty-remote-submission short-circuit does not fire. */
     private static List<DerivationStep> steps() {
         return List.of(new DerivationStep());
+    }
+
+    /**
+     * A policy over an empty registry: no catalogue rules, no definitions. Enough to exercise the subset arithmetic
+     * on plain ids; the definition/kind-B exemptions are covered by {@code RuleSubsetPolicyTest} against real blocks.
+     */
+    private static RuleSubsetPolicy ruleSubsetPolicy() {
+        BlockRegistry registry = new BlockRegistry(List.of());
+        registry.index();
+        return new RuleSubsetPolicy(registry);
+    }
+
+    private static DerivationStep step(int index, String ruleId) {
+        DerivationStep step = new DerivationStep();
+        step.setStepIndex(index);
+        step.setAppliedRuleId(ruleId);
+        return step;
+    }
+
+    private static MathProblem restrictedProblem(List<String> allowedRuleIds, List<GraderType> graderTypes) {
+        MathProblem problem = problem(GoalMode.TRANSFORMATION, graderTypes);
+        problem.setAllowedRuleIds(allowedRuleIds);
+        return problem;
+    }
+
+    // ----- Per-problem rule subset enforcement -----
+
+    /**
+     * The tampered-submission case: a step citing a rule the instructor switched off must grade a conclusive
+     * {@code invalid_derivation} at 0, with the chain truncated at the offending step — and crucially <em>without</em>
+     * reaching a grading backend, since every backend answers an out-of-ruleset id with a 400 or {@code unknown},
+     * both of which Artemis routes to tutor review. That would make cheating an upgrade over a zero.
+     */
+    @Test
+    void stepCitingDisabledRule_gradesInvalidDerivation_withoutCallingAnyBackend() {
+        RecordingGrader backend = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
+        MathGradingService service = serviceWith(backend);
+
+        GradingResult result = service.gradeProblem(restrictedProblem(List.of("add_zero_left"), List.of(GraderType.EGGREGATE)),
+                List.of(step(0, "add_zero_left"), step(1, "mul_comm"), step(2, "add_zero_left")));
+
+        assertThat(result.conclusive()).isTrue();
+        assertThat(result.score()).isZero();
+        assertThat(result.outcome()).isEqualTo("INVALID_DERIVATION");
+        assertThat(backend.calls).isZero();
+        // Truncated at the offending step: the valid prefix plus the rejected step, and nothing after it.
+        assertThat(result.stepStatuses()).hasSize(2);
+        assertThat(result.stepStatuses().getFirst().valid()).isTrue();
+        assertThat(result.stepStatuses().getLast().valid()).isFalse();
+        assertThat(result.stepStatuses().getLast().message()).contains("mul_comm");
+    }
+
+    @Test
+    void stepsWithinTheSubset_areGradedNormally() {
+        RecordingGrader backend = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
+        MathGradingService service = serviceWith(backend);
+
+        GradingResult result = service.gradeProblem(restrictedProblem(List.of("add_zero_left", "mul_comm"), List.of(GraderType.EGGREGATE)),
+                List.of(step(0, "mul_comm"), step(1, "add_zero_left")));
+
+        assertThat(result.score()).isEqualTo(100.0);
+        assertThat(backend.calls).isEqualTo(1);
+    }
+
+    @Test
+    void emptySubset_meansUnrestricted() {
+        RecordingGrader backend = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
+        MathGradingService service = serviceWith(backend);
+
+        GradingResult result = service.gradeProblem(restrictedProblem(List.of(), List.of(GraderType.EGGREGATE)), List.of(step(0, "anything_at_all")));
+
+        assertThat(result.score()).isEqualTo(100.0);
+        assertThat(backend.calls).isEqualTo(1);
+    }
+
+    /** A dangling id (e.g. left over from a renamed rule) is "not allowed", never "allowed by default". */
+    @Test
+    void danglingRuleIdInTheSubset_stillRejectsAnUnlistedStep() {
+        RecordingGrader backend = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
+        MathGradingService service = serviceWith(backend);
+
+        GradingResult result = service.gradeProblem(restrictedProblem(List.of("rule_that_no_longer_exists"), List.of(GraderType.EGGREGATE)), List.of(step(0, "add_zero_left")));
+
+        assertThat(result.outcome()).isEqualTo("INVALID_DERIVATION");
+        assertThat(result.score()).isZero();
+        assertThat(backend.calls).isZero();
+    }
+
+    /** A step with no rule id at all is not in any subset, so a restricted problem rejects it. */
+    @Test
+    void stepWithoutRuleId_isRejectedUnderASubset() {
+        RecordingGrader backend = new RecordingGrader(GraderType.EGGREGATE, GradingResult.of(100.0));
+        MathGradingService service = serviceWith(backend);
+
+        GradingResult result = service.gradeProblem(restrictedProblem(List.of("add_zero_left"), List.of(GraderType.EGGREGATE)), List.of(step(0, null)));
+
+        assertThat(result.outcome()).isEqualTo("INVALID_DERIVATION");
+        assertThat(backend.calls).isZero();
     }
 
     @Test

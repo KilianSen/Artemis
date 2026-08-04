@@ -17,15 +17,21 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
+import de.tum.cit.aet.artemis.math.domain.DerivationRole;
 import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.InductionDatatype;
 import de.tum.cit.aet.artemis.math.domain.LayoutCategory;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
+import de.tum.cit.aet.artemis.math.domain.MathNode;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathSubmission;
+import de.tum.cit.aet.artemis.math.domain.StepDirection;
+import de.tum.cit.aet.artemis.math.domain.StepKind;
 import de.tum.cit.aet.artemis.math.dto.BlockDefinitionDTO;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
+import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
+import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.repository.MathSubmissionRepository;
 import de.tum.cit.aet.artemis.math.util.MathExerciseFactory;
@@ -75,6 +81,100 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         assertThat(result.problems().getFirst().targetExpression()).isNotNull();
         // A linked communication channel is created on create, like every other exercise type (and math's own import path).
         assertThat(result.channelName()).isNotNull();
+    }
+
+    /**
+     * The allowed rule subset is settable only through the JSON create/import payload (there is no authoring-form
+     * control for it), so this round-trip is the feature's whole authoring surface.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void createMathExercise_withAllowedRuleIds_persistsTheSubset() throws Exception {
+        MathExerciseDTO newExercise = mathExerciseDTOWithAllowedRuleIds(List.of("add_zero_left", "add_comm"));
+
+        MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises", newExercise, MathExerciseDTO.class, HttpStatus.CREATED);
+
+        assertThat(result.problems().getFirst().allowedRuleIds()).containsExactly("add_zero_left", "add_comm");
+        MathExercise persisted = mathExerciseRepository.findByIdWithCategoriesAndProblems(result.id()).orElseThrow();
+        assertThat(persisted.getProblems().getFirst().getAllowedRuleIds()).containsExactly("add_zero_left", "add_comm");
+    }
+
+    /** No subset at all stays the default: unrestricted, so every pre-existing exercise keeps working untouched. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void createMathExercise_withoutAllowedRuleIds_isUnrestricted() throws Exception {
+        MathExerciseDTO newExercise = MathExerciseFactory.generateMathExerciseDTO(ZonedDateTime.now().minusDays(1), ZonedDateTime.now().plusDays(1),
+                ZonedDateTime.now().plusDays(2), course);
+
+        MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises", newExercise, MathExerciseDTO.class, HttpStatus.CREATED);
+
+        MathExercise persisted = mathExerciseRepository.findByIdWithCategoriesAndProblems(result.id()).orElseThrow();
+        assertThat(persisted.getProblems().getFirst().getAllowedRuleIds()).isEmpty();
+    }
+
+    /** A malformed request — an id that exists in no registry — is the one case that belongs at the HTTP boundary. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void createMathExercise_withUnknownRuleIdInSubset_returnsBadRequest() throws Exception {
+        MathExerciseDTO newExercise = mathExerciseDTOWithAllowedRuleIds(List.of("add_zero_left", "no_such_rule"));
+
+        request.postWithResponseBody("/api/math/math-exercises", newExercise, MathExerciseDTO.class, HttpStatus.BAD_REQUEST);
+    }
+
+    /** An instructor whose own worked solution needs a rule they just switched off has authored a broken problem. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void createMathExercise_withExampleDerivationOutsideSubset_returnsBadRequest() throws Exception {
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, null,
+                false, false, false, true, false, List.of(new DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathExerciseFactory.sampleTarget())), null, null,
+                List.of("add_comm"));
+
+        request.postWithResponseBody("/api/math/math-exercises", mathExerciseDTOWith(problemDTO), MathExerciseDTO.class, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * The instructor's induction example derivation is driven by the recursive definitions, which the palette offers in
+     * both cases precisely because the subset never reaches them ({@link de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy}
+     * exempts them). Saving one therefore has to be accepted, or the authoring editor would offer a step that cannot be
+     * stored — this pins the save path to the same exemption.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void createMathExercise_withExampleDerivationCitingDefinition_returnsCreated() throws Exception {
+        MathNode goal = MathNodes.eq(MathNodes.pow(MathNodes.num("1"), MathNodes.var("n")), MathNodes.num("1"));
+        // The base case as the induction example editor emits it: a kind-A step citing the definition pow_zero.
+        DerivationStepDTO baseStep = new DerivationStepDTO(null, 0, "pow_zero", List.of(0), MathNodes.eq(MathNodes.num("1"), MathNodes.num("1")), StepDirection.FORWARD,
+                DerivationRole.BASE, StepKind.A, null);
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, null, null, goal, GoalMode.INDUCTION, List.of(GraderType.COQREGATE), null, false, false, false,
+                true, false, List.of(baseStep), "n", InductionDatatype.NAT, List.of("add_comm"));
+
+        MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises", mathExerciseDTOWith(problemDTO), MathExerciseDTO.class, HttpStatus.CREATED);
+
+        assertThat(result.problems().getFirst().exampleDerivations()).singleElement().extracting(DerivationStepDTO::appliedRuleId).isEqualTo("pow_zero");
+    }
+
+    /** The subset is per-problem configuration and must survive an exercise import like every other problem field. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void importMathExercise_preservesAllowedRuleIds() throws Exception {
+        MathExerciseDTO importTarget = mathExerciseDTOWithAllowedRuleIds(List.of("add_zero_left"));
+
+        MathExerciseDTO result = request.postWithResponseBody("/api/math/math-exercises/import?sourceExerciseId=" + exercise.getId(), importTarget, MathExerciseDTO.class,
+                HttpStatus.CREATED);
+
+        assertThat(result.problems().getFirst().allowedRuleIds()).containsExactly("add_zero_left");
+    }
+
+    private MathExerciseDTO mathExerciseDTOWithAllowedRuleIds(List<String> allowedRuleIds) {
+        MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, null,
+                false, false, false, true, false, null, null, null, allowedRuleIds);
+        return mathExerciseDTOWith(problemDTO);
+    }
+
+    private MathExerciseDTO mathExerciseDTOWith(MathProblemDTO problemDTO) {
+        return new MathExerciseDTO(null, "Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0, IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false,
+                false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1), ZonedDateTime.now().plusDays(2), null, course.getId(), null,
+                List.of(problemDTO), null);
     }
 
     @Test
@@ -204,7 +304,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void importMathExercise_preservesManualDerivation() throws Exception {
         MathProblemDTO problemDTO = new MathProblemDTO(null, "Problem 1", 10.0, MathExerciseFactory.sampleSource(), MathExerciseFactory.sampleTarget(), null, null, null, null,
-                false, false, false, true, true, null, null, null);
+                false, false, false, true, true, null, null, null, null);
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Math Exercise", null, "Prove that 0 + x = x.", null, null, 10.0, 0.0,
                 IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
                 ZonedDateTime.now().plusDays(2), null, course.getId(), null, List.of(problemDTO), null);
@@ -223,7 +323,7 @@ class MathExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         // The induction variable and datatype are part of an INDUCTION problem's grader configuration. If the import drops
         // them, a LIST-induction problem silently degrades into a variable-less ℕ-induction one (the column defaults to NAT).
         MathProblemDTO problemDTO = new MathProblemDTO(null, "Induction Problem", 10.0, null, null, MathNodes.eq(MathNodes.var("xs"), MathNodes.var("xs")), GoalMode.INDUCTION,
-                null, null, false, false, false, true, false, null, "xs", InductionDatatype.LIST);
+                null, null, false, false, false, true, false, null, "xs", InductionDatatype.LIST, null);
         MathExerciseDTO importTarget = new MathExerciseDTO(null, "Imported Induction Exercise", null, "Prove the list property by induction.", null, null, 10.0, 0.0,
                 IncludedInOverallScore.INCLUDED_COMPLETELY, false, false, false, false, null, null, ZonedDateTime.now().minusDays(1), null, ZonedDateTime.now().plusDays(1),
                 ZonedDateTime.now().plusDays(2), null, course.getId(), null, List.of(problemDTO), null);

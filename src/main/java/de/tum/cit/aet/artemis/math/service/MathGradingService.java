@@ -1,7 +1,9 @@
 package de.tum.cit.aet.artemis.math.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +28,9 @@ import de.tum.cit.aet.artemis.math.grader.HintSuggestion;
 import de.tum.cit.aet.artemis.math.grader.MathGrader;
 import de.tum.cit.aet.artemis.math.grader.PathCheckerGrader;
 import de.tum.cit.aet.artemis.math.grader.ReachabilityReport;
+import de.tum.cit.aet.artemis.math.grader.StepStatus;
 import de.tum.cit.aet.artemis.math.regate.RegateException;
+import de.tum.cit.aet.artemis.math.regate.dto.Outcome;
 
 /**
  * Dispatch entry-point for math grading.
@@ -43,8 +47,11 @@ public class MathGradingService {
 
     private final GraderRegistry graderRegistry;
 
-    public MathGradingService(GraderRegistry graderRegistry) {
+    private final RuleSubsetPolicy ruleSubsetPolicy;
+
+    public MathGradingService(GraderRegistry graderRegistry, RuleSubsetPolicy ruleSubsetPolicy) {
         this.graderRegistry = graderRegistry;
+        this.ruleSubsetPolicy = ruleSubsetPolicy;
     }
 
     /**
@@ -100,6 +107,14 @@ public class MathGradingService {
                 continue;
             }
             List<DerivationStep> steps = List.copyOf(answer.getSteps());
+            // A derivation citing a disabled rule is settled on the fast lane and must not be re-graded remotely: the
+            // certifier would answer `unknown` (routing to review) or, worse, certify reasoning the instructor
+            // switched off. Keep the fast lane's invalid_derivation and just clear the pending flag.
+            GradingResult disallowed = rejectDisallowedRule(problem, steps);
+            if (disallowed != null) {
+                answer.setCertificationPending(false);
+                continue;
+            }
             GradingResult certified = certifier.isRemote() && steps.isEmpty() ? GradingResult.of(0.0) : gradeProblemWith(certifier, problem, steps);
             if (certified.conclusive()) {
                 applyVerdict(answer, problem, certified);
@@ -173,6 +188,11 @@ public class MathGradingService {
      * @return the grader's verdict (a conclusive score, or inconclusive)
      */
     public GradingResult gradeProblem(MathProblemConfig config, List<DerivationStep> steps) {
+        // Authoritative rule-subset check, before any grader (and therefore before any backend request) runs.
+        GradingResult disallowed = rejectDisallowedRule(config, steps);
+        if (disallowed != null) {
+            return disallowed;
+        }
         GradingResult last = null;
         GraderStrength strongestAbstention = null;
         for (GraderType type : applicableGraders(config)) {
@@ -196,6 +216,43 @@ public class MathGradingService {
             last = GradingResult.inconclusive("A weaker grader rejected an answer a stronger grader could not decide; routed to review");
         }
         return last != null ? last : GradingResult.inconclusive("No grader configured");
+    }
+
+    /**
+     * The verdict for a derivation that cites a rule the instructor switched off for this problem, or {@code null}
+     * when every step is allowed.
+     * <p>
+     * The outcome is a conclusive {@code invalid_derivation} at score 0 with the step chain truncated at the
+     * offending step — deliberately <em>not</em> an HTTP 400 on the submit. A 400 would reject the whole submission
+     * unsaved: it destroys the evidence of what was submitted, and it locks out the honest case (a stale tab whose
+     * palette predates the instructor narrowing the subset) as harshly as the dishonest one. It is also exactly how
+     * {@link de.tum.cit.aet.artemis.math.grader.PathCheckerGrader} already treats an unrecognised rule id — a
+     * disabled rule is the same class of event and must behave identically.
+     * <p>
+     * Equally deliberately, this never reaches a grading backend: see {@link RuleSubsetPolicy} for why delegating the
+     * check to Regate would turn citing a forbidden rule into an upgrade over a zero.
+     *
+     * @param config the problem configuration being graded
+     * @param steps  the student's ordered derivation steps
+     * @return the rejection verdict, or {@code null} when no step cites a disabled rule
+     */
+    private GradingResult rejectDisallowedRule(MathProblemConfig config, List<DerivationStep> steps) {
+        OptionalInt offending = ruleSubsetPolicy.firstDisallowedStepIndex(config, steps);
+        if (offending.isEmpty()) {
+            return null;
+        }
+        int position = offending.getAsInt();
+        DerivationStep step = steps.get(position);
+        String ruleId = step.getAppliedRuleId();
+        log.info("Rejecting math derivation: step {} cites rule '{}', which is not in the problem's allowed rule subset {}", position, ruleId, config.getAllowedRuleIds());
+        // Truncate at the offending step: the prefix replayed fine, everything after it is not assessed at all.
+        List<StepStatus> stepStatuses = new ArrayList<>(position + 1);
+        for (int i = 0; i < position; i++) {
+            stepStatuses.add(new StepStatus(steps.get(i).getStepIndex(), true, null));
+        }
+        String reason = "Rule '" + ruleId + "' is not enabled for this problem";
+        stepStatuses.add(new StepStatus(step.getStepIndex(), false, reason));
+        return new GradingResult(0.0, true, Outcome.INVALID_DERIVATION.name(), false, null, stepStatuses, reason + "; the derivation was not accepted.");
     }
 
     /**

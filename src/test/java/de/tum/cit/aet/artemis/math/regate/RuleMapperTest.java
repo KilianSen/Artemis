@@ -11,7 +11,12 @@ import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.NotEqualToConstant;
 import de.tum.cit.aet.artemis.math.domain.RewriteRule;
 import de.tum.cit.aet.artemis.math.domain.RuleDirection;
+import de.tum.cit.aet.artemis.math.domain.blocks.AddBlockDefinition;
+import de.tum.cit.aet.artemis.math.domain.blocks.MulBlockDefinition;
+import de.tum.cit.aet.artemis.math.domain.blocks.NumberBlockDefinition;
+import de.tum.cit.aet.artemis.math.domain.blocks.VariableBlockDefinition;
 import de.tum.cit.aet.artemis.math.regate.dto.RuleSpec;
+import de.tum.cit.aet.artemis.math.service.BlockRegistry;
 
 /**
  * Pure unit tests for the Artemis rule → Regate protocol {@code Rule} mapping. No Spring context.
@@ -53,6 +58,26 @@ class RuleMapperTest {
         assertThat(spec.bidirectional()).isTrue();
         assertThat(spec.conditions()).isEmpty();
         assertThat(spec.lhs().getType()).isEqualTo("add");
+    }
+
+    /**
+     * The problem's allowed rule subset also narrows the ruleset that travels to the backends. This is defence in
+     * depth only — Artemis has already rejected any out-of-subset step before the request is assembled — so the
+     * assertion that matters is that the narrowing happens at all, and that no subset means the whole catalogue.
+     */
+    @Test
+    void narrowsTheRulesetToTheProblemsAllowedRuleSubset() {
+        BlockRegistry registry = new BlockRegistry(List.of(new NumberBlockDefinition(), new VariableBlockDefinition(), new AddBlockDefinition(), new MulBlockDefinition()));
+        registry.index();
+
+        List<RuleSpec> full = RuleMapper.toRuleset(registry);
+        List<RuleSpec> narrowed = RuleMapper.toRuleset(registry, List.of("add_zero_left", "mul_comm"));
+
+        assertThat(full).extracting(RuleSpec::id).contains("add_zero_left", "add_comm", "mul_comm");
+        assertThat(narrowed).extracting(RuleSpec::id).containsExactlyInAnyOrder("add_zero_left", "mul_comm");
+        // null and empty both mean "unrestricted": the whole catalogue travels, exactly as before the feature.
+        assertThat(RuleMapper.toRuleset(registry, null)).hasSameSizeAs(full);
+        assertThat(RuleMapper.toRuleset(registry, List.of())).hasSameSizeAs(full);
     }
 
     @Test

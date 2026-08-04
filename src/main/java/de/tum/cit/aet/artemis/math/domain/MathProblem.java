@@ -110,6 +110,24 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
     @Column(name = "example_derivations")
     private List<DerivationStepDTO> exampleDerivations = Collections.emptyList();
 
+    /**
+     * The rewrite rules this problem restricts the student to, by {@link RewriteRule#id() rule id}. {@code null} or
+     * empty means <em>unrestricted</em> — every catalogue rule is citable, which is what every pre-existing problem
+     * gets and therefore leaves current behaviour untouched.
+     * <p>
+     * Enforcement is server-side and authoritative (see {@code MathGradingService#gradeProblem} and
+     * {@code PathCheckerGrader}); the client-side palette filter is cosmetic, since the wire carries a bare rule id
+     * that {@code curl} can set freely. Recursive {@code definitions} are never restricted by this list — the
+     * protocol treats them as definitional and always trusted, and every induction submission cites them.
+     * <p>
+     * Stored as a JSON array in one column rather than as an element collection: the entity is join-fetched by
+     * several repository queries and a second EAGER collection would multiply those result sets.
+     */
+    @Convert(converter = StringListConverter.class)
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "allowed_rule_ids")
+    private List<String> allowedRuleIds = Collections.emptyList();
+
     @Column(name = "induction_variable", length = 64)
     private String inductionVariable;
 
@@ -243,6 +261,25 @@ public class MathProblem extends DomainObject implements MathProblemConfig {
 
     public void setExampleDerivations(List<DerivationStepDTO> exampleDerivations) {
         this.exampleDerivations = exampleDerivations != null ? new ArrayList<>(exampleDerivations) : Collections.emptyList();
+    }
+
+    @Override
+    public List<String> getAllowedRuleIds() {
+        return allowedRuleIds;
+    }
+
+    /**
+     * Sets the allowed rule subset. Blank entries are dropped and duplicates collapsed (order preserved), so a
+     * sloppily authored JSON list still yields a clean subset; {@code null} and empty both mean "unrestricted".
+     *
+     * @param allowedRuleIds the rule ids the student may cite, or {@code null}/empty for unrestricted
+     */
+    public void setAllowedRuleIds(List<String> allowedRuleIds) {
+        if (allowedRuleIds == null || allowedRuleIds.isEmpty()) {
+            this.allowedRuleIds = Collections.emptyList();
+            return;
+        }
+        this.allowedRuleIds = allowedRuleIds.stream().filter(id -> id != null && !id.isBlank()).map(String::trim).distinct().toList();
     }
 
     @Override

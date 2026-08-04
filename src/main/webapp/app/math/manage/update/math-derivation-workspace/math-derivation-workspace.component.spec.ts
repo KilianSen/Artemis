@@ -54,6 +54,59 @@ describe('MathDerivationWorkspaceComponent', () => {
         expect(component.filteredBlocks()).toEqual([]);
     });
 
+    describe('per-problem rule subset', () => {
+        const wild: MathNode = { type: 'wild', value: 'x' };
+        const rule = (id: string): RewriteRuleModel => ({ id, name: id, paletteLatex: id, pattern: wild, template: wild, direction: 'FORWARD_ONLY' });
+        const catalogue: BlockDefinitionModel = {
+            type: 'mul',
+            category: 'ARITHMETIC',
+            label: 'Multiplication',
+            paletteLatex: '\\cdot',
+            slots: ['left', 'right'],
+            rules: [rule('mul_comm'), rule('add_comm')],
+            definitions: [rule('pow_zero'), rule('pow_succ')],
+        };
+        const definitionsBlock: BlockDefinitionModel = {
+            type: 'definitions',
+            category: 'induction',
+            label: 'Definitions',
+            paletteLatex: '',
+            slots: [],
+            rules: [rule('pow_zero'), rule('pow_succ')],
+        };
+        const hypothesisBlock: BlockDefinitionModel = {
+            type: 'hypothesis',
+            category: 'induction',
+            label: 'Hypothesis',
+            paletteLatex: '',
+            slots: [],
+            rules: [rule('induction_hypothesis')],
+        };
+
+        /** A workspace over the given palette and subset, as the example-derivation editors configure it. */
+        const setup = (allowedRuleIds: string[] | undefined, blocks: BlockDefinitionModel[]): string[] => {
+            const workspace: ComponentFixture<MathDerivationWorkspaceComponent> = TestBed.createComponent(MathDerivationWorkspaceComponent);
+            workspace.componentRef.setInput('extraBlocks', blocks);
+            workspace.componentRef.setInput('allowedRuleIds', allowedRuleIds);
+            workspace.componentInstance.ngOnInit();
+            return workspace.componentInstance.filteredBlocks().flatMap((b) => (b.rules ?? []).map((r) => r.id));
+        };
+
+        it('offers the whole catalogue while the problem is unrestricted', () => {
+            expect(setup(undefined, [catalogue])).toEqual(['mul_comm', 'add_comm']);
+            expect(setup([], [catalogue])).toEqual(['mul_comm', 'add_comm']);
+        });
+
+        it('does not offer a rule the instructor switched off, so the conflict cannot be authored', () => {
+            expect(setup(['mul_comm'], [catalogue])).toEqual(['mul_comm']);
+        });
+
+        it('keeps the definitions and the induction hypothesis under a restrictive subset', () => {
+            // Both are outside the subset's reach server-side (RuleSubsetPolicy), so the example editor keeps offering them.
+            expect(setup(['mul_comm'], [catalogue, definitionsBlock, hypothesisBlock])).toEqual(['mul_comm', 'pow_zero', 'pow_succ', 'induction_hypothesis']);
+        });
+    });
+
     describe('no-regress filtering of applicable rules', () => {
         const a: MathNode = { type: 'variable', value: 'a' };
         const b: MathNode = { type: 'variable', value: 'b' };

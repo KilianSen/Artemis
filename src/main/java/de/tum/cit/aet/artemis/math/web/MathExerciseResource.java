@@ -47,6 +47,7 @@ import de.tum.cit.aet.artemis.math.domain.GoalMode;
 import de.tum.cit.aet.artemis.math.domain.MathExercise;
 import de.tum.cit.aet.artemis.math.domain.MathNodes;
 import de.tum.cit.aet.artemis.math.domain.MathProblem;
+import de.tum.cit.aet.artemis.math.domain.StepKind;
 import de.tum.cit.aet.artemis.math.dto.MathExerciseDTO;
 import de.tum.cit.aet.artemis.math.dto.MathProblemDTO;
 import de.tum.cit.aet.artemis.math.dto.MathSubmissionDTO.DerivationStepDTO;
@@ -55,6 +56,7 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
 import de.tum.cit.aet.artemis.math.repository.MathExerciseRepository;
 import de.tum.cit.aet.artemis.math.service.MathExerciseImportService;
 import de.tum.cit.aet.artemis.math.service.MathGradingService;
+import de.tum.cit.aet.artemis.math.service.RuleSubsetPolicy;
 
 @Lazy
 @Conditional(MathEnabled.class)
@@ -91,10 +93,12 @@ public class MathExerciseResource {
 
     private final ChannelRepository channelRepository;
 
+    private final RuleSubsetPolicy ruleSubsetPolicy;
+
     public MathExerciseResource(MathExerciseRepository mathExerciseRepository, MathExerciseImportService mathExerciseImportService, CourseRepository courseRepository,
             UserRepository userRepository, ExerciseSpecificationService exerciseSpecificationService, ExerciseDeletionService exerciseDeletionService,
             MathGradingService mathGradingService, ExerciseService exerciseService, AuthorizationCheckService authCheckService, ChannelService channelService,
-            ChannelRepository channelRepository) {
+            ChannelRepository channelRepository, RuleSubsetPolicy ruleSubsetPolicy) {
         this.mathExerciseRepository = mathExerciseRepository;
         this.mathExerciseImportService = mathExerciseImportService;
         this.courseRepository = courseRepository;
@@ -106,6 +110,7 @@ public class MathExerciseResource {
         this.authCheckService = authCheckService;
         this.channelService = channelService;
         this.channelRepository = channelRepository;
+        this.ruleSubsetPolicy = ruleSubsetPolicy;
     }
 
     /**
@@ -124,6 +129,7 @@ public class MathExerciseResource {
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
         validateGraderModeCompatibility(mathExerciseDTO);
+        validateAllowedRuleIds(mathExerciseDTO);
         MathExercise exercise = new MathExercise();
         mathExerciseDTO.applyToEntity(exercise);
         normalizeExpressions(exercise);
@@ -157,6 +163,7 @@ public class MathExerciseResource {
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
         validateGraderModeCompatibility(mathExerciseDTO);
+        validateAllowedRuleIds(mathExerciseDTO);
         MathExercise existing = mathExerciseRepository.findByIdWithCategoriesAndCourseAndProblems(mathExerciseDTO.id()).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
@@ -192,6 +199,7 @@ public class MathExerciseResource {
         }
         validateExpressionsWildcardFree(mathExerciseDTO);
         validateGraderModeCompatibility(mathExerciseDTO);
+        validateAllowedRuleIds(mathExerciseDTO);
         MathExercise existing = mathExerciseRepository.findByIdWithCourseGradingCriteriaAndExampleSubmissions(exerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existing, null);
         mathExerciseDTO.applyToEntity(existing);
@@ -295,6 +303,7 @@ public class MathExerciseResource {
         if (importedExerciseDTO.id() != null) {
             throw new BadRequestAlertException("A new math exercise cannot already have an ID", ENTITY_NAME, "idexists");
         }
+        validateAllowedRuleIds(importedExerciseDTO);
         MathExercise sourceExercise = mathExerciseRepository.findByIdWithCourseAndExampleSubmissions(sourceExerciseId).orElseThrow();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, sourceExercise, null);
         MathExercise target = new MathExercise();
@@ -347,6 +356,45 @@ public class MathExerciseResource {
         }
         catch (IllegalArgumentException e) {
             throw new BadRequestAlertException(e.getMessage(), ENTITY_NAME, "wildcardNotAllowed");
+        }
+    }
+
+    /**
+     * Validates the per-problem allowed rule subset at save time — the right place for a malformed <em>request</em>
+     * (unlike a submission citing a disabled rule, which is a graded event, not a 400).
+     * <p>
+     * Two rejections: a rule id that exists in no registry (a typo, or a dangling id left over from a renamed rule —
+     * silently keeping it would shrink the subset without telling anyone), and a problem whose own worked
+     * {@code exampleDerivations} cite a rule the subset switches off (the instructor's own model solution would be
+     * ungradeable for the students they just restricted). Kind-B example steps are skipped: they carry fabricated
+     * hypothesis ids that exist in no registry by design.
+     *
+     * @param dto the incoming exercise payload
+     */
+    private void validateAllowedRuleIds(MathExerciseDTO dto) {
+        if (dto.problems() == null) {
+            return;
+        }
+        for (MathProblemDTO problem : dto.problems()) {
+            List<String> allowed = problem.allowedRuleIds();
+            if (allowed == null || allowed.isEmpty()) {
+                continue;
+            }
+            for (String ruleId : allowed) {
+                if (ruleId == null || ruleId.isBlank() || !ruleSubsetPolicy.knownRuleIds().contains(ruleId.trim())) {
+                    throw new BadRequestAlertException("Unknown rewrite rule id in the allowed rule subset: " + ruleId, ENTITY_NAME, "unknownRuleId");
+                }
+            }
+            if (problem.exampleDerivations() == null) {
+                continue;
+            }
+            for (DerivationStepDTO step : problem.exampleDerivations()) {
+                if (step.kind() == StepKind.B || ruleSubsetPolicy.isRuleAllowed(allowed, step.appliedRuleId())) {
+                    continue;
+                }
+                throw new BadRequestAlertException("The example derivation applies rule '" + step.appliedRuleId() + "', which the problem's allowed rule subset excludes",
+                        ENTITY_NAME, "exampleDerivationUsesDisabledRule");
+            }
         }
     }
 

@@ -309,6 +309,107 @@ class MathSubmissionIntegrationTest extends AbstractSpringIntegrationIndependent
         assertThat(result.results().getFirst().score()).isEqualTo(0.0);
     }
 
+    /**
+     * The tampered-submission case, end to end: the palette is a client-side hint, so a hand-rolled POST can cite any
+     * rule id. A step citing a rule outside the problem's allowed subset must be <em>saved</em> and graded
+     * {@code invalid_derivation} at 0 — not rejected with a 400, which would discard the evidence of what was
+     * submitted and punish an honest stale tab exactly as harshly. (That no grading backend is contacted on this path
+     * is asserted in {@code MathGradingServiceMultiGraderTest}, where the graders are stubs that count calls.)
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void submitMathSubmission_citingRuleOutsideAllowedSubset_scores0AndIsInvalidDerivation() throws Exception {
+        // The problem is 0 + x -> x, but the instructor allows only add_zero_right; add_zero_left is switched off.
+        exercise.getProblems().getFirst().setAllowedRuleIds(List.of("add_zero_right"));
+        mathExerciseUtilService.saveExercise(exercise);
+        Long problemId = exercise.getProblems().getFirst().getId();
+
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
+
+        MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
+                HttpStatus.OK);
+
+        assertThat(result.submitted()).isTrue();
+        assertThat(result.results()).isNotEmpty();
+        assertThat(result.results().getFirst().score()).isEqualTo(0.0);
+        assertThat(result.answers()).hasSize(1);
+        assertThat(result.answers().getFirst().gradingOutcome()).isEqualTo("INVALID_DERIVATION");
+        // The submission itself is preserved, evidence and all.
+        assertThat(mathSubmissionRepository.findById(result.id())).isPresent();
+    }
+
+    /**
+     * The same tampered submission, but with the problem routed to a <em>remote</em> backend — the case the whole
+     * design turns on: the derivation must be settled locally and never reach the backend.
+     * <p>
+     * This is also the assertion that no backend request is made, without needing to mock one. EGGREGATE is not
+     * configured in this test context, and {@code submitRemoteGraded_whenBackendUnavailable_...} above pins what
+     * happens when it is actually contacted: an inconclusive verdict and a job in {@code REVIEW}, i.e. tutor review —
+     * which for a student citing a switched-off rule would be a strict upgrade over a zero. Landing on
+     * {@code COMPLETED} with a conclusive {@code invalid_derivation} at 0 is only reachable if the request never went
+     * out. (The call count itself is asserted directly in {@code MathGradingServiceMultiGraderTest}.)
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void submitRemoteGraded_citingRuleOutsideAllowedSubset_shortCircuitsBeforeTheBackend() throws Exception {
+        exercise.getProblems().getFirst().setGraderTypes(List.of(GraderType.EGGREGATE));
+        exercise.getProblems().getFirst().setAllowedRuleIds(List.of("add_zero_right"));
+        mathExerciseUtilService.saveExercise(exercise);
+        Long problemId = exercise.getProblems().getFirst().getId();
+
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
+
+        MathSubmissionDTO submitted = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
+                HttpStatus.OK);
+
+        await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
+            MathGradingJob job = mathGradingJobRepository.findFirstBySubmissionIdOrderByIdDesc(submitted.id()).orElseThrow();
+            assertThat(job.getStatus()).isEqualTo(MathGradingJobStatus.COMPLETED);
+        });
+
+        MathSubmissionDTO editor = request.get("/api/math/participations/" + participation.getId() + "/math-editor", HttpStatus.OK, MathSubmissionDTO.class);
+        assertThat(editor.results()).isNotEmpty();
+        assertThat(editor.results().getFirst().score()).isZero();
+        assertThat(editor.answers().getFirst().gradingOutcome()).isEqualTo("INVALID_DERIVATION");
+    }
+
+    /** Control for the case above: the very same derivation scores full marks once the rule is in the subset. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void submitMathSubmission_citingRuleInsideAllowedSubset_scores100() throws Exception {
+        exercise.getProblems().getFirst().setAllowedRuleIds(List.of("add_zero_left"));
+        mathExerciseUtilService.saveExercise(exercise);
+        Long problemId = exercise.getProblems().getFirst().getId();
+
+        var stepDTO = new MathSubmissionDTO.DerivationStepDTO(null, 0, "add_zero_left", List.of(), MathNodes.var("x"));
+        var answerDTO = new MathProblemAnswerDTO(null, problemId, null, List.of(stepDTO), null, null, null, null, null);
+        MathSubmissionDTO submissionDTO = new MathSubmissionDTO(null, true, null, null, null, List.of(answerDTO), null);
+
+        MathSubmissionDTO result = request.postWithResponseBody("/api/math/exercises/" + exercise.getId() + "/math-submissions", submissionDTO, MathSubmissionDTO.class,
+                HttpStatus.OK);
+
+        assertThat(result.results().getFirst().score()).isEqualTo(100.0);
+    }
+
+    /** Hints are student-reachable, so they must not leak a rule the instructor switched off. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void suggestHints_neverSuggestsARuleOutsideTheAllowedSubset() throws Exception {
+        // At 0 + x both add_zero_left (which solves the problem outright) and add_comm apply; only add_comm is allowed.
+        exercise.getProblems().getFirst().setAllowedRuleIds(List.of("add_comm"));
+        mathExerciseUtilService.saveExercise(exercise);
+        Long problemId = exercise.getProblems().getFirst().getId();
+
+        List<HintSuggestionDTO> hints = request.postListWithResponseBody("/api/math/exercises/" + exercise.getId() + "/problems/" + problemId + "/hints",
+                new HintRequestDTO(MathNodes.add(MathNodes.num("0"), MathNodes.var("x"))), HintSuggestionDTO.class, HttpStatus.OK);
+
+        assertThat(hints).isNotEmpty().extracting(HintSuggestionDTO::ruleId).containsOnly("add_comm");
+    }
+
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void submitMathSubmission_noSteps_sourceEqualsTarget_scores100() throws Exception {

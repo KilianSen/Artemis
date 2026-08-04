@@ -7,6 +7,7 @@ import { MathNodeLatexPipe } from 'app/math/shared/math-node-latex.pipe';
 import { KatexStringPipe } from 'app/math/shared/katex-string.pipe';
 import { MathNode, applyRule, distance, equalsAC, isTautology, normalizeAC } from 'app/math/shared/entities/math-node.model';
 import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
+import { filterBlocksByRuleSubset } from 'app/math/shared/entities/rule-subset';
 import { StepDirection } from 'app/math/shared/entities/rule-direction.model';
 import { HintSuggestion } from 'app/math/shared/entities/hint-suggestion.model';
 import { MathSubmissionService } from 'app/math/participate/service/math-submission.service';
@@ -102,6 +103,12 @@ export class MathProblemParticipationComponent implements OnInit {
         const compact = raw.replace(/\s+/g, '');
 
         let result = this.blocks();
+
+        // Per-problem rule subset first, then the cursor-dependent applicability filter — the two compose.
+        // Cosmetic only: the server rejects a submitted step citing a rule outside the subset regardless of what
+        // the palette showed. The recursive definitions and the induction hypotheses are exempt — see
+        // `filterBlocksByRuleSubset`, which this component also serves through the induction workspace.
+        result = filterBlocksByRuleSubset(result, this.problem()?.allowedRuleIds);
 
         if (this.problem()?.onlyShowApplicableRules && this.selectedNodePath() !== undefined) {
             const applicable = this.applicableRuleIds();

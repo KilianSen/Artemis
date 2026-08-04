@@ -33,7 +33,10 @@ import de.tum.cit.aet.artemis.math.service.BlockRegistry;
 /**
  * Assembles a Regate {@link GradeRequest} from a {@link MathProblemConfig} and the student's derivation.
  * Pure structural assembly — MathNodes are already in the protocol vocabulary, so no value translation
- * occurs. The whole rule catalogue travels inline (leanregate has no built-in catalogue).
+ * occurs. The rule catalogue travels inline (leanregate has no built-in catalogue), narrowed to the problem's
+ * allowed rule subset if it has one. {@code definitions} are never narrowed: the protocol treats them as
+ * definitional and always trusted, and the backends merge them into the citable rule table regardless of the
+ * ruleset.
  * <p>
  * Mode mapping mirrors the conformance fixtures: {@code transformation} carries {@code source}/{@code target};
  * {@code equation} carries the equality tree as {@code source} with a null {@code target} (completion is
@@ -76,7 +79,9 @@ public final class RegateRequestMapper {
         if (mode == GoalMode.INDUCTION) {
             return null;
         }
-        List<RuleSpec> ruleset = RuleMapper.toRuleset(blockRegistry);
+        // Narrowed to the problem's allowed rule subset; see RuleMapper#toRuleset for why this is defence in depth
+        // (Artemis already rejected out-of-subset steps) and what a narrow subset costs the equivalence oracle.
+        List<RuleSpec> ruleset = RuleMapper.toRuleset(blockRegistry, config.getAllowedRuleIds());
         // verify_rules left null: Artemis's catalogue is a trusted, code-reviewed contribution, so the backend takes the caller's warrant.
         OptionsSpec options = new OptionsSpec(false, null, true, null, null, config.isAcNormalization(), null);
         ExerciseSpec exercise = mode == GoalMode.EQUATION ? new ExerciseSpec(null, "equation", currentState, null, null, null, ruleset, null, null, null, null, options, null, null)
@@ -87,7 +92,8 @@ public final class RegateRequestMapper {
     }
 
     private static ExerciseSpec toExercise(MathProblemConfig config, BlockRegistry blockRegistry, GoalMode mode) {
-        List<RuleSpec> ruleset = RuleMapper.toRuleset(blockRegistry);
+        // Narrowed to the problem's allowed rule subset (defence in depth — see RuleMapper#toRuleset).
+        List<RuleSpec> ruleset = RuleMapper.toRuleset(blockRegistry, config.getAllowedRuleIds());
         // verify_rules left null: the catalogue is trusted upstream (see OptionsSpec); a per-submission re-proof would cost seconds of kernel time.
         OptionsSpec options = new OptionsSpec(config.isPartialCreditEnabled(), null, false, null, null, config.isAcNormalization(), null);
         return switch (mode) {

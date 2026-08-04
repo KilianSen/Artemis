@@ -36,6 +36,15 @@ export class MathProblem {
     /** When true the grader treats {@code +} and {@code ·} as commutative/associative for equality comparisons. */
     public acNormalization?: boolean;
     public onlyShowApplicableRules?: boolean;
+    /**
+     * The rewrite rules the student is restricted to, by rule id. Undefined or empty means unrestricted.
+     *
+     * Authored through the rule multiselect in {@code MathProblemEditComponent} (or the JSON import/export payload).
+     * The palette filter this drives is purely cosmetic: the server re-checks every submitted step, because the wire
+     * carries a bare rule id anyone could set by hand. It composes with (and is applied before)
+     * {@link onlyShowApplicableRules}, which is a different, cursor-dependent filter.
+     */
+    public allowedRuleIds?: string[];
     public allowVerification?: boolean;
     public manualDerivation?: boolean;
     /** The instructor-supplied worked derivation for this problem (an ordered list of steps). */

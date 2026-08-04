@@ -10,6 +10,7 @@ import { TranslateDirective } from 'app/foundation/language/translate.directive'
 import { MathNode, applyRule, distance, equalsAC, isTautology, normalizeAC } from '../../../shared/entities/math-node.model';
 import { DerivationStep } from '../../../shared/entities/derivation-step.model';
 import { BlockDefinitionModel, RewriteRuleModel } from '../../../shared/entities/block-definition.model';
+import { filterBlocksByRuleSubset } from '../../../shared/entities/rule-subset';
 import { StepDirection } from '../../../shared/entities/rule-direction.model';
 import { GoalMode } from '../../../shared/entities/goal-mode.model';
 import { MathNodeLatexPipe } from '../../../shared/math-node-latex.pipe';
@@ -54,8 +55,15 @@ export class MathDerivationWorkspaceComponent implements OnInit {
     initialSteps = input<DerivationStep[]>([]);
     onlyShowApplicableRules = input<boolean>(false);
     /**
+     * The problem's rule subset, by rule id; undefined or empty means unrestricted. Narrows the palette so an example
+     * derivation cannot be authored citing a rule the instructor just switched off — the server rejects saving such a
+     * derivation anyway (`exampleDerivationUsesDisabledRule`), this stops the conflict being authored at all.
+     */
+    allowedRuleIds = input<string[] | undefined>(undefined);
+    /**
      * Extra palette blocks appended to the catalogue fetched from the block registry. The induction example-solution
-     * editor uses this to offer the induction hypotheses in the step case; empty for an ordinary derivation.
+     * editor uses this to offer the recursive definitions in both cases and the induction hypotheses in the step case
+     * (see {@code inductionPaletteBlocksFor}); empty for an ordinary derivation, whose palette is the catalogue alone.
      */
     extraBlocks = input<BlockDefinitionModel[]>([]);
     stepsChange = output<DerivationStep[]>();
@@ -81,7 +89,10 @@ export class MathDerivationWorkspaceComponent implements OnInit {
         const raw = this.ruleSearch().trim().toLowerCase();
         const compact = raw.replace(/\s+/g, '');
 
-        return this.blocks()
+        // Per-problem rule subset first, then the cursor-dependent applicability filter — the two compose.
+        // Cosmetic only: the server re-checks the example derivation on save regardless of what the palette showed.
+        // Definitions and the induction hypotheses are exempt — see `filterBlocksByRuleSubset`.
+        return filterBlocksByRuleSubset(this.blocks(), this.allowedRuleIds())
             .map((block) => ({
                 ...block,
                 rules: (block.rules ?? []).filter((r) => {

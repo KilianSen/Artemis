@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Per-problem rule filtering: an instructor may restrict a problem to a chosen subset of rewrite rules, by
+         rule id. Stored as a JSON array in one column (a converted List<String>) rather than as an element
+         collection, because math_problem is join-fetched by several repository queries and a second EAGER
+         collection would multiply those result sets. NULL (the value every existing row gets) means unrestricted,
+         so current behaviour is preserved. -->
+    <changeSet id="20260804120000-1" author="kiliansen">
+        <addColumn tableName="math_problem">
+            <column name="allowed_rule_ids" type="longtext"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

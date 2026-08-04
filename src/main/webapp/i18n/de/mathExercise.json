@@ -132,6 +132,10 @@
             "graderType": "Bewertungs-Backends",
             "graderTypeHint": "Wähle ein oder mehrere Backends. Das erste, das den Zielmodus unterstützt, bewertet; die übrigen bieten Redundanz oder Modus-Abdeckung.",
             "pathCheckerFallbackWarning": "Der Path-Checker steht nach einem stärkeren Backend und bewertet daher nur, wenn dieses nicht verfügbar ist. Da er nicht über die feste Regelbibliothek hinaus schließen kann, wird nur ein vollständiges Bestehen als Urteil akzeptiert — jede Ablehnung oder jedes Teilergebnis leitet die Abgabe stattdessen zur manuellen Überprüfung weiter.",
+            "allowedRules": "Erlaubte Regeln",
+            "allowedRulesUnrestricted": "Alle Regeln erlaubt (keine Einschränkung)",
+            "allowedRulesHint": "Schränkt ein, welche Umformungsregeln Studierende zitieren dürfen. Leer lassen, um alle Regeln zu erlauben — eine leere Auswahl bedeutet unbeschränkt, nicht „keine Regeln“. Rekursive Definitionen sind immer verfügbar und lassen sich nicht einschränken.",
+            "allowedRulesUnrestrictedHint": "Keine Einschränkung: Studierende dürfen jede Regel des Katalogs zitieren, auch später hinzugefügte. Wähle nur dann Regeln aus, wenn du das einschränken möchtest.",
             "certifier": "Zertifizierer (optional)",
             "certifierHint": "Optionaler langsamerer formaler Beweiser, der das schnelle vorläufige Urteil des Backends oben zertifiziert.",
             "direction": {

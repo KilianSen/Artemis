@@ -143,6 +143,101 @@ describe('MathProblemParticipationComponent', () => {
         expect(getHintsSpy).toHaveBeenCalledWith(10, 1, source);
     });
 
+    describe('per-problem rule subset', () => {
+        const wild: MathNode = { type: 'wild', value: 'x' };
+        const rule = (id: string): RewriteRuleModel => ({ id, name: id, paletteLatex: id, pattern: wild, template: wild, direction: 'FORWARD_ONLY' });
+
+        const catalogue: BlockDefinitionModel = {
+            type: 'mul',
+            category: 'ARITHMETIC',
+            label: 'Multiplication',
+            paletteLatex: '\\cdot',
+            slots: ['left', 'right'],
+            rules: [rule('mul_comm'), rule('add_comm')],
+            definitions: [rule('pow_zero'), rule('pow_succ')],
+        };
+        // The two blocks the induction workspace appends before handing this component its palette.
+        const definitionsBlock: BlockDefinitionModel = {
+            type: 'definitions',
+            category: 'induction',
+            label: 'Definitions',
+            paletteLatex: '',
+            slots: [],
+            rules: [rule('pow_zero'), rule('pow_succ')],
+        };
+        const hypothesisBlock: BlockDefinitionModel = {
+            type: 'hypothesis',
+            category: 'induction',
+            label: 'Hypothesis',
+            paletteLatex: '',
+            slots: [],
+            rules: [rule('induction_hypothesis')],
+        };
+
+        const paletteRuleIds = (): string[] => component.filteredBlocks().flatMap((b) => (b.rules ?? []).map((r) => r.id));
+
+        const setup = (allowedRuleIds: string[] | undefined, blocks: BlockDefinitionModel[] = [catalogue]) => {
+            fixture.componentRef.setInput('problem', mockProblem({ allowedRuleIds }));
+            fixture.componentRef.setInput('exerciseId', 10);
+            fixture.componentRef.setInput('blocks', blocks);
+            fixture.detectChanges();
+        };
+
+        it('should show every rule when the problem is unrestricted', () => {
+            setup(undefined);
+            expect(paletteRuleIds()).toEqual(['mul_comm', 'add_comm']);
+        });
+
+        it('should treat an empty subset as unrestricted', () => {
+            setup([]);
+            expect(paletteRuleIds()).toEqual(['mul_comm', 'add_comm']);
+        });
+
+        it('should hide a rule the instructor switched off', () => {
+            setup(['mul_comm']);
+            expect(paletteRuleIds()).toEqual(['mul_comm']);
+        });
+
+        it('should keep the definitions and the induction hypothesis under a restrictive subset', () => {
+            // The induction workspace reuses this component, handing it the definitions and the IH inside `block.rules`.
+            // Both are outside the subset's reach server-side, so hiding them would break every induction submission.
+            setup(['mul_comm'], [catalogue, definitionsBlock, hypothesisBlock]);
+            expect(paletteRuleIds()).toEqual(['mul_comm', 'pow_zero', 'pow_succ', 'induction_hypothesis']);
+        });
+
+        it('should compose with the applicable-rule filter, subset first', () => {
+            const a: MathNode = { type: 'variable', value: 'a' };
+            const b: MathNode = { type: 'variable', value: 'b' };
+            const wildX: MathNode = { type: 'wild', value: 'x' };
+            const wildY: MathNode = { type: 'wild', value: 'y' };
+            const binary = (type: string, left: MathNode, right: MathNode): MathNode => ({ type, slots: { left: [left], right: [right] } });
+            const commBlock: BlockDefinitionModel = {
+                type: 'mul',
+                category: 'ARITHMETIC',
+                label: 'Multiplication',
+                paletteLatex: '\\cdot',
+                slots: ['left', 'right'],
+                rules: [
+                    { id: 'mul_comm', name: 'mul_comm', paletteLatex: '', pattern: binary('mul', wildX, wildY), template: binary('mul', wildY, wildX), direction: 'FORWARD_ONLY' },
+                    { id: 'add_comm', name: 'add_comm', paletteLatex: '', pattern: binary('add', wildX, wildY), template: binary('add', wildY, wildX), direction: 'FORWARD_ONLY' },
+                ],
+            };
+            // On a · b only mul_comm applies at the root; add_comm is applicable nowhere here.
+            fixture.componentRef.setInput('problem', mockProblem({ onlyShowApplicableRules: true, allowedRuleIds: ['mul_comm'], sourceExpression: binary('mul', a, b) }));
+            fixture.componentRef.setInput('exerciseId', 10);
+            fixture.componentRef.setInput('blocks', [commBlock]);
+            fixture.detectChanges();
+            component.selectedNodePath.set([]);
+
+            expect(paletteRuleIds()).toEqual(['mul_comm']);
+
+            // Allowing only the rule that does not apply leaves nothing: both filters ran, and neither subsumes the other.
+            fixture.componentRef.setInput('problem', mockProblem({ onlyShowApplicableRules: true, allowedRuleIds: ['add_comm'], sourceExpression: binary('mul', a, b) }));
+            fixture.detectChanges();
+            expect(paletteRuleIds()).toEqual([]);
+        });
+    });
+
     describe('no-regress filtering of applicable rules', () => {
         const a: MathNode = { type: 'variable', value: 'a' };
         const b: MathNode = { type: 'variable', value: 'b' };

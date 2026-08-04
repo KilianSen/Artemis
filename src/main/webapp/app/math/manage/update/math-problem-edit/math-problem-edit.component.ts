@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TranslateService } from '@ngx-translate/core';
 import { ButtonModule } from 'primeng/button';
@@ -12,6 +12,7 @@ import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
+import { MathBlockRegistryService } from '../../service/math-block-registry.service';
 import { MathExerciseService } from '../../service/math-exercise.service';
 import { INDUCTION_DATATYPE_LABELS, InductionDatatype, MathProblem } from '../../../shared/entities/math-problem.model';
 import { MathNode } from '../../../shared/entities/math-node.model';
@@ -50,8 +51,9 @@ import { MATH_STARTER_TEMPLATES } from '../math-starter-templates';
         TooltipModule,
     ],
 })
-export class MathProblemEditComponent {
+export class MathProblemEditComponent implements OnInit {
     private mathExerciseService = inject(MathExerciseService);
+    private blockRegistryService = inject(MathBlockRegistryService);
     private translateService = inject(TranslateService);
 
     readonly problem = input.required<MathProblem>();
@@ -64,6 +66,14 @@ export class MathProblemEditComponent {
     readonly reachability = signal<ReachabilityReport | undefined>(undefined);
     readonly reachabilityChecking = signal(false);
     readonly reachabilityError = signal<string | undefined>(undefined);
+
+    /**
+     * Warms the shared block-registry cache that {@link ruleSubsetOptionGroups} reads. The service caches, so this is a
+     * no-op beyond the first component that asks for it.
+     */
+    ngOnInit(): void {
+        this.blockRegistryService.getBlockRegistry().subscribe();
+    }
 
     /** Grader options for a given goal mode; graders that can't grade the mode are disabled (mirrors the server matrix). */
     graderOptionsFor(mode: GoalMode): { value: GraderType; label: string; disabled: boolean }[] {
@@ -90,6 +100,42 @@ export class MathProblemEditComponent {
         return (Object.keys(GRADER_TYPE_LABELS) as GraderType[])
             .filter((value) => value !== 'PATH_CHECKER' && graderSupportsMode(value, mode))
             .map((value) => ({ value, label: GRADER_TYPE_LABELS[value] }));
+    }
+
+    /**
+     * Rule options for the allowed-rule multiselect, grouped by registry block.
+     * <p>
+     * Only {@code block.rules} is offered. Recursive definitions ({@code block.definitions}: {@code pow_succ},
+     * {@code fact_zero}, …) are deliberately left out because the server's {@code RuleSubsetPolicy} exempts them — they
+     * are never restricted, so listing them would imply a control the instructor does not have.
+     */
+    readonly ruleSubsetOptionGroups = computed(() =>
+        this.blockRegistryService
+            .blocks()
+            .map((block) => ({
+                label: block.label,
+                rules: (block.rules ?? []).map((rule) => ({ value: rule.id, label: rule.name })),
+            }))
+            .filter((group) => group.rules.length > 0),
+    );
+
+    /**
+     * Whether the problem places no restriction on the citable rules. Both {@code undefined} and {@code []} mean
+     * unrestricted server-side, and an empty multiselect reads as "no rules allowed" — so the template says so out loud.
+     * A method, not a {@code computed}, because the problem object is mutated in place and signals do not see that.
+     */
+    ruleSubsetUnrestricted(): boolean {
+        return !this.problem().allowedRuleIds?.length;
+    }
+
+    /**
+     * Writes the selected rule subset onto the problem. An empty selection is stored as {@code undefined} rather than
+     * {@code []}: both are unrestricted to the server, but {@code undefined} is the "no subset authored" state the rest
+     * of the client already round-trips, and persisting an empty array would suggest a subset was deliberately emptied.
+     */
+    onAllowedRuleIdsChange(ruleIds: string[] | undefined): void {
+        this.problem().allowedRuleIds = ruleIds?.length ? ruleIds : undefined;
+        this.problemChange.emit(this.problem());
     }
 
     readonly goalModeOptions: { value: GoalMode; label: string }[] = (Object.keys(GOAL_MODE_LABELS) as GoalMode[]).map((value) => ({

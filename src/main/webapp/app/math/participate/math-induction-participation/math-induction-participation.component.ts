@@ -4,9 +4,9 @@ import { MessageModule } from 'primeng/message';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { MathNode, nodeAtPath, substituteVariable } from 'app/math/shared/entities/math-node.model';
 import { InductionDatatype, MathProblem } from 'app/math/shared/entities/math-problem.model';
-import { IH_RULE_ID, InductionHypothesis, InductionSchema, hypothesesFor, ihRulesFor, schemaFor, termToPlain } from 'app/math/shared/entities/induction-schema';
+import { IH_RULE_ID, InductionHypothesis, InductionSchema, hypothesesFor, inductionPaletteBlocksFor, schemaFor, termToPlain } from 'app/math/shared/entities/induction-schema';
 import { DerivationStep } from 'app/math/shared/entities/derivation-step.model';
-import { BlockDefinitionModel, RewriteRuleModel } from 'app/math/shared/entities/block-definition.model';
+import { BlockDefinitionModel } from 'app/math/shared/entities/block-definition.model';
 import { MathNodeLatexPipe } from 'app/math/shared/math-node-latex.pipe';
 import { MathProblemParticipationComponent } from 'app/math/participate/math-problem-participation/math-problem-participation.component';
 
@@ -72,34 +72,20 @@ export class MathInductionParticipationComponent {
     readonly stepProblem = computed<MathProblem>(() => this.syntheticProblem(this.substitutedGoal(this.inductionSchema().stepTerm)));
 
     /**
-     * A synthetic palette block holding the code-contributed recursive definitions (e.g. pow_zero / pow_succ),
-     * so the student can apply them in both the base and step workspaces — they are what drive the induction.
+     * The base workspace's rule palette: the catalogue plus the recursive definitions (e.g. pow_zero / pow_succ),
+     * which are what drive the induction.
+     * <p>
+     * Built by {@code inductionPaletteBlocksFor} so the instructor's example-derivation editor offers the identical
+     * palette for the same case. The definitions are never narrowed by the problem's rule subset — they are exempt from
+     * it, as are the hypotheses below (see {@code filterBlocksByRuleSubset} and {@code RuleSubsetPolicy}).
      */
-    readonly definitionsBlock = computed<BlockDefinitionModel | undefined>(() => {
-        const defs = this.blocks().flatMap((b) => b.definitions ?? []);
-        if (!defs.length) {
-            return undefined;
-        }
-        return { type: 'definitions', category: 'induction', label: 'Definitions', paletteLatex: '', slots: [], rules: defs };
-    });
+    readonly baseBlocks = computed<BlockDefinitionModel[]>(() => [...this.blocks(), ...inductionPaletteBlocksFor(this.blocks(), this.problem(), 'BASE')]);
 
-    /** The base workspace's rule palette: the catalogue plus the recursive definitions. */
-    readonly baseBlocks = computed<BlockDefinitionModel[]>(() => {
-        const db = this.definitionsBlock();
-        return db ? [...this.blocks(), db] : this.blocks();
-    });
-
-    /** The step workspace's rule palette: the base palette (catalogue + definitions) plus each induction hypothesis as an applicable (Leibniz) rule. */
-    readonly stepBlocks = computed<BlockDefinitionModel[]>(() => {
-        const base = this.baseBlocks();
-        // Built by the shared helper so the instructor's example-solution editor offers the identical palette.
-        const ihRules: RewriteRuleModel[] = ihRulesFor(this.problem());
-        if (!ihRules.length) {
-            return base;
-        }
-        const ihBlock: BlockDefinitionModel = { type: 'hypothesis', category: 'induction', label: 'Hypothesis', paletteLatex: '', slots: [], rules: ihRules };
-        return [...base, ihBlock];
-    });
+    /**
+     * The step workspace's rule palette: the catalogue and the definitions, plus each induction hypothesis as an
+     * applicable (Leibniz) rule.
+     */
+    readonly stepBlocks = computed<BlockDefinitionModel[]>(() => [...this.blocks(), ...inductionPaletteBlocksFor(this.blocks(), this.problem(), 'STEP')]);
 
     readonly initialBaseSteps = computed<DerivationStep[]>(() => this.initialSteps().filter((s) => s.derivationRole === 'BASE'));
     readonly initialStepSteps = computed<DerivationStep[]>(() => this.initialSteps().filter((s) => s.derivationRole === 'STEP'));

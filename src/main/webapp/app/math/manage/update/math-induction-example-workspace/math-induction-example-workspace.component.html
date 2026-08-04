@@ -3,10 +3,10 @@
 } @else {
     <p-message
         severity="info"
-        [text]="'The proof splits into two obligations. Prove each as an equation — the case is discharged when both sides match. The induction hypothesis is available as a rule in the inductive step.'"
+        [text]="'The proof splits into two obligations. Prove each as an equation — the case is discharged when both sides match. The recursive definitions are available as rules in both cases, the induction hypothesis additionally in the inductive step.'"
     />
 
-    <!-- Base case: P(base), an ordinary equation derivation with no hypothesis in scope. -->
+    <!-- Base case: P(base), an ordinary equation derivation with the definitions but no hypothesis in scope. -->
     <p-card styleClass="edit-card mt-2">
         <ng-template pTemplate="header">
             <div class="d-flex align-items-center gap-2 p-2">
@@ -20,11 +20,13 @@
             [acNormalization]="!!problem().acNormalization"
             [initialSteps]="initialBaseSteps()"
             [onlyShowApplicableRules]="onlyShowApplicableRules()"
+            [allowedRuleIds]="allowedRuleIds()"
+            [extraBlocks]="baseExtraBlocks()"
             (stepsChange)="onBaseSteps($event)"
         />
     </p-card>
 
-    <!-- Inductive step: P(step), with the induction hypotheses added to the palette. -->
+    <!-- Inductive step: P(step), with the definitions and the induction hypotheses added to the palette. -->
     <p-card styleClass="edit-card mt-2">
         <ng-template pTemplate="header">
             <div class="d-flex align-items-center gap-2 p-2">
@@ -38,7 +40,8 @@
             [acNormalization]="!!problem().acNormalization"
             [initialSteps]="initialStepSteps()"
             [onlyShowApplicableRules]="onlyShowApplicableRules()"
-            [extraBlocks]="hypothesisBlocks()"
+            [allowedRuleIds]="allowedRuleIds()"
+            [extraBlocks]="stepExtraBlocks()"
             (stepsChange)="onStepSteps($event)"
         />
     </p-card>

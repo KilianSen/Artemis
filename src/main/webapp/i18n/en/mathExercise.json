@@ -132,6 +132,10 @@
             "graderType": "Graders",
             "graderTypeHint": "Pick one or more backends. The first that supports the goal mode grades; the rest add redundancy or mode coverage.",
             "pathCheckerFallbackWarning": "The path checker is listed after a stronger backend, so it only grades when that backend is unavailable. Because it cannot reason beyond the fixed rule library, only its full-pass verdicts are trusted — any rejection or partial result routes the submission to manual review instead.",
+            "allowedRules": "Allowed rules",
+            "allowedRulesUnrestricted": "All rules allowed (no restriction)",
+            "allowedRulesHint": "Restricts which rewrite rules students may cite. Leave empty to allow every rule — an empty selection means unrestricted, not \"no rules\". Recursive definitions are always available and cannot be restricted.",
+            "allowedRulesUnrestrictedHint": "No restriction: students may cite every rule in the catalogue, including rules added to it later. Select rules only to narrow that down.",
             "certifier": "Certifier (optional)",
             "certifierHint": "Optional slower formal prover that certifies the fast preliminary verdict from the grader above.",
             "direction": {

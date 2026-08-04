@@ -31,11 +31,16 @@ import de.tum.cit.aet.artemis.math.grader.GraderType;
  * @param exampleDerivations      the instructor-supplied worked derivation (an ordered list of steps)
  * @param inductionVariable       the variable inducted over in INDUCTION mode; {@code null} otherwise
  * @param inductionDatatype       the datatype the induction variable ranges over in INDUCTION mode (defaults to ℕ)
+ * @param allowedRuleIds          the rewrite rules the student is restricted to, by rule id; {@code null}/absent/empty
+ *                                    means unrestricted. Currently settable only through the JSON create/import
+ *                                    payload — there is no authoring-form control for it yet — and enforced
+ *                                    server-side at grade time, not by the client palette.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MathProblemDTO(Long id, String title, Double points, MathNode sourceExpression, MathNode targetExpression, MathNode goalExpression, GoalMode goalMode,
         List<GraderType> graderTypes, GraderType certifyingGraderType, Boolean partialCreditEnabled, Boolean acNormalization, Boolean onlyShowApplicableRules,
-        Boolean allowVerification, Boolean manualDerivation, List<DerivationStepDTO> exampleDerivations, String inductionVariable, InductionDatatype inductionDatatype) {
+        Boolean allowVerification, Boolean manualDerivation, List<DerivationStepDTO> exampleDerivations, String inductionVariable, InductionDatatype inductionDatatype,
+        List<String> allowedRuleIds) {
 
     /**
      * @param problem the entity to project
@@ -45,7 +50,7 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
         return new MathProblemDTO(problem.getId(), problem.getTitle(), problem.getPoints(), problem.getSourceExpression(), problem.getTargetExpression(),
                 problem.getGoalExpression(), problem.getGoalMode(), List.copyOf(problem.getGraderTypes()), problem.getCertifyingGraderType(), problem.isPartialCreditEnabled(),
                 problem.isAcNormalization(), problem.isOnlyShowApplicableRules(), problem.isAllowVerification(), problem.isManualDerivation(), problem.getExampleDerivations(),
-                problem.getInductionVariable(), problem.getInductionDatatype());
+                problem.getInductionVariable(), problem.getInductionDatatype(), problem.getAllowedRuleIds());
     }
 
     /**
@@ -72,6 +77,7 @@ public record MathProblemDTO(Long id, String title, Double points, MathNode sour
         problem.setExampleDerivations(exampleDerivations);
         problem.setInductionVariable(inductionVariable);
         problem.setInductionDatatype(inductionDatatype);
+        problem.setAllowedRuleIds(allowedRuleIds);
         return problem;
     }
 }

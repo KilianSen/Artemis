@@ -131,6 +131,38 @@
         }
     </div>
     <div class="field-group field-group--top">
+        <label for="field_allowedRuleIds" jhiTranslate="artemisApp.mathExercise.allowedRules">Allowed rules</label>
+        <p-multiSelect
+            inputId="field_allowedRuleIds"
+            name="allowedRuleIds"
+            styleClass="w-full"
+            [options]="ruleSubsetOptionGroups()"
+            [group]="true"
+            optionGroupLabel="label"
+            optionGroupChildren="rules"
+            optionLabel="label"
+            optionValue="value"
+            [filter]="true"
+            [showToggleAll]="false"
+            [showClear]="true"
+            [placeholder]="'artemisApp.mathExercise.allowedRulesUnrestricted' | artemisTranslate"
+            [ngModel]="problem().allowedRuleIds ?? []"
+            (ngModelChange)="onAllowedRuleIdsChange($event)"
+            [ngModelOptions]="{ standalone: true }"
+        />
+        <small class="field-hint" jhiTranslate="artemisApp.mathExercise.allowedRulesHint"
+            >Restricts which rewrite rules students may cite. Leave empty to allow every rule — an empty selection means unrestricted, not "no rules". Recursive definitions are
+            always available and cannot be restricted.</small
+        >
+        @if (ruleSubsetUnrestricted()) {
+            <p-message severity="info" styleClass="mt-2">
+                <span jhiTranslate="artemisApp.mathExercise.allowedRulesUnrestrictedHint">
+                    No restriction: students may cite every rule in the catalogue, including rules added to it later. Select rules only to narrow that down.
+                </span>
+            </p-message>
+        }
+    </div>
+    <div class="field-group field-group--top">
         <label for="field_certifier" jhiTranslate="artemisApp.mathExercise.certifier">Certifier (optional)</label>
         <p-select
             inputId="field_certifier"
@@ -310,6 +342,7 @@
                 [acNormalization]="!!problem().acNormalization"
                 [initialSteps]="problem().exampleDerivations ?? []"
                 [onlyShowApplicableRules]="previewOnlyApplicableRules()"
+                [allowedRuleIds]="problem().allowedRuleIds"
                 (stepsChange)="onExampleStepsChange($event)"
             />
         }
