@@ -286,6 +286,12 @@
                 >The variable inducted over (e.g. n) and the datatype it ranges over. The goal below is proven for the datatype's base and step constructors, assuming the induction
                 hypothesis at each recursive position.</small
             >
+            <p-message severity="info" styleClass="mb-block">
+                <span jhiTranslate="artemisApp.mathExercise.inductionDefinitionsNotAuthorable">
+                    Recursive function definitions (e.g. summa, fact, nodes) cannot yet be authored here. They are contributed in code as blocks, so only the functions the server
+                    ships are available. A problem that needs another function can be supplied through the JSON import/export instead.
+                </span>
+            </p-message>
         }
         @if (!problem().goalExpression) {
             <p-message severity="warn" styleClass="mb-block">

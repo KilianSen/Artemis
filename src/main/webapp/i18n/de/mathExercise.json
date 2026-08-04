@@ -149,6 +149,7 @@
             "inductionVariableHint": "Die natürliche Zahl, über die induziert wird (z.B. n). Das Ziel unten ist P(n); es wird für 0 und für S(n) bewiesen.",
             "inductionDatatype": "Induktionsdatentyp",
             "inductionDatatypeHint": "Die Variable, über die induziert wird (z.B. n), und der Datentyp, über den sie läuft. Das Ziel unten wird für den Basis- und den Schrittkonstruktor des Datentyps bewiesen, unter Annahme der Induktionshypothese an jeder rekursiven Position.",
+            "inductionDefinitionsNotAuthorable": "Rekursive Funktionsdefinitionen (z.B. summa, fact, nodes) können hier noch nicht angelegt werden. Sie werden als Blöcke im Code beigetragen, daher stehen nur die vom Server ausgelieferten Funktionen zur Verfügung. Eine Aufgabe, die eine andere Funktion benötigt, kann stattdessen über den JSON-Import/-Export bereitgestellt werden.",
             "inductionProof": " — Induktionsbeweis",
             "inductionIntro": "Beweise den Basisfall P({{base}}) und den Induktionsschritt P({{step}}) unter Annahme der Induktionshypothese.",
             "inductionBase": "Basisfall: P({{base}})",

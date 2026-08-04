@@ -149,6 +149,7 @@
             "inductionVariableHint": "The ℕ variable inducted over (e.g. n). The goal below is P(n); it is proven for 0 and for S(n).",
             "inductionDatatype": "Induction datatype",
             "inductionDatatypeHint": "The variable inducted over (e.g. n) and the datatype it ranges over. The goal below is proven for the datatype's base and step constructors, assuming the induction hypothesis at each recursive position.",
+            "inductionDefinitionsNotAuthorable": "Recursive function definitions (e.g. summa, fact, nodes) cannot yet be authored here. They are contributed in code as blocks, so only the functions the server ships are available. A problem that needs another function can be supplied through the JSON import/export instead.",
             "inductionProof": " — Induction proof",
             "inductionIntro": "Prove the base case P({{base}}) and the inductive step P({{step}}), assuming the induction hypothesis.",
             "inductionBase": "Base case: P({{base}})",
