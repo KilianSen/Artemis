@@ -446,9 +446,17 @@ intended behaviour and is what the review/assessment flow demonstrates.
 ./gradlew test --tests "de.tum.cit.aet.artemis.math.MathGradingRecoveryServiceTest" -x webapp
 ```
 
-The `Live*` / `MathRegateAsyncGradingLiveTest` classes are **env-guarded**: they only run when a Regate
-backend URL is provided (e.g. `REGATE_LIVE_URL` / the `ARTEMIS_REGATE_*_URL` variables) and are otherwise
-skipped — so the default suite runs without any external backend.
+The `Live*` / `MathRegateAsyncGradingLiveTest` classes are **env-guarded** and skipped by default, so the
+normal suite runs without any external backend. Each backend has its own gate — start the backends from
+step 3 and export both to run all four:
+
+```bash
+export REGATE_LIVE_URL=http://localhost:8000   # eggregate: LiveEggregateGradingTest (2) + MathRegateAsyncGradingLiveTest (1)
+export REGATE_CVC5_URL=http://localhost:8003   # cvc5regate: LiveCvc5InductionGradingTest (1)
+```
+
+These are distinct from the `ARTEMIS_REGATE_*_URL` properties in §1, which configure the running server
+and have no effect on the test gates.
 
 ### Client (Vitest)
 
