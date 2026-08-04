@@ -56,17 +56,22 @@ directory will do.
 
 ### Step 0 — Install the prerequisites
 
-Skip whatever you already have. The commands below are for **Debian/Ubuntu**; on other distributions use the
-equivalent package manager, or follow https://docs.docker.com/engine/install/ for Docker.
+Skip whatever you already have. The `apt` commands below are for **Debian/Ubuntu**; on other distributions
+use the equivalent package manager.
 
-**Docker** — runs the database and the grading backends:
+**Docker** — runs the database and the grading backends. Install it as described at
+<https://docs.docker.com/engine/install/>.
+
+**The rest of the tools:**
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-v2 git curl unzip zip
-sudo systemctl enable --now docker
+sudo apt install -y git curl unzip zip
+```
 
-# Allow your user to use Docker without sudo, and apply it to the current shell:
+Then allow your user to use Docker without `sudo`, and apply it to the current shell:
+
+```bash
 sudo usermod -aG docker "$USER"
 newgrp docker
 ```
@@ -96,6 +101,7 @@ corepack enable       # activates the exact pnpm version pinned in package.json
 
 ```bash
 docker run --rm hello-world > /dev/null && echo "docker ok"
+docker compose version   # must be v2.x — v1 (`docker-compose`) cannot read these compose files
 java -version    # 25.x
 node -v          # v24.x
 git --version
@@ -129,8 +135,8 @@ A different location works too — you then pass `REGATE_PATH=/path/to/Regate` i
 ### Step 2 — Start the database
 
 The `dev` profile expects MySQL on `localhost:3306` (database `Artemis`, user `root`, empty password). Run it
-from the `Artemis` directory — the `--env-file` is required, as the compose files in `docker/` deliberately
-have no fallback defaults:
+from the `Artemis` directory — `--env-file` is required here, as `docker/mysql.yml` deliberately defines no
+fallback for `MYSQL_IMAGE`:
 
 ```bash
 docker compose --env-file .env -f docker/mysql.yml up -d
@@ -258,31 +264,89 @@ moment later.
 
 Clicking through the feature by hand covers one exercise at a time. This script fills a course with a
 broad, deliberately varied catalogue and then answers it as three different students, so the graded
-states exist before you look at anything:
+states exist before you look at anything.
+
+**Prerequisite — activate the `e2e` seed.** The script provisions into course `9018` (*E2E Exercise
+Participation Course*) and answers as `artemis_test_user_1..3`. Both come from the Liquibase **`e2e`**
+seed, which the `dev` profile does *not* switch on — `application-dev.yml` sets `liquibase.contexts: dev`,
+and every changeset in `20260304120000_e2e_seed_data.xml` is gated on `context="e2e"`. So start the server
+from step 4 with the context added:
 
 ```bash
-node supporting_scripts/math-demo/provision-math-demo.js
+SPRING_LIQUIBASE_CONTEXTS="dev,e2e" ./gradlew bootRun --args='--spring.profiles.active=artemis,localci,localvc,scheduling,buildagent,core,dev,local'
 ```
 
-It creates **49 math exercises** in the seeded course `9018` (*E2E Exercise Participation Course*, where
-the `artemis_test_user_*` logins are already enrolled) covering all three goal modes, every grader
-including the Regate backends, and the editor options — partial credit, AC normalisation, manual
-derivation, restricted rule palette, verification off — then submits answers landing in each outcome:
+It has to run against an **empty database**. The user seed is skipped when an `artemis_admin` row already
+exists, so adding the variable to an instance that has booted before creates the courses but *no*
+students — the exercises are then provisioned and the submissions all fail. If you have started Artemis
+already, reset the database first and boot again with the variable above:
+
+```bash
+docker compose --env-file .env -f docker/mysql.yml down -v
+docker compose --env-file .env -f docker/mysql.yml up -d
+```
+
+Then run the script. Pass `BASE_URL` when the server serves the client itself on `8080` — the script
+defaults to `9000`, the dev-server port of the split setup in step 4:
+
+```bash
+BASE_URL=http://localhost:8080 node supporting_scripts/math-demo/provision-math-demo.js
+```
+
+It creates **52 math exercises** in course `9018` covering all three goal modes, every grader — the
+catalogue is weighted towards the Regate backends, with `eggregate` on most transformation and equation
+entries and `cvc5regate` on the induction section — and the editor options (partial credit, AC
+normalisation, manual derivation, restricted rule palette, verification off), then submits answers
+landing in each outcome:
 
 | Outcome | Roughly | What it demonstrates |
 | --- | --- | --- |
-| `100` correct | 19 | A derivation that reaches the goal |
-| `0` wrong / empty | 23 | An invalid step, and an untouched submission |
-| partial (e.g. 50%, 66.7%) | 6 | Distance-based credit for an unfinished chain |
-| awaiting review (`null` score) | 1 | Automatic grading inconclusive → routed to a tutor |
+| `100` correct | 29 | A derivation that reaches the goal |
+| `0` wrong / empty | 14 | An invalid step, and an untouched submission |
+| partial (e.g. 50%, 66.7%) | 7 | Distance-based credit for an unfinished chain |
+| awaiting review (`null` score) | 2 | Automatic grading inconclusive → routed to a tutor |
 
 Options: `--course <id>` targets a different course, `--no-submissions` creates the exercises only.
+`--course` only changes where the exercises go: the three student logins are fixed in the script, so a
+course of your own still needs `artemis_test_user_1..3` enrolled in it, or you want `--no-submissions`.
 It needs the Regate backends from step 3 for the Regate-graded entries; any backend that is not
 running simply routes its exercise to manual review, which is one of the states above anyway.
 
 Each run adds a **fresh batch** rather than updating in place, so run it once unless you want duplicates.
 Afterwards, browse as a student at `/courses/9018/exercises`, or as a tutor at
 `/course-management/9018/assessment-dashboard` to see the submissions waiting for assessment.
+
+### Step 5c — Provision the FPV course (optional)
+
+Where step 5b shows the feature's *range*, this one shows it against a **real course's exercises**: the
+MiniOCaml set from *Functional Programming and Verification* (artemis.tum.de course 443, weeks 11–12).
+
+```bash
+BASE_URL=http://localhost:8080 node supporting_scripts/math-demo/provision-fpv-course.js
+```
+
+It creates its own course — titled *Abgabe FPV Equational Reasoning MiniOCaml* so it sorts to the **top**
+of the course selection, ahead of the `E2E …` seed courses — reusing course 9018's groups so the same
+`artemis_test_user_*` logins are enrolled. It therefore needs the same `e2e` seed as step 5b.
+
+Three of the ten FPV exercises port over, because the math exercise type grades *equational* reasoning:
+rewrite chains and structural induction over ℕ, lists and binary trees. Each becomes two problems — the
+accumulator-generalised lemma by induction, then the equation closing it back to the original claim:
+
+| FPV exercise | Lemma, by induction (cvc5regate) | Closing step (path checker) |
+| --- | --- | --- |
+| 17215 What The Fact | `fact_aux x n = x · fact n` over ℕ | `1 · fact n = fact n` |
+| 17216 Arithmetic 101 | `sum l a = a + summa l` over a list | `0 + summa l = summa l` |
+| 17217 Counting Nodes | `aux t a = a + nodes t` over a tree (two IHs) | `0 + nodes t = nodes t` |
+
+All three lemmas come back `proven_equal` and **certified** — one per induction datatype. The remaining
+seven exercises are big-step operational semantics, termination proofs, a semantics extension, or
+multiple-choice quizzes; none is a term-rewriting problem, and the script prints the list with reasons on
+every run. The recursive definitions (`fact`/`fact_aux`, `summa`/`sum`, `nodes`/`aux`) ship from
+`ApplyBlockDefinition`, so no per-problem function authoring is needed.
+
+Same options as step 5b: `--course <id>` provisions into an existing course instead of creating one,
+`--no-submissions` creates the exercises only.
 
 ### Step 6 — Shutting down
 
@@ -354,7 +418,7 @@ intended behaviour and is what the review/assessment flow demonstrates.
 | Symptom | Cause and fix |
 | --- | --- |
 | `permission denied … /var/run/docker.sock` | Your user is not in the `docker` group. Re-run the `usermod` step in step 0, then `newgrp docker` or log out and back in. |
-| `unset variable MYSQL_IMAGE` or similar on `docker compose` | The `--env-file .env` flag is missing. The compose files in `docker/` deliberately define no fallback defaults. |
+| `unset variable MYSQL_IMAGE` or similar on `docker compose` | The `--env-file .env` flag is missing. `docker/mysql.yml` defines no fallback for it. (`docker/regate.yml` does default `REGATE_PATH` and the port variables, so it parses without the flag — pass it anyway for consistency.) |
 | Build fails with `../../Regate: no such file or directory` | The Regate checkout is not next to the Artemis one. Re-check step 1, or pass `REGATE_PATH=/path/to/Regate`. |
 | `/health` prints `"cvc5": false` | The container is missing the solver binary — rebuild with `--build`. Grading still answers, but induction degrades to `unknown` (review) instead of certifying. |
 | A backend is missing from `docker ps` right after starting | It crash-looped. Check `docker logs artemis-cvc5regate`; a `ModuleNotFoundError` means the Regate checkout's Dockerfile does not copy every module `grade.py` imports. |
@@ -366,6 +430,8 @@ intended behaviour and is what the review/assessment flow demonstrates.
 | The math exercise type is missing from Course Management | `artemis.math.enabled` is not `true` — the `dev` profile must come *after* `core` in the profile list. |
 | A submission stays *"awaiting tutor review"* forever | Its grader is a backend that is not running. Check `docker ps` and `curl localhost:8000/health`; this escalation is by design, not a crash. |
 | The client build runs out of memory | Give the machine more RAM/swap, or use the split setup in step 4 so the Angular build runs on its own. |
+| `provision-math-demo.js` fails, or course `9018` does not exist | The Liquibase `e2e` seed was not applied. It is off under the plain `dev` profile and only takes effect on an empty database — see the prerequisite in step 5b. |
+| `provision-math-demo.js` creates the exercises but every submission fails | The `e2e` context was added to a database that had already booted once, so the course seed ran but the user seed was skipped and `artemis_test_user_*` do not exist. Reset the database and boot again with the context — step 5b. |
 
 ---
 
@@ -400,7 +466,7 @@ pnpm run vitest:run "app/math/"     # all math client specs
 ```
 
 This starts its own Postgres, server and client (killing anything on ports 8080/9000), seeds the database via
-the `e2e` Liquibase context, and runs all five math specs.
+the `e2e` Liquibase context, and runs the five math tests across the three specs below.
 
 Two things to know before running it:
 
