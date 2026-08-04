@@ -342,6 +342,13 @@ multiple-choice quizzes; none is a term-rewriting problem, and the script prints
 every run. The recursive definitions (`fact`/`fact_aux`, `summa`/`sum`, `nodes`/`aux`) ship from
 `ApplyBlockDefinition`, so no per-problem function authoring is needed.
 
+> **These three exercises can currently only be created through the JSON import, not through the authoring
+> form** — which is what this script uses. Recursive function definitions are contributed in code as blocks
+> (`ApplyBlockDefinition`), so the form offers no way to declare `summa` or `fact`; it can only reference the
+> functions the server already ships. The authoring form states this in the induction section. Editing one of
+> the provisioned exercises in the form afterwards works fine: the definitions are resolved from the goal, not
+> stored on the problem.
+
 Same options as step 5b: `--course <id>` provisions into an existing course instead of creating one,
 `--no-submissions` creates the exercises only.
 
