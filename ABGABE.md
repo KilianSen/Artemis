@@ -8,6 +8,11 @@ This file is the entry point for reviewing the submission: a quick setup, how to
 code lives, and a short tour of the feature. Screenshots are in [§6 Visual overview](#6-visual-overview)
 below.
 
+To read the thesis against the code, use **[`THESIS_CODE_MAP.md`](THESIS_CODE_MAP.md)** next to this file. It
+maps every thesis section, figure, algorithm, table and appendix to the files that implement it — across both
+repositories — and ends with a reverse index from file back to thesis section. §3 below gives the coarse
+directory layout; the map is the section-by-section version.
+
 The full narrative walkthrough is the instructor documentation page
 `documentation/docs/instructor/exercises/math-exercise.mdx`. It is Docusaurus **MDX** — it imports a React
 image component and its screenshots, so GitHub shows it as raw source rather than rendering it. To read it
@@ -20,14 +25,6 @@ corepack enable      # one-time: activates the pinned pnpm
 pnpm install
 pnpm start
 ```
-
-## Contribution at a glance
-
-The card below is generated from the git history (commits, files, and lines authored by KilianSen) by
-[`KilianSen/gitproof`](https://github.com/KilianSen/gitproof) and refreshed on every push to this branch by
-[`.github/workflows/contribution-badge.yml`](.github/workflows/contribution-badge.yml).
-
-![Contribution card for KilianSen](contribution.svg)
 
 ## Branch basis
 
@@ -623,3 +620,13 @@ Assessing a locked submission — soft lock, manual score, and feedback:
 Per-problem review: the goal, the student's derivation, and the sample solution side by side:
 
 ![Per-problem derivation review](documentation/docs/instructor/exercises/assets/math/assessment-derivation.png)
+
+---
+
+## 7. Contribution at a glance
+
+The card below is generated from the git history (commits, files, and lines authored by KilianSen) by
+[`KilianSen/gitproof`](https://github.com/KilianSen/gitproof) and refreshed on every push to this branch by
+[`.github/workflows/contribution-badge.yml`](.github/workflows/contribution-badge.yml).
+
+![Contribution card for KilianSen](contribution.svg)
