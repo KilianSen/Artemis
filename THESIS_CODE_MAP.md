@@ -128,7 +128,7 @@ No implementation. Table 1 (positioning) is argumentative only.
 | ↳ two engines over one rule representation (egglog compile + directed stepper) | `«egg»rule.py`, `«egg»hints.py`, `«egg»compare.py` |
 | ↳ built-in sample ruleset | `«egg»catalogue.py` |
 | §4.5.4 **cvc5regate** — SMT solver, equational + induction | `Regate/backends/cvc5regate/`: `cvc5_prover.py`, `cvc5_equiv.py`, `cvc5_induction.py`, `step_check.py`, `grade.py`; adapter `«java»regate/Cvc5regateGrader.java` |
-| §4.5.4 **leanregate** — Lean/Mathlib kernel-checked certificates | `Regate/backends/leanregate/`: `lean_prover.py`, `lean_check.py`, `lean_induction.py`, `Regate/Check.lean` (the Lean package dir is also named `Regate`), `lakefile.toml`, `prune_lake.py`; adapter `«java»regate/LeanregateGrader.java` |
+| §4.5.4 **leanregate** — Lean/Mathlib kernel-checked certificates | `Regate/backends/leanregate/`: `lean_prover.py`, `lean_check.py`, `lean_induction.py`, `lakefile.toml`, `prune_lake.py`; adapter `«java»regate/LeanregateGrader.java` |
 | §4.5.4 **coqregate** — Coq, induction only | `Regate/backends/coqregate/`: `coq_prover.py`, `coq_induction.py`, `step_check.py`; adapter `«java»regate/CoqregateGrader.java` |
 | §4.5.5 Assumptions, hypotheses, derived lemmas | `«java»regate/dto/AssumptionSpec.java`, `«java»regate/dto/ConditionSpec.java`, `«java»regate/dto/StepSpec.java`; `«egg»conditions.py`, `«egg»validate.py` |
 | §4.5.6 Induction: grade each case, defer or certify the schema | `«egg»backend.py` (defers); `.../cvc5regate/cvc5_induction.py`, `.../leanregate/lean_induction.py`, `.../coqregate/coq_induction.py` (certify) |
@@ -196,7 +196,7 @@ No implementation. Table 1 (positioning) is argumentative only.
 | Canonical protocol document | `Regate/GRADING_PROTOCOL.md`, `Regate/INTEGRATION.md` |
 | eggregate as a Python package; thin service layer over the `MathNode` JSON | `Regate/backends/eggregate/pyproject.toml`, `«egg»service.py`, `«egg»server.py` |
 | leanregate / coqregate reuse eggregate's CLI and HTTP entry points | `.../leanregate/grade.py`, `.../coqregate/grade.py` |
-| Induction emission (`define-fun-rec`, `declare-datatype`, `--quant-ind`; Lean `induction n with`) | `.../cvc5regate/cvc5_induction.py`, `.../leanregate/lean_induction.py`, `.../leanregate/Regate/Check.lean` |
+| Induction emission (`define-fun-rec`, `declare-datatype`, `--quant-ind`; Lean `induction n with`) | `.../cvc5regate/cvc5_induction.py`, `.../leanregate/lean_induction.py`, `.../leanregate/lean_prover.py` (elaborates the emitted proof) |
 | Packaging: one container image per backend, `docker compose` on separate ports | `Regate/backends/*/Dockerfile`, `Regate/docker-compose.yml`, `Regate/Makefile` |
 | Conformance suite (every fixture through every backend) | `Regate/conformance/run_conformance.py`, `Regate/conformance/fixtures/` |
 
