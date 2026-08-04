@@ -625,8 +625,4 @@ Per-problem review: the goal, the student's derivation, and the sample solution 
 
 ## 7. Contribution at a glance
 
-The card below is generated from the git history (commits, files, and lines authored by KilianSen) by
-[`KilianSen/gitproof`](https://github.com/KilianSen/gitproof) and refreshed on every push to this branch by
-[`.github/workflows/contribution-badge.yml`](.github/workflows/contribution-badge.yml).
-
 ![Contribution card for KilianSen](contribution.svg)
